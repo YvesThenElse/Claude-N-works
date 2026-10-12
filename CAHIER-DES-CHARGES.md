@@ -295,8 +295,16 @@ source.
 - **lecture seule** sur `~/.claude` — l'application ne doit jamais y écrire ;
 - écoute sur la boucle locale seulement.
 
-Le langage et la bibliothèque restent à arrêter au lot 1. Le critère est le nombre de
-dépendances, pas la richesse.
+**Décidé par Yves au lot 1 : Node, sans aucune dépendance.** Node est déjà sur la machine
+puisque Claude Code tourne dessus (v22.22.2 vérifiée), le même langage des deux côtés évite
+de réécrire les structures de données, et `http`, `fs.watch` et `readline` de la
+bibliothèque standard suffisent à tout ce que décrit ce document — servir la page, suivre
+la fin d'un fichier, surveiller l'apparition du répertoire `subagents/`, lire du JSON ligne
+à ligne.
+
+Il n'y aura donc ni `package.json` de dépendances, ni `node_modules`, ni cadriciel côté
+navigateur. Le dessin se fait en HTML et SVG écrits à la main. Toute dépendance ajoutée
+plus tard devra se justifier contre ce paragraphe.
 
 ---
 
