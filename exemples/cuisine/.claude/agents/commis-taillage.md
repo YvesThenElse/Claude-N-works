@@ -15,8 +15,9 @@ serait faux : une brigade ne taille pas quatre légumes en un geste.
 
 À chaque tour, dans cet ordre, et un seul légume à la fois :
 
-1. `./minuteur.sh taillage "<le geste, avec le légume>" <minutes>` — donne à l'appel Bash un `timeout` d'au moins (minutes × 2 + 30) × 1000 ms,
-   sinon l'outil coupe ton minuteur avant la fin.
+1. `./minuteur.sh taillage "<le geste, avec le légume>" <minutes>` — donne à l'appel Bash
+   un `timeout` d'au moins (minutes × 2 + 30) × 1000 ms, sinon l'outil coupe ton minuteur
+   avant la fin.
 2. écris le résultat dans `<service>/mise-en-place/<légume>.md` : ce que tu as taillé,
    en quelle forme, en quelle quantité.
 
