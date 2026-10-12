@@ -1,6 +1,6 @@
 # Claude N Works — cahier des charges
 
-État : v1, 12 octobre 2026.
+État : v2, 12 octobre 2026 — amendé après le lot 1 (voir `OBSERVATIONS-FORMAT.md`).
 
 Convention de lecture : ce document distingue trois statuts. **Demandé** = exigence posée
 par Yves. **Constaté** = fait vérifié sur la machine le 12 octobre 2026, avec le chemin
@@ -88,6 +88,22 @@ la session. Ce répertoire suffit à l'écran 1, sans rien instrumenter.
 (`/home/yves/projects` → `-home-yves-projects`). Le suivi temps réel se fait en lisant la
 fin du fichier au fur et à mesure.
 
+**Constaté au lot 1.** Ce fichier ne contient **pas** l'activité des sous-agents. Chaque
+sous-agent a son propre transcript, dans un sous-répertoire voisin :
+
+```
+~/.claude/projects/<cwd-encodé>/
+├── <sessionId>.jsonl                     ← la session parente
+└── <sessionId>/subagents/
+    ├── agent-<agentId>.jsonl             ← le transcript du sous-agent, isSidechain:true
+    └── agent-<agentId>.meta.json         ← agentType, description, toolUseId, spawnDepth
+```
+
+L'application lit donc **deux endroits**. Le répertoire `subagents/` n'existe pas tant
+qu'aucun sous-agent n'a été lancé : il apparaît en cours de session et doit être découvert
+à chaud. Le détail de ce qu'on y trouve est dans `OBSERVATIONS-FORMAT.md`, qui est la
+référence de format de ce projet.
+
 Champs utiles, tous observés :
 
 | Champ | Usage dans l'application |
@@ -143,10 +159,12 @@ se dérivent des champs du §3.
 
 **Session** — `sessionId`, `name`, `cwd`, `status`, `startedAt`, version de Claude Code.
 
-**Agent** — identité, rôle (`racine` ou `sous-agent`), nom (le `subagent_type` ou le
-`description` de l'appel `Agent` qui l'a créé, sinon rien), agent parent, instant de début,
-instant de fin, état (`en cours` / `terminé`), modèle, `effort`, liste d'outils offerts,
-entrée (le prompt reçu), sortie (son texte final), jetons consommés.
+**Agent** — identité (`agentId`), rôle (`racine` ou `sous-agent`), nom (le `description`
+de son `.meta.json`, à défaut son `agentType`), agent parent (par le `toolUseId` du
+`.meta.json`), instant de début (horodatage du `tool_use` `Agent` chez le parent), instant
+de fin (horodatage du `tool_result`), état, modèle (`resolvedModel`), `effort`, outils
+employés, entrée (`prompt`), sortie (`content`), durée (`totalDurationMs`), jetons
+(`totalTokens`).
 
 **AppelOutil** — agent appelant, nom de l'outil, instant, `input`, résultat, succès ou
 échec, durée quand elle est déductible de l'écart entre l'appel et son résultat.
@@ -173,10 +191,18 @@ Trois zones sur un même écran, partageant un axe de temps commun.
 **La ligne du temps**, horizontale, le temps allant vers la droite. Une **voie** par
 agent. La voie de l'agent racine est en haut ; chaque sous-agent prend une voie sous celle
 de son parent, décalée, et sa barre commence à l'instant où le parent l'a démarré. Les
-requêtes de l'utilisateur sont des repères verticaux traversant toutes les voies.
+requêtes de l'utilisateur sont des repères verticaux traversant toutes les voies — les
+vraies seulement, celles dont `origin.kind` vaut `"human"`, et non les enregistrements que
+Claude Code s'injecte à lui-même.
 
 **Demandé** : quand un agent se termine, sa barre se grise, et la ligne du temps continue
 d'avancer. Un agent en cours garde sa couleur pleine et son bord droit reste ouvert.
+
+**Constaté au lot 1** : la fin d'un agent se lit de deux façons selon son mode, et les
+confondre fait mourir un agent d'arrière-plan cent millisecondes après sa naissance alors
+qu'il travaille encore. Un agent synchrone finit à l'arrivée de son `tool_result` ; un
+agent d'arrière-plan finit à l'arrivée du `<task-notification>` portant son identifiant.
+Le détail est en §5 bis d'`OBSERVATIONS-FORMAT.md`.
 
 **Les appels d'outils** — *décidé par Yves* : tous les appels, chacun comme une marque fine
 sur la voie de son agent, nom visible quand la place le permet, détail au survol. On doit
@@ -204,7 +230,10 @@ n'existe pas** :
 - état : en cours, terminé, interrompu ;
 - début, fin, durée ;
 - modèle et `effort` ;
-- liste des outils offerts, depuis `.attachment.tools`, et non devinée ;
+- outils employés, relevés un par un dans le transcript du sous-agent, et leurs
+  compteurs agrégés (`toolStats`) ; la liste des outils *offerts* n'est affichée que
+  lorsqu'un `prompt_snapshot` la donne, ce qui est rare (voir C2 dans
+  `OBSERVATIONS-FORMAT.md`) ;
 - entrée : le prompt reçu, replié par défaut, dépliable en entier ;
 - sortie : son texte final, même traitement ;
 - compte d'appels d'outils, de skills, de sous-agents démarrés ;
@@ -273,19 +302,20 @@ dépendances, pas la richesse.
 
 ## 9. Ce qui n'est pas vérifié, et les risques
 
-**R1 — le format exact d'un sous-agent. Non vérifié.** Aucun des 105 transcripts présents
-sur la machine, répartis dans 79 répertoires de projet, ne contient de sous-agent : sur
-l'ensemble, zéro ligne avec `"isSidechain":true` et zéro `tool_use` de nom `Agent` ou
-`Task` dans un message assistant.
-Le champ `isSidechain` existe et vaut `false` partout. Je n'ai donc **pas pu vérifier sur
-pièce** comment se présentent les lignes d'un sous-agent, ni comment rattacher un
-sous-agent à l'appel `Agent` qui l'a créé. **C'est le premier travail du lot 1** : lancer
-une session avec deux sous-agents, et lire ce qui s'écrit. Tout le §4 et tout l'écran 2
-reposent là-dessus.
+**R1 — le format exact d'un sous-agent. Levé le 12 octobre 2026.** Deux sessions de
+sondage ont établi le format ; tout est consigné dans `OBSERVATIONS-FORMAT.md`. Le constat
+qui change ce document : les sous-agents écrivent dans `<sessionId>/subagents/`, pas dans
+le transcript du parent. C'est pour cela que les 106 transcripts de la machine ne portaient
+aucun `isSidechain:true` — aucun n'avait de sous-agent, donc aucun n'avait ce répertoire.
 
-**R2 — la fin d'un agent.** Rien ne garantit qu'une ligne annonce explicitement la fin d'un
-sous-agent. Il faudra peut-être la déduire de l'arrivée du `toolUseResult` de l'appel
-`Agent` correspondant. À trancher avec R1, sur pièce.
+**R2 — la fin d'un agent. Levé.** Aucune ligne du sous-agent ne marque sa fin. Elle se lit
+chez le parent, à l'horodatage du `tool_result` de l'appel `Agent`, dont le
+`toolUseResult` donne aussi `status` et `totalDurationMs` en recoupement.
+
+**R6 — les cas limites d'un sous-agent.** `run_in_background` a été mesuré au lot 1 et
+traité (C4). Restent deux inconnues : la profondeur 2, un sous-agent qui en lance un autre ;
+et un sous-agent interrompu ou en échec, dont le `status` ne vaudra pas `completed` et dont
+la barre risque de rester ouverte indéfiniment. À mesurer avant le lot 5.
 
 **R3 — les autres formats.** 72 des 79 répertoires viennent de worktrees Cline et
 n'écrivent pas la même chose : seuls les trois transcripts de `-home-yves-projects`
@@ -293,7 +323,9 @@ portent un champ `isSidechain`. L'application doit
 ignorer proprement un fichier qu'elle ne sait pas lire, sans planter et sans prétendre
 l'avoir compris.
 
-**R4 — le volume.** Un transcript observé fait 37 Mo pour 17 790 lignes. La lecture
+**R4 — le volume.** Un transcript observé fait 37 Mo pour 17 790 lignes, soit environ
+2 ko par ligne — un ordre de grandeur confirmé sur les transcripts de sous-agent du
+sondage. La lecture
 initiale et l'affichage doivent tenir à cette taille. C'est une exigence de performance,
 mesurée sur ce fichier précis.
 
@@ -305,9 +337,9 @@ absent doit se traduire par un champ omis à l'écran, jamais par une erreur.
 
 ## 10. Lots de livraison
 
-**Lot 1 — connaître le terrain.** Lever R1 et R2 sur pièce : provoquer une session avec
-sous-agents, skills et boucle, et consigner le format observé dans ce dépôt. Arrêter le
-langage. Rien d'autre.
+**Lot 1 — connaître le terrain. Fait le 12 octobre 2026**, sauf le choix du langage.
+R1 et R2 levés sur pièce, format consigné dans `OBSERVATIONS-FORMAT.md`. Reste à arrêter le
+langage et la bibliothèque (§8).
 
 **Lot 2 — les sessions.** Écran 1 complet, rafraîchi.
 
@@ -341,8 +373,14 @@ un skill et une boucle :
 8. pendant que la session travaille, un nouvel agent apparaît à l'écran en moins de deux
    secondes ;
 9. l'application n'a rien écrit dans `~/.claude` — vérifié sur les horodatages ;
-10. un transcript de format inconnu est ignoré sans incident.
+10. un transcript de format inconnu est ignoré sans incident ;
+11. un sous-agent lancé **après** l'ouverture de l'écran apparaît quand même — le
+    répertoire `subagents/` est découvert à chaud, pas seulement à l'ouverture.
 
 Le point 3 et le point 7 se vérifient en comparant l'écran au `.jsonl` à la main, sur une
 session choisie d'avance. Une exécution unique ne vaut pas démonstration : ces deux points
 se contrôlent sur trois sessions différentes.
+
+Les deux sessions de sondage du lot 1 sont conservées et servent de jeu d'essai : l'une
+donne deux sous-agents synchrones en parallèle, l'autre un agent d'arrière-plan. Les
+chemins sont dans `OBSERVATIONS-FORMAT.md`.

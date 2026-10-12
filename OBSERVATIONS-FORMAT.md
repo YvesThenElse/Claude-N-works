@@ -1,0 +1,250 @@
+# Format des sous-agents — observations du lot 1
+
+Mesuré le 12 octobre 2026, Claude Code 2.1.236, sur la machine d'Yves.
+Ce document lève les risques R1 et R2 du cahier des charges.
+
+Tout ce qui suit est **constaté**, pas déduit : chaque affirmation vient d'un fichier
+nommé, produit par deux sessions de sondage jetables lancées exprès.
+
+Protocole. Deux sessions `claude -p --model sonnet` dans des répertoires jetables sous
+`$SCRATCH/r1-sondage` et `$SCRATCH/r1-sondage2`. **Leurs transcripts sont conservés** : ce
+sont les deux seuls exemples de sous-agents présents sur la machine, et ils servent de jeu
+d'essai aux lots 3 à 5. On les trouve sous
+`~/.claude/projects/-tmp-claude-1000--home-yves-projects-704b4e7c-…-scratchpad-r1-sondage*`.
+Le premier donne le cas synchrone et deux agents en parallèle, le second le cas
+d'arrière-plan. La première lance **deux sous-agents
+`Explore` en parallèle**, chacun lisant un fichier. La seconde lance **un sous-agent lent**
+(cinq commandes `bash` séparées par six secondes d'attente) pendant qu'un échantillonneur
+relevait la taille du transcript toutes les deux secondes.
+
+---
+
+## 1. Où vit un sous-agent
+
+**Le transcript d'un sous-agent n'est pas dans le fichier de sa session parente.**
+C'est le point que le cahier des charges supposait à tort. Il vit dans un sous-répertoire :
+
+```
+~/.claude/projects/<cwd-encodé>/
+├── <sessionId>.jsonl                               ← la session parente
+└── <sessionId>/
+    └── subagents/
+        ├── agent-<agentId>.jsonl                   ← le transcript du sous-agent
+        ├── agent-<agentId>.meta.json               ← sa fiche d'identité
+        ├── agent-<autreAgentId>.jsonl
+        └── agent-<autreAgentId>.meta.json
+```
+
+Relevé tel quel sur la session de sondage `723b272d-7402-4c04-92d2-b98eabfc9f77` : deux
+`.jsonl` et deux `.meta.json`, un couple par sous-agent.
+
+C'est **là** que `isSidechain` vaut `true` — et nulle part ailleurs. Les 106 transcripts
+de la machine n'en portaient aucun pour cette seule raison : aucune de ces sessions n'avait
+de sous-agent, donc aucun répertoire `subagents/` n'existait. Une application qui ne
+regarde que les `<sessionId>.jsonl` ne verra jamais un seul sous-agent.
+
+## 2. La fiche d'identité : `agent-<agentId>.meta.json`
+
+Contenu intégral de celle du premier sous-agent du sondage :
+
+```json
+{
+  "agentType": "Explore",
+  "description": "Lire notes.txt",
+  "toolUseId": "toolu_01MGXn7CZkY4UBrfpaTEjX7V",
+  "spawnDepth": 1
+}
+```
+
+- `description` est **le nom à afficher sur la carte** : c'est le libellé court que le
+  parent a donné en lançant l'agent. La question « nom s'il est disponible » est tranchée.
+- `agentType` est le `subagent_type` demandé.
+- `toolUseId` pointe l'`id` du `tool_use` du parent : **c'est le lien de filiation.**
+- `spawnDepth` donne la profondeur dans l'arbre. Elle vaut 1 pour un sous-agent de l'agent
+  racine. Un sous-agent de sous-agent portera donc 2 — non vérifié sur pièce, mais le
+  rattachement ne dépend pas de ce champ : il se fait par `toolUseId`.
+
+## 3. Les lignes d'un transcript de sous-agent
+
+Structure complète du sondage, sept lignes, toutes avec `isSidechain: true` :
+
+| n° | type | contenu | horodatage |
+|---|---|---|---|
+| 1 | `user` | le prompt reçu | 12:38:16.264 |
+| 2 | `attachment` | `hook_success` | 12:38:16.313 |
+| 3 | `attachment` | `deferred_tools_delta` | 12:38:16.317 |
+| 4 | `attachment` | `skill_listing` | 12:38:16.319 |
+| 5 | `assistant` | `tool_use:Bash`, modèle `claude-sonnet-5` | 12:38:19.298 |
+| 6 | `user` | `tool_result` | 12:38:19.751 |
+| 7 | `assistant` | `text` — sa réponse finale | 12:38:23.713 |
+
+Chaque ligne porte en plus :
+
+- `agentId` — l'identifiant du sous-agent, présent sur **chaque** ligne ;
+- `sessionId` — celui de la **session parente**, pas un identifiant propre ;
+- `attributionAgent` sur les lignes `assistant` ;
+- et les mêmes `uuid`/`parentUuid`, `timestamp`, `message.model`, `effort`, `usage`,
+  `cwd`, `gitBranch`, `version` que dans un transcript ordinaire.
+
+Donc les appels d'outils d'un sous-agent, un par un, avec leur instant et leur résultat,
+sont ici — et seulement ici. Le parent n'en voit que des compteurs (§4).
+
+**Aucune ligne ne marque explicitement la fin** d'un sous-agent. La fin se lit chez le
+parent (§4).
+
+## 4. Ce que le parent enregistre
+
+Le parent écrit deux choses par sous-agent.
+
+**L'appel**, un `tool_use` de nom `Agent` dans un message `assistant` :
+
+```json
+{"id":"toolu_01MGXn7CZkY4UBrfpaTEjX7V",
+ "input":{"description":"Lire notes.txt","subagent_type":"Explore",
+          "prompt":"Lis le fichier notes.txt …","run_in_background":false}}
+```
+
+Son `timestamp` est **l'instant de naissance** du sous-agent. Deux sous-agents lancés dans
+un même message apparaissent sur **deux lignes distinctes**, chaînées parent → enfant,
+horodatées à une seconde d'écart (12:38:16.206 et 12:38:17.287). L'application ne doit donc
+pas attendre un seul enregistrement par message.
+
+**Le résultat**, un enregistrement `user` dont le `toolUseResult` porte tout le reste :
+
+| Champ | Valeur relevée |
+|---|---|
+| `agentId` | `a4ff55e7b673ee217` — la jointure avec le fichier du §1 |
+| `agentType` | `Explore` |
+| `description` | (dans le `.meta.json`, voir §2) |
+| `prompt` | l'**entrée** de la carte |
+| `content` | la **sortie** de la carte, tableau de blocs `{type,text}` |
+| `resolvedModel` | `claude-sonnet-5` — le modèle réellement employé |
+| `status` | `completed` |
+| `totalDurationMs` | `7526` |
+| `totalTokens` | `16552` |
+| `totalToolUseCount` | `1` |
+| `toolStats` | `{readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved, otherToolCount}` |
+| `usage` | le détail des jetons, cache compris |
+
+Le `timestamp` de cet enregistrement est **l'instant de mort** du sous-agent : c'est lui
+qui déclenche le grisage de la barre sur la ligne du temps.
+
+**R2 est levé** : début = horodatage du `tool_use`, fin = horodatage du `tool_result`, et
+`totalDurationMs` donne la durée mesurée par Claude Code lui-même, en recoupement.
+
+## 5. L'écriture est incrémentale — le temps réel est tenable
+
+Mesuré sur le second sondage, un sous-agent lent, échantillonné toutes les deux secondes
+pendant qu'il travaillait :
+
+| instant | taille | lignes |
+|---|---|---|
+| t+2 s | 20 720 o | 6 |
+| t+6 s | 21 421 o | 7 |
+| t+8 s | 24 828 o | 9 |
+| t+14 s | 25 529 o | 10 |
+| t+16 s | 27 100 o | 11 |
+| t+22 s | 27 801 o | 12 |
+| t+24 s | 29 372 o | 13 |
+| t+30 s | 30 073 o | 14 |
+| t+32 s | 32 314 o | 16 |
+| t+34 s | 33 945 o | 17 |
+
+Dix-sept relevés croissants sur trente-quatre secondes. Le fichier existe et grossit
+**pendant** l'exécution, ligne par ligne, et non à la fin. Un sous-agent peut donc être
+affiché vivant, avec ses outils qui s'ajoutent au fur et à mesure, sans attendre qu'il
+rende sa réponse. C'est la mesure qui valide l'exigence de temps réel du §7 du cahier
+des charges.
+
+## 5 bis. Les agents d'arrière-plan — un cas qui change la ligne du temps
+
+Le second sondage a produit, sans que je le demande, le cas limite le plus gênant : le
+parent a lancé son sous-agent avec `run_in_background: true`. Ce qui s'est passé alors
+n'est **pas** ce que décrit le §4.
+
+Le `tool_result` est revenu en **117 millisecondes** (`tool_use` à 12:40:09.978,
+`tool_result` à 12:40:10.095) avec un `toolUseResult` presque vide :
+
+```json
+{"agentId":"a3dc05204b126a303","status":"async_launched",
+ "totalDurationMs":null,"totalToolUseCount":null,"toolStats":null}
+```
+
+Ni durée, ni sortie, ni compteurs. **Pour un agent d'arrière-plan, le `tool_result` ne
+marque pas la fin : il marque le lancement.** Une application qui grise la barre à
+l'arrivée du `tool_result` ferait mourir l'agent cent millisecondes après sa naissance,
+alors qu'il a travaillé quarante-deux secondes.
+
+La vraie fin arrive plus tard, comme un enregistrement `user` injecté dans le transcript
+du parent, à 12:40:52.150 — soit 113 ms après la dernière ligne du sous-agent :
+
+```
+<task-notification>
+<task-id>a3dc05204b126a303</task-id>
+<tool-use-id>toolu_01D39B7yKAwr6JN5pwi5nVVG</tool-use-id>
+<output-file>…/tasks/a3dc05204b126a303.output</output-file>
+<status>completed</status>
+<summary>Agent "Exécution séquentielle de cinq commandes bash" finished</summary>
+```
+
+`task-id` vaut l'`agentId`, `tool-use-id` vaut l'`id` du `tool_use` d'origine : le
+rattachement est direct, et `status` donne l'issue. C'est **le marqueur de fin** d'un
+agent d'arrière-plan.
+
+### Ne pas confondre cet enregistrement avec une requête d'Yves
+
+Ce `<task-notification>` est un enregistrement `type: "user"`, comme un vrai prompt. Le §5
+du cahier des charges veut dessiner les requêtes de l'utilisateur en repères verticaux :
+il ne faut pas y dessiner celui-ci. Le champ qui les sépare est `origin.kind` :
+
+| `origin.kind` | nature |
+|---|---|
+| `"human"` | une vraie requête d'Yves — à dessiner |
+| `"task-notification"` | la fin d'un agent d'arrière-plan — à ne pas dessiner comme requête |
+| absent | le prompt initial d'une session non interactive (`promptSource: "sdk"`) |
+
+Relevé : les cinq prompts de la session interactive `1f21b1d5` portent tous
+`{"origin":{"kind":"human"},"promptSource":"queued"}`.
+
+---
+
+## 6. Corrections à apporter au cahier des charges
+
+**C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :
+le `<sessionId>.jsonl` *et* le répertoire `<sessionId>/subagents/`. Ce répertoire
+**n'existe pas** tant qu'aucun sous-agent n'a été lancé : il apparaît en cours de session
+et doit être découvert à chaud, pas seulement à l'ouverture.
+
+**C2 — la liste d'outils de la carte d'agent (§6.1) est à revoir.** Le cahier des charges
+la fait venir de `.attachment.tools` d'un `prompt_snapshot`. C'est **peu fiable** : sur les
+106 transcripts de la machine, seule une minorité en contient, à raison de deux occurrences
+par fichier, et **aucun des transcripts de sous-agent du sondage n'en a**. La liste des
+outils *offerts* n'est donc généralement pas disponible.
+
+Ce qui l'est, en revanche : les outils **réellement appelés**, lisibles un par un dans le
+transcript du sous-agent, et leurs compteurs agrégés dans `toolStats`. La carte doit
+afficher les outils employés, en le disant, et ne montrer la liste des outils offerts que
+quand un `prompt_snapshot` existe.
+
+**C3 — le rattachement.** Trois chemins mènent du sous-agent à son parent, par ordre de
+solidité : `toolUseId` du `.meta.json` vers l'`id` du `tool_use`; `agentId`, présent sur
+chaque ligne du sous-agent et dans le `toolUseResult` du parent ; `sessionId`, qui est
+celui du parent. Aucune heuristique d'horodatage n'est nécessaire.
+
+**C4 — `run_in_background`. Mesuré, et plus gênant que prévu** (§5 bis). Il faut deux
+règles de fin, pas une :
+
+- agent synchrone (`run_in_background: false`) : fin = horodatage du `tool_result`, et
+  `toolUseResult` porte la sortie, la durée et les compteurs ;
+- agent d'arrière-plan (`run_in_background: true`) : le `tool_result` arrive en 117 ms avec
+  `status: "async_launched"` et **rien d'autre** ; la fin est le `<task-notification>`
+  d'`task-id` correspondant, et la sortie se lit dans le transcript du sous-agent ou dans
+  le fichier `output-file` que la notification désigne.
+
+Conséquence pour l'écran 2 : tant que la notification n'est pas arrivée, la barre reste
+ouverte. Et les repères de requêtes doivent filtrer sur `origin.kind == "human"`.
+
+**C5 — ce qui reste non vérifié.** Deux choses seulement, après C4 : la profondeur 2 (un
+sous-agent qui en lance un autre, `spawnDepth: 2`), et le comportement d'un agent
+interrompu ou en échec, dont le `status` ne vaudra pas `completed` et dont la barre risque
+de rester ouverte pour toujours.
