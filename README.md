@@ -277,6 +277,16 @@ réveil. Si le tour n'est pas dans la vue, la ligne du temps s'y transporte ; s'
 déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur Litanie, on voit que la session est faite de
 boucles presque de bout en bout.
 
+### Choisir les voies affichées
+
+Un menu « voies » liste les voies annexes — contexte, attente, boucles — avec une case par
+genre et le nombre de voies que la session en produit. Décocher retire la voie partout, sur
+tous les agents à la fois : sur un arbre de neuf agents, les voies de contexte doublent le
+nombre de lignes. Une voie que la session ne produit pas reste listée mais grisée, avec
+« aucune » : mieux vaut dire qu'elle n'existe pas ici que de la faire disparaître du menu.
+
+Les voies d'agents, elles, ne se masquent pas : ce sont elles qu'on vient voir.
+
 **Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
 L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée de la session

@@ -142,6 +142,30 @@
     max-width: 24rem;
   }
   #choixBoucle:hover { border-color: var(--boucle); }
+
+  /* Le choix des voies à montrer : une liste déroulante de cases à cocher. */
+  .menu-voies { position: relative; }
+  .menu-voies > summary {
+    cursor: pointer; list-style: none; user-select: none;
+    background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 6px;
+    padding: .15rem .55rem; font-size: .78rem; color: var(--texte);
+  }
+  .menu-voies > summary::-webkit-details-marker { display: none; }
+  .menu-voies > summary::after { content: ' \25BE'; color: var(--texte-faible); }
+  .menu-voies > summary:hover,
+  .menu-voies[open] > summary { border-color: var(--accent); }
+  .menu-voies .menu {
+    position: absolute; z-index: 20; top: calc(100% + .3rem); left: 0;
+    background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 8px;
+    padding: .45rem .5rem; box-shadow: 0 10px 26px #0009; min-width: 13rem;
+  }
+  .menu-voies .menu label {
+    display: flex; gap: .45rem; align-items: center; padding: .18rem .2rem;
+    border-radius: 5px; cursor: pointer; font-size: .8rem; color: var(--texte);
+  }
+  .menu-voies .menu label:hover { background: var(--fond); }
+  .menu-voies .menu .compte { margin-left: auto; color: var(--texte-faible); font-size: .74rem; }
+  .menu-voies .menu .puce { width: .6rem; height: .6rem; border-radius: 2px; }
   .puces-outils { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0 0; }
   .puces-outils span {
     background: var(--fond); border: 1px solid var(--trait); border-radius: 999px;
@@ -163,7 +187,10 @@
     <span id="zoomTexte"></span>
   </label>
   <label><input type="checkbox" id="replier" checked> replier les temps morts</label>
-  <label><input type="checkbox" id="voiesContexte" checked> voies de contexte</label>
+  <details class="menu-voies" id="menuVoies">
+    <summary id="resumeVoies">voies</summary>
+    <div class="menu" id="listeVoies"></div>
+  </details>
   <span id="replis"></span>
   <label id="boucles" style="display:none;gap:.45rem;align-items:center">
     <span id="bouclesTitre"></span>
@@ -225,7 +252,18 @@ const elZoom = document.getElementById('zoom');
 const elZoomTexte = document.getElementById('zoomTexte');
 const elReplier = document.getElementById('replier');
 const elVivante = document.getElementById('vivante');
-const elContexte = document.getElementById('voiesContexte');
+const elMenuVoies = document.getElementById('menuVoies');
+const elResumeVoies = document.getElementById('resumeVoies');
+const elListeVoies = document.getElementById('listeVoies');
+
+// Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
+// qu'on vient voir.
+const VOIES_ANNEXES = [
+  { cle: 'contexte', nom: 'contexte', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
+  { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
+  { cle: 'boucles', nom: 'boucles', teinte: 'var(--boucle)' },
+];
+const voiesVisibles = { contexte: true, attente: true, boucles: true };
 const elReplis = document.getElementById('replis');
 const elBoucles = document.getElementById('boucles');
 const elBouclesTitre = document.getElementById('bouclesTitre');
@@ -393,11 +431,15 @@ function construireVoies() {
   const voies = [];
   for (const a of deroule.agents) {
     voies.push({ genre: 'agent', agent: a });
-    if (elContexte.checked && (a.contexte || []).length > 1) {
+    if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a });
     }
-    if ((a.attentes || []).length) voies.push({ genre: 'attente', agent: a });
-    if ((a.boucles || []).length) voies.push({ genre: 'boucles', agent: a });
+    if (voiesVisibles.attente && (a.attentes || []).length) {
+      voies.push({ genre: 'attente', agent: a });
+    }
+    if (voiesVisibles.boucles && (a.boucles || []).length) {
+      voies.push({ genre: 'boucles', agent: a });
+    }
   }
   return voies;
 }
@@ -1629,6 +1671,7 @@ function appliquerDeroule(d) {
   elVivante.textContent = d.sessionVivante ? '· en direct' : '';
   resumer(d);
   listerBoucles();
+  remplirMenuVoies();
   dessiner();
   elPiste.scrollLeft = defil;
   if (carteOuverte) elPanneau.classList.add('ouvert');
@@ -1663,7 +1706,58 @@ elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);
 addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
 elReplier.addEventListener('change', dessiner);
-elContexte.addEventListener('change', dessiner);
+
+/** Le menu des voies : une case par genre de voie annexe, avec son compte. */
+function remplirMenuVoies() {
+  if (!deroule) return;
+  const presentes = {};
+  for (const a of deroule.agents) {
+    if ((a.contexte || []).length > 1) presentes.contexte = (presentes.contexte || 0) + 1;
+    if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
+    if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
+  }
+  elListeVoies.replaceChildren(...VOIES_ANNEXES.map((v) => {
+    const l = document.createElement('label');
+    const c = document.createElement('input');
+    c.type = 'checkbox';
+    c.checked = voiesVisibles[v.cle];
+    // Une voie que cette session ne produit pas reste visible dans le menu, mais grisée :
+    // mieux vaut dire qu'elle n'existe pas ici que de la faire disparaître.
+    c.disabled = !presentes[v.cle];
+    c.addEventListener('change', () => {
+      voiesVisibles[v.cle] = c.checked;
+      majResumeVoies(presentes);
+      dessiner();
+    });
+    const puce = document.createElement('i');
+    puce.className = 'puce';
+    puce.style.background = v.teinte;
+    const nom = document.createElement('span');
+    nom.textContent = v.nom;
+    if (!presentes[v.cle]) nom.style.color = 'var(--texte-faible)';
+    const compte = document.createElement('span');
+    compte.className = 'compte';
+    compte.textContent = presentes[v.cle]
+      ? presentes[v.cle] + (presentes[v.cle] > 1 ? ' voies' : ' voie')
+      : 'aucune';
+    l.append(c, puce, nom, compte);
+    return l;
+  }));
+  majResumeVoies(presentes);
+}
+
+function majResumeVoies(presentes) {
+  const possibles = VOIES_ANNEXES.filter((v) => presentes[v.cle]);
+  const montrees = possibles.filter((v) => voiesVisibles[v.cle]);
+  elResumeVoies.textContent = possibles.length
+    ? 'voies  ' + montrees.length + '/' + possibles.length
+    : 'voies';
+}
+
+// Un clic hors du menu le referme.
+addEventListener('click', (e) => {
+  if (elMenuVoies.open && !elMenuVoies.contains(e.target)) elMenuVoies.open = false;
+});
 // L'arbre et les voies doivent rester alignés quand on fait défiler.
 let redessinPrevu = false;
 elPiste.addEventListener('scroll', () => {
