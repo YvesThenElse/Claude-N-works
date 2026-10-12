@@ -330,6 +330,26 @@ réveil. Si le tour n'est pas dans la vue, la ligne du temps s'y transporte ; s'
 déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur Litanie, on voit que la session est faite de
 boucles presque de bout en bout.
 
+### Les tours — et où passe vraiment le temps
+
+Un **tour** va de ce qui réveille l'agent — une requête d'Yves, un réveil de boucle, la fin
+d'une tâche d'arrière-plan — jusqu'à ce qu'il rende la main. Claude Code en écrit lui-même
+la durée à sa fin, dans un enregistrement `system/turn_duration`. C'est donc la **seule
+mesure exacte** du temps de travail, et non une estimation tirée des événements.
+
+La voie des tours se place juste sous l'agent : tout le reste — outils, appels au modèle —
+se loge dedans, et ce qui sépare deux barres n'est pas du travail plus discret, c'est de
+l'attente. L'intensité d'une barre suit le nombre d'appels qu'elle contient.
+
+**Le chiffre que tout le reste laissait deviner** : sur la session Litanie, 299 tours,
+**11,3 heures de travail cumulé sur 11,4 jours** — soit **4,1 %**. Les tours ne se
+chevauchent jamais. La médiane d'un tour est de 66 secondes, le plus long dure 84 minutes.
+
+Cliquer un tour en donne le détail : combien d'appels d'outils et de requêtes au modèle il
+contient, et la part de sa durée passée dans les outils et chez le modèle. Exemple relevé :
+un tour de 10 minutes, 27 appels `Bash`, 28 requêtes au modèle — 20 % du temps dans les
+outils, 51 % chez le modèle.
+
 ### Les appels au modèle
 
 Une voie par modèle réellement appelé, sous l'agent qui l'appelle. Chaque appel s'y lit en

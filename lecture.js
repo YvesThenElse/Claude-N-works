@@ -189,6 +189,10 @@ function etatVide() {
     // Les instants où l'agent prend la parole. Sans eux, le temps qu'il passe à réfléchir
     // entre deux appels d'outils ressemblerait à de l'attente, alors qu'il travaille.
     paroles: [],
+    // Les tours : Claude Code écrit lui-même la durée de chacun à sa fin. C'est l'unité
+    // naturelle de l'échange — de ce qui réveille l'agent jusqu'à ce qu'il rende la main —
+    // et la seule mesure exacte du temps où la machine travaille.
+    tours: [],
     // De quoi le contexte est fait, à l'instant où il est envoyé. On tient les totaux au
     // fil de la lecture et on en prend un instantané à chaque appel : reconstruire tout
     // l'historique pour chacun des deux mille appels coûterait un carré.
@@ -234,6 +238,10 @@ function avaler(etat, ligne) {
       etat.compactages.push({ instant: t });
       // Un compactage remet le contexte à zéro : la composition repart du résumé.
       etat.composition = { humain: 0, modele: 0, outilEntree: 0, outilSortie: 0, systeme: 0, n: 0 };
+    } else if (ligne.subtype === 'turn_duration') {
+      if (t !== null && typeof ligne.durationMs === 'number') {
+        etat.tours.push({ debut: t - ligne.durationMs, fin: t, dureeMs: ligne.durationMs });
+      }
     } else if (ligne.subtype === 'scheduled_task_fire') {
       etat.reveils.push({ instant: t, texte: String(ligne.content || '').slice(0, 200) });
     }
@@ -520,6 +528,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     contexte: racine.contexte,
     paroles: racine.paroles,
     requetesModele: nettoyerRequetes(racine.requetesModele),
+    tours: racine.tours,
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
@@ -564,6 +573,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       contexte: d.contexte,
       paroles: d.paroles,
       requetesModele: nettoyerRequetes(d.requetesModele),
+      tours: d.tours,
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,

@@ -376,6 +376,7 @@ const elListeVoies = document.getElementById('listeVoies');
 // Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
 // qu'on vient voir.
 const VOIES_ANNEXES = [
+  { cle: 'tours', nom: 'tours', teinte: '#7aa2f7' },
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
@@ -384,7 +385,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  outils: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
 };
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
@@ -661,6 +662,11 @@ function construireVoies() {
     if (caches.has(a.id)) continue;
     voies.push({ genre: 'agent', agent: a, prof: a.profondeur });
     if (agentsReplies.has(a.id)) continue;
+    // Les tours viennent juste sous l'agent : ils sont le rythme de son travail, et tout
+    // le reste — outils, appels au modèle — se loge dedans.
+    if (voiesVisibles.tours && (a.tours || []).length) {
+      voies.push({ genre: 'tours', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.outils && (a.outils || []).length) {
       voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
     }
@@ -699,6 +705,17 @@ const LEGENDE_VOIE = {
     '   orange       fin inconnue : aucun marqueur, et la session ne tourne plus',
     '',
     'Les appels d’outils ont leur propre voie, juste dessous.',
+  ].join('\n'),
+  tours: [
+    'Un tour va de ce qui réveille l’agent — ta requête, un réveil de boucle,',
+    'la fin d’une tâche — jusqu’à ce qu’il rende la main.',
+    '',
+    'C’est la seule mesure **exacte** du temps où la machine travaille :',
+    'Claude Code écrit lui-même la durée de chaque tour à sa fin.',
+    'Entre deux barres, la machine n’a rien à faire : elle attend.',
+    '',
+    'La couleur dit l’intensité — plus un tour contient d’appels d’outils',
+    'et de requêtes au modèle, plus la barre est franche.',
   ].join('\n'),
   outils: [
     'Chaque appel d’outil, à son instant :',
@@ -857,6 +874,19 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
       surLigne(() => carteContexte(a));
+    } else if (v.genre === 'tours') {
+      const cumul = a.tours.reduce((n, x) => n + x.dureeMs, 0);
+      const etendue = (a.fin ?? deroule.fin) - a.debut;
+      d.title = a.tours.length + ' tours\ntravail cumulé ' + duree(cumul)
+        + ' sur ' + duree(etendue) + '  —  ' + (cumul * 100 / Math.max(1, etendue)).toFixed(1) + ' %'
+        + '\n\n' + LEGENDE_VOIE.tours;
+      icone.textContent = '⊟';
+      icone.style.color = '#7aa2f7';
+      puce.style.background = '#7aa2f7';
+      etiq.textContent = 'tours';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = a.tours.length + ' · ' + duree(cumul);
+      surLigne(() => carteTours(a));
     } else if (v.genre === 'outils') {
       const parNom = {};
       for (const o of a.outils) parNom[o.nom] = (parNom[o.nom] || 0) + 1;
@@ -1153,6 +1183,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'contenu') {
       svg.append(dessinerVoieContenu(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'tours') {
+      svg.append(dessinerVoieTours(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'outils') {
@@ -1746,6 +1780,61 @@ function detaillerEntree(dl, j, nombre) {
   return entree ? (j.cacheLu || 0) / entree : 0;
 }
 
+/**
+ * Carte des tours : le détail de l'un d'eux, et surtout la part du temps où la machine a
+ * vraiment travaillé. C'est le chiffre que toutes les autres voies laissaient deviner.
+ */
+function carteTours(agent, visee) {
+  const tours = agent.tours;
+  const cumul = tours.reduce((n, t) => n + t.dureeMs, 0);
+  const etendue = Math.max(1, (agent.fin ?? deroule.fin) - agent.debut);
+  const tries = [...tours].map((t) => t.dureeMs).sort((a, b) => a - b);
+
+  const dl = document.createElement('dl');
+  const morceaux = [dl];
+
+  if (visee) {
+    const c = contenuDuTour(agent, visee);
+    ligne(dl, 'Ce tour', heure(visee.debut) + '  →  ' + heure(visee.fin));
+    ligne(dl, 'Durée', duree(visee.dureeMs));
+    ligne(dl, 'Appels d’outils', String(c.outils.length));
+    ligne(dl, 'Requêtes au modèle', String(c.requetes.length));
+    ligne(dl, 'Temps dans les outils', duree(c.tempsOutils)
+      + '   (' + Math.round(c.tempsOutils * 100 / Math.max(1, visee.dureeMs)) + ' %)');
+    ligne(dl, 'Temps chez le modèle', duree(c.tempsModele)
+      + '   (' + Math.round(c.tempsModele * 100 / Math.max(1, visee.dureeMs)) + ' %)');
+    const parNom = {};
+    for (const o of c.outils) parNom[o.nom] = (parNom[o.nom] || 0) + 1;
+    const tri = Object.entries(parNom).sort((x, y) => y[1] - x[1]);
+    if (tri.length) ligne(dl, 'Outils employés', tri.map(([n, k]) => n + ' × ' + k).join(', '));
+  }
+
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Tours', String(tours.length));
+  ligne(dl, 'Travail cumulé', duree(cumul));
+  ligne(dl, 'Étendue de l’agent', duree(etendue));
+  ligne(dl, 'Durée d’un tour', tries.length
+    ? 'médiane ' + duree(tries[Math.floor(tries.length / 2)])
+      + ', la plus longue ' + duree(tries[tries.length - 1])
+    : null);
+
+  morceaux.push(jaugeCache(cumul / etendue, 'du temps, la machine travaillait',
+    ['elle attendait tout du long', '50 %', 'elle n’a jamais chômé']));
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.style.fontStyle = 'normal';
+  p.style.color = 'var(--texte-faible)';
+  p.textContent = 'Un tour va de ce qui réveille l’agent — une requête d’Yves, un réveil '
+    + 'de boucle, la fin d’une tâche d’arrière-plan — jusqu’à ce qu’il rende la main. '
+    + 'Claude Code en écrit lui-même la durée : c’est la seule mesure exacte du temps de '
+    + 'travail, et non une estimation tirée des événements. Entre deux tours, la machine '
+    + 'n’a rien à faire.';
+  morceaux.push(p);
+
+  ouvrirPanneau('tours', agent.nom, morceaux);
+}
+
 /** Carte d'un modèle : ce qu'on a mesuré de ses appels, et le détail de l'un d'eux. */
 function carteModele(agent, modele, visee) {
   const reqs = agent.requetesModele.filter((r) => r.modele === modele);
@@ -2297,6 +2386,61 @@ const NOM_ATTENTE = {
   inoccupée: 'le tour est fini, personne n’a repris la main',
 };
 
+/** Ce qu'un tour contient : les appels d'outils et les requêtes au modèle qui tombent dedans. */
+function contenuDuTour(agent, tour) {
+  const dedans = (x) => x >= tour.debut && x <= tour.fin;
+  const outils = agent.outils.filter((o) => o.debut !== null && dedans(o.debut));
+  const requetes = (agent.requetesModele || []).filter((r) => dedans(r.appel));
+  const tempsOutils = outils.reduce((n, o) => n + (o.dureeMs || 0), 0);
+  const tempsModele = requetes.reduce((n, r) => n + r.latenceMs + r.reponseMs, 0);
+  return { outils, requetes, tempsOutils, tempsModele };
+}
+
+/**
+ * La voie des tours. Un tour est la seule mesure exacte du temps où la machine travaille :
+ * Claude Code en écrit la durée à sa fin. Ce qui sépare deux barres n'est pas du travail
+ * plus discret — c'est de l'attente.
+ *
+ * L'intensité de la barre suit le nombre d'appels qu'elle contient : un tour qui enchaîne
+ * trente commandes ne doit pas se lire comme un tour qui en passe une.
+ */
+function dessinerVoieTours(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const charges = agent.tours.map((tr) => contenuDuTour(agent, tr).outils.length);
+  const plafond = Math.max(1, ...charges);
+  agent.tours.forEach((tr, i) => {
+    const x0 = axe.x(tr.debut);
+    const x1 = Math.max(x0 + 1.5, axe.x(tr.fin));
+    if (!visible(x0, x1)) return;
+    const part = Math.min(1, charges[i] / plafond);
+    g.append(el('rect', {
+      x: x0, y: centre - 7, width: x1 - x0, height: 14, rx: 2,
+      fill: '#7aa2f7', opacity: (0.35 + 0.55 * Math.sqrt(part)).toFixed(2),
+    }));
+    const texte = duree(tr.dureeMs);
+    if (x1 - x0 >= texte.length * 5.2 + 8) {
+      const et = el('text', {
+        x: (x0 + x1) / 2, y: centre + 16, 'text-anchor': 'middle',
+        fill: '#7aa2f7', 'font-size': '9', opacity: '.95',
+      });
+      et.textContent = texte;
+      g.append(et);
+    }
+    const prise = el('rect', {
+      x: x0 - 2, y: centre - 10, width: (x1 - x0) + 4, height: 26, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    const c = contenuDuTour(agent, tr);
+    prise.append(el('title', {}, document.createTextNode(
+      'tour de ' + duree(tr.dureeMs)
+      + '\ndu ' + heure(tr.debut) + '\nau ' + heure(tr.fin)
+      + '\n' + c.outils.length + ' appel(s) d’outil, ' + c.requetes.length + ' requête(s) au modèle')));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteTours(agent, tr); });
+    g.append(prise);
+  });
+  return g;
+}
+
 /**
  * La voie des outils. Elle était auparavant posée sur la barre de l'agent, qu'elle
  * recouvrait : un appel long — un appel d'agent, une question à l'utilisateur — masquait
@@ -2611,6 +2755,7 @@ function remplirMenuVoies() {
   for (const a of deroule.agents) {
     if ((a.contexte || []).length > 1) presentes.contexte = (presentes.contexte || 0) + 1;
     if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
+    if ((a.tours || []).length) presentes.tours = (presentes.tours || 0) + 1;
     if ((a.outils || []).length) presentes.outils = (presentes.outils || 0) + 1;
     if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
