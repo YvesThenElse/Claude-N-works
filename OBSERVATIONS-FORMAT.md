@@ -309,6 +309,10 @@ Relevé sur les 106 transcripts de la machine, par ordre de fréquence :
 | Compactages | `system/compact_boundary` | 9 |
 | Pannes d'API | message `assistant` de modèle `<synthetic>` | 3 |
 
+Et un détail de forme relevé sur l'arbre à trois niveaux : à la profondeur 1,
+`parentAgentId` vaut explicitement `null` dans le `.meta.json`, et non pas absent. Les deux
+se traitent pareil — le parent est l'agent racine — mais il faut l'avoir prévu.
+
 ### La taille du contexte : deux sources, une seule bonne
 
 `total_tokens_reminder` dit « 15 000 000 tokens left » : c'est un **budget de jetons**, pas
@@ -331,6 +335,21 @@ Vérifié sur la session `454ef787`, autour de son premier compactage :
 La dent de scie est franche, et le pic d'avant compactage **est** la fenêtre réelle,
 puisque c'est lui qui l'a déclenché. C'est la référence qu'emploie le dégradé de la voie
 de contexte.
+
+### On ne connaît la fenêtre que si la session a compacté
+
+Le pic d'avant compactage **est** la fenêtre. Mais une session qui n'a jamais compacté ne
+dit rien de son plafond : un agent qui monte à 47 000 jetons sur une fenêtre d'un million
+n'est pas plein du tout. Peindre sa courbe en rouge parce que 47 000 est son propre maximum
+serait un mensonge par mise à l'échelle.
+
+L'application distingue donc les deux cas : dégradé du vert au rouge quand un compactage a
+révélé la fenêtre, aplat neutre et échelle relative quand elle est inconnue — et le survol
+le dit.
+
+Même piège, même famille : la référence doit être **commune à toute la session**, et non
+propre à chaque agent. Un sous-agent à 15 000 jetons mis à sa propre échelle paraîtrait
+aussi saturé que l'agent racine à un million.
 
 ### Le délai demandé n'est pas le délai subi
 

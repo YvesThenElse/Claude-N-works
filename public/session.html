@@ -137,6 +137,7 @@
     <span id="zoomTexte"></span>
   </label>
   <label><input type="checkbox" id="replier" checked> replier les temps morts</label>
+  <label><input type="checkbox" id="voiesContexte" checked> voies de contexte</label>
   <span id="replis"></span>
   <span id="boucles" style="display:flex;gap:.4rem;align-items:center"></span>
   <div class="legende">
@@ -182,6 +183,7 @@ const elZoom = document.getElementById('zoom');
 const elZoomTexte = document.getElementById('zoomTexte');
 const elReplier = document.getElementById('replier');
 const elVivante = document.getElementById('vivante');
+const elContexte = document.getElementById('voiesContexte');
 const elReplis = document.getElementById('replis');
 const elBoucles = document.getElementById('boucles');
 
@@ -307,11 +309,32 @@ function el(nom, attrs, ...enfants) {
  * pour ses boucles. Une boucle n'est pas un agent — elle n'a ni modèle ni outils — mais
  * elle occupe du temps, et c'est à ce titre qu'elle mérite sa propre ligne.
  */
+/**
+ * La référence de la voie de contexte, et ce qu'elle vaut.
+ *
+ * On ne connaît la fenêtre réelle que si la session a compacté : le niveau atteint juste
+ * avant un compactage **est** la fenêtre, puisque c'est lui qui l'a déclenché. Sans
+ * compactage, on ignore tout du plafond — une session qui plafonne à 47 k jetons sur une
+ * fenêtre d'un million n'est pas pleine du tout. Dans ce cas on ne prétend pas mesurer un
+ * remplissage : l'échelle reste relative et la couleur neutre.
+ */
+function refContexte() {
+  let pic = 1;
+  let compacte = false;
+  for (const a of deroule.agents) {
+    for (const c of a.contexte || []) if (c.jetons > pic) pic = c.jetons;
+    if ((a.compactages || []).length) compacte = true;
+  }
+  return { pic, fenetreConnue: compacte };
+}
+
 function construireVoies() {
   const voies = [];
   for (const a of deroule.agents) {
     voies.push({ genre: 'agent', agent: a });
-    if ((a.contexte || []).length > 1) voies.push({ genre: 'contexte', agent: a });
+    if (elContexte.checked && (a.contexte || []).length > 1) {
+      voies.push({ genre: 'contexte', agent: a });
+    }
     if ((a.boucles || []).length) voies.push({ genre: 'boucles', agent: a });
   }
   return voies;
@@ -339,13 +362,22 @@ function dessinerArbre() {
       etat.textContent = a.outils.length + ' out.';
       d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     } else if (v.genre === 'contexte') {
-      const pic = Math.max(...a.contexte.map((c) => c.jetons));
-      d.title = 'taille du contexte — pic à ' + pic.toLocaleString('fr-FR') + ' jetons';
+      const sien = Math.max(...a.contexte.map((c) => c.jetons));
+      const ref = refContexte();
+      d.title = 'taille du contexte — pic à ' + sien.toLocaleString('fr-FR') + ' jetons, '
+        + (ref.fenetreConnue
+          ? 'soit ' + Math.round((sien / ref.pic) * 100) + ' % de la fenêtre, connue par '
+            + 'le compactage qu’elle a déclenché (' + ref.pic.toLocaleString('fr-FR') + ')'
+          : 'sur une fenêtre de taille inconnue — cette session n’a jamais compacté, donc '
+            + 'l’échelle est relative au plus haut niveau atteint ('
+            + ref.pic.toLocaleString('fr-FR') + ') et la couleur reste neutre');
       tiret.textContent = '│ '.repeat(a.profondeur) + '▁ ';
-      puce.style.background = 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)';
+      puce.style.background = ref.fenetreConnue
+        ? 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)'
+        : 'var(--termine)';
       etiq.textContent = 'contexte';
       etiq.style.color = 'var(--texte-faible)';
-      etat.textContent = Math.round(pic / 1000) + ' k';
+      etat.textContent = Math.round(sien / 1000) + ' k';
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
@@ -491,7 +523,10 @@ function dessinerPiste() {
 
   voies.forEach((v, i) => {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
-    if (v.genre === 'contexte') { svg.append(dessinerVoieContexte(v.agent, centre, axe)); return; }
+    if (v.genre === 'contexte') {
+      svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      return;
+    }
     if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
     const a = v.agent;
     const y = centre - HAUTEUR_BARRE / 2;
@@ -853,13 +888,15 @@ function carteRequete(r) {
  * reste de la place, rouge en haut quand la fenêtre sature. Le dégradé étant vertical,
  * c'est la hauteur de la courbe qui décide de la couleur — pas de calcul par point.
  *
- * La référence est le plus haut niveau atteint dans la session. Quand la session a connu
- * un compactage, ce pic **est** la fenêtre réelle, puisque c'est lui qui l'a déclenché.
+ * La référence est le plus haut niveau atteint **dans toute la session**, agents compris,
+ * et non le pic propre à chaque agent : sans quoi un sous-agent à 15 k jetons s'afficherait
+ * aussi rouge que l'agent racine à un million, ce qui est faux. Quand la session a connu un
+ * compactage, ce pic commun **est** la fenêtre réelle, puisque c'est lui qui l'a déclenché.
  */
-function dessinerVoieContexte(agent, centre, axe) {
+function dessinerVoieContexte(agent, centre, axe, ref) {
   const g = el('g', {});
   const points = agent.contexte;
-  const pic = Math.max(...points.map((c) => c.jetons), 1);
+  const pic = ref.pic;
   const haut = centre - 13;
   const bas = centre + 13;
   const y = (jetons) => bas - (jetons / pic) * (bas - haut);
@@ -872,7 +909,9 @@ function dessinerVoieContexte(agent, centre, axe) {
   const x1 = axe.x(points[points.length - 1].instant);
   g.append(el('polygon', {
     points: `${x0.toFixed(1)},${bas} ${chemin.join(' ')} ${x1.toFixed(1)},${bas}`,
-    fill: 'url(#degrade-contexte)', opacity: '.8',
+    // Le dégradé ne sort que lorsqu'on sait ce qu'il mesure.
+    fill: ref.fenetreConnue ? 'url(#degrade-contexte)' : 'var(--termine)',
+    opacity: ref.fenetreConnue ? '.8' : '.75',
   }));
   g.append(el('polyline', {
     points: chemin.join(' '), fill: 'none',
@@ -887,7 +926,11 @@ function dessinerVoieContexte(agent, centre, axe) {
     const prise = el('rect', { x: px - 3, y: haut, width: 6, height: bas - haut, fill: 'transparent' });
     prise.append(el('title', {}, document.createTextNode(
       c.jetons.toLocaleString('fr-FR') + ' jetons de contexte  ('
-      + Math.round((c.jetons / pic) * 100) + ' % du pic)\n' + heure(c.instant))));
+      + Math.round((c.jetons / pic) * 100)
+      + (ref.fenetreConnue ? ' % de la fenêtre' : ' % du plus haut niveau de la session')
+      + ')\n' + heure(c.instant)
+      + (ref.fenetreConnue ? '' : '\n\nCette session n’a jamais compacté : on ignore la '
+        + 'taille réelle de la fenêtre, donc l’échelle est relative et la couleur neutre.'))));
     g.append(prise);
   }
   return g;
@@ -1016,6 +1059,7 @@ elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);
 addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
 elReplier.addEventListener('change', dessiner);
+elContexte.addEventListener('change', dessiner);
 // L'arbre et les voies doivent rester alignés quand on fait défiler.
 elPiste.addEventListener('scroll', () => { elArbre.scrollTop = elPiste.scrollTop; });
 </script>

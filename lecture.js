@@ -437,9 +437,27 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     }
   }
 
-  // L'ordre de `readdir` n'a aucun sens : on classe par naissance, ce qui donne des voies
-  // stables d'un rafraîchissement à l'autre.
+  // L'ordre de `readdir` n'a aucun sens. Deux règles : les frères et sœurs se classent par
+  // naissance, et un enfant suit immédiatement son parent — le §5 du cahier des charges
+  // demande que la voie d'un sous-agent soit sous celle de son parent, pas plus bas.
   agents.sort((a, b) => (a.debut ?? 0) - (b.debut ?? 0));
+  const enfantsDe = new Map();
+  for (const a of agents) {
+    if (a.id === 'racine') continue;
+    const cle = a.parent || 'racine';
+    if (!enfantsDe.has(cle)) enfantsDe.set(cle, []);
+    enfantsDe.get(cle).push(a);
+  }
+  const ordonnes = [];
+  const descendre = (a) => {
+    ordonnes.push(a);
+    for (const e of enfantsDe.get(a.id) || []) descendre(e);
+  };
+  descendre(agents.find((a) => a.id === 'racine'));
+  // Un agent dont le parent n'a pas été retrouvé ne doit pas disparaître pour autant.
+  for (const a of agents) if (!ordonnes.includes(a)) ordonnes.push(a);
+  agents.length = 0;
+  agents.push(...ordonnes);
 
   const bornes = agents.reduce((acc, a) => {
     if (a.debut !== null) acc.debut = Math.min(acc.debut, a.debut);
