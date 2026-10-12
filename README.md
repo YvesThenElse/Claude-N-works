@@ -371,6 +371,17 @@ engloberait tout le sommeil. Le « début de réponse » est l'instant où le pr
 **45 % des appels n'ont pas de durée de réponse mesurable** — leur réponse tenait en un
 seul bloc, donc début et fin se confondent.
 
+### Replier l'arbre
+
+Chaque ligne d'agent porte un chevron. Le replier ferme **tout ce qui est sous lui** : ses
+propres voies annexes comme ses sous-agents et leur descendance. Un agent replié tient donc
+en une seule ligne, qui dit combien d'agents elle dissimule. Sur l'arbre à neuf agents du
+sondage : 45 lignes tout déplié, 9 en repliant la profondeur 1, **une seule** en repliant
+la racine.
+
+L'indentation se fait au pixel, avec un filet vertical par niveau, et les voies annexes
+d'un agent s'indentent d'un cran sous lui.
+
 Chaque voie porte un pictogramme dans sa couleur : ◆ l'agent racine, ◈ un sous-agent,
 ⊞ les outils, ▥ la taille du contexte, ▤ son contenu, ⊝ l'attente, ⟳ les boucles,
 ◇ un modèle.

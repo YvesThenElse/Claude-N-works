@@ -43,12 +43,30 @@
   .cadre { display: grid; grid-template-columns: 19rem 1fr; height: calc(100vh - 11rem); }
   .arbre { border-right: 1px solid var(--trait); overflow: hidden; padding-top: 3.4rem; }
   .noeud {
-    height: 2.2rem; display: flex; align-items: center; gap: .4rem;
-    padding: 0 .7rem; cursor: pointer; white-space: nowrap;
+    height: 2.2rem; display: flex; align-items: center; gap: .35rem;
+    padding: 0 .7rem 0 .35rem; cursor: pointer; white-space: nowrap;
     overflow: hidden; text-overflow: ellipsis; font-size: .82rem;
   }
+  /* L'indentation : un simple espace, avec un filet vertical par niveau. Plus propre
+     qu'une suite de caractères monospace, et aligné au pixel. */
+  .noeud .indent {
+    flex: none; align-self: stretch;
+    background-image: repeating-linear-gradient(to right,
+      var(--trait) 0, var(--trait) 1px, transparent 1px, transparent 1.15rem);
+    background-position: .5rem 0;
+  }
+  .noeud .chevron {
+    flex: none; width: 1.1rem; background: none; border: 0; cursor: pointer;
+    color: var(--texte-faible); font-size: .72rem; line-height: 1; padding: 0;
+    font-family: inherit;
+  }
+  .noeud .chevron:hover { color: var(--accent); }
+  .noeud .chevron.creux { visibility: hidden; }
+  .noeud .caches {
+    color: var(--texte-faible); font-size: .72rem; font-style: italic;
+  }
   .noeud:hover, .noeud.vise { background: var(--fond-carte); }
-  .noeud .tiret { color: #39405a; font-family: monospace; }
+
   /* Le pictogramme de la voie. Il était dessiné dans la couleur des traits d'arbre, si
      sombre qu'on ne le voyait pas : il porte maintenant la couleur de sa voie. */
   .noeud .icone {
@@ -337,6 +355,10 @@ let axeCourant = null;
 // placent d'elles-mêmes au bon endroit.
 let ordreVoies = [];
 let ordrePersonnalise = false;
+// Les agents repliés. Replier ferme tout ce qui est sous la ligne de l'agent : ses propres
+// voies annexes comme ses sous-agents et les leurs. Un agent replié tient donc en une
+// seule ligne, ce qui est le seul moyen de rendre un arbre fourni lisible.
+const agentsReplies = new Set();
 let rendu = null;   // ce qui a été dessiné, pour savoir quand il faut recommencer
 
 const elTitre = document.getElementById('titre');
@@ -604,29 +626,62 @@ function deplacerVoie(voies, i, pas) {
   dessiner();
 }
 
+/** Les agents cachés parce qu'un de leurs ancêtres est replié. */
+function agentsCaches() {
+  const parId = new Map(deroule.agents.map((a) => [a.id, a]));
+  const caches = new Set();
+  for (const a of deroule.agents) {
+    let p = a.parent;
+    while (p && p !== a.id) {
+      if (agentsReplies.has(p)) { caches.add(a.id); break; }
+      p = parId.get(p)?.parent;
+    }
+  }
+  return caches;
+}
+
+/** Combien d'agents une ligne repliée dissimule, descendance comprise. */
+function compterDescendants(id) {
+  const parId = new Map(deroule.agents.map((a) => [a.id, a]));
+  let n = 0;
+  for (const a of deroule.agents) {
+    let p = a.parent;
+    while (p && p !== a.id) {
+      if (p === id) { n += 1; break; }
+      p = parId.get(p)?.parent;
+    }
+  }
+  return n;
+}
+
 function construireVoies() {
   const voies = [];
+  const caches = agentsCaches();
   for (const a of deroule.agents) {
-    voies.push({ genre: 'agent', agent: a });
+    if (caches.has(a.id)) continue;
+    voies.push({ genre: 'agent', agent: a, prof: a.profondeur });
+    if (agentsReplies.has(a.id)) continue;
     if (voiesVisibles.outils && (a.outils || []).length) {
-      voies.push({ genre: 'outils', agent: a });
+      voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
-      voies.push({ genre: 'contexte', agent: a });
+      voies.push({ genre: 'contexte', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.contenu && (a.requetesModele || []).length > 1) {
-      voies.push({ genre: 'contenu', agent: a });
+      voies.push({ genre: 'contenu', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.attente && (a.attentes || []).length) {
-      voies.push({ genre: 'attente', agent: a });
+      voies.push({ genre: 'attente', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.boucles && (a.boucles || []).length) {
-      voies.push({ genre: 'boucles', agent: a });
+      voies.push({ genre: 'boucles', agent: a, prof: a.profondeur + 1 });
     }
     // Une voie par modèle réellement appelé : un agent peut en employer plusieurs, et les
     // mélanger sur une seule ligne masquerait lequel répond vite.
     if (voiesVisibles.modele) {
-      for (const m of modelesDe(a)) voies.push({ genre: 'modele', agent: a, modele: m });
+      for (const m of modelesDe(a)) {
+        voies.push({ genre: 'modele', agent: a, modele: m, prof: a.profondeur + 1 });
+      }
     }
   }
   return rangerVoies(voies);
@@ -726,7 +781,7 @@ function dessinerArbre() {
     // l'événement se propage, et le gestionnaire de la ligne finit par le voir. On filtre
     // donc dans ce gestionnaire, sur l'origine du clic.
     const surLigne = (quoi) => d.addEventListener('click', (e) => {
-      if (e.target.closest && e.target.closest('.rangement')) return;
+      if (e.target.closest && e.target.closest('.rangement, .chevron')) return;
       quoi();
     });
 
@@ -742,8 +797,31 @@ function dessinerArbre() {
       rangement.append(b);
     }
 
-    const tiret = document.createElement('span');
-    tiret.className = 'tiret';
+    // L'indentation, puis le chevron de repli pour un agent qui a une descendance.
+    const indent = document.createElement('span');
+    indent.className = 'indent';
+    indent.style.width = (v.prof * 1.15) + 'rem';
+
+    const chevron = document.createElement('button');
+    chevron.className = 'chevron';
+    // Un agent a toujours quelque chose sous lui — au moins ses propres voies — donc il
+    // porte toujours un chevron.
+    const repliable = v.genre === 'agent';
+    if (repliable) {
+      const replie = agentsReplies.has(a.id);
+      chevron.textContent = replie ? '▸' : '▾';
+      chevron.title = (replie ? 'déplier' : 'replier') + ' la descendance de cet agent';
+      chevron.addEventListener('click', () => {
+        if (agentsReplies.has(a.id)) agentsReplies.delete(a.id);
+        else agentsReplies.add(a.id);
+        dessiner();
+      });
+    } else {
+      chevron.className = 'chevron creux';
+      chevron.textContent = '▸';
+      chevron.disabled = true;
+    }
+
     const icone = document.createElement('span');
     icone.className = 'icone';
     const puce = document.createElement('i');
@@ -755,7 +833,6 @@ function dessinerArbre() {
 
     if (v.genre === 'agent') {
       d.title = a.nom + '  —  ' + a.etat + '\n\n' + LEGENDE_VOIE.agent;
-      tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
       icone.textContent = a.profondeur === 0 ? '◆' : '◈';
       icone.style.color = couleurPicto(a.etat);
       puce.style.background = couleurEtat(a.etat);
@@ -771,7 +848,6 @@ function dessinerArbre() {
             + ref.pic.toLocaleString('fr-FR') + ')'
           : 'sur une fenêtre de taille inconnue')
         + '\n\n' + LEGENDE_VOIE.contexte;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '▥';
       icone.style.color = '#e0af68';
       puce.style.background = ref.fenetreConnue
@@ -788,7 +864,6 @@ function dessinerArbre() {
       d.title = a.outils.length + ' appels d’outils\n'
         + tri.map(([n, c]) => '   ' + n + ' × ' + c).join('\n')
         + '\n\n' + LEGENDE_VOIE.outils;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '⊞';
       icone.style.color = 'var(--outil)';
       puce.style.background = 'var(--outil)';
@@ -800,7 +875,6 @@ function dessinerArbre() {
       const derniere = a.requetesModele[a.requetesModele.length - 1];
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
         + LEGENDE_VOIE.contenu;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '▤';
       icone.style.color = '#7aa2f7';
       puce.style.background = 'linear-gradient(to right, #7aa2f7, #9ece6a)';
@@ -816,7 +890,6 @@ function dessinerArbre() {
         + '\nlatence moyenne ' + duree(Math.round(lat))
         + '\nréponse moyenne ' + duree(Math.round(rep))
         + '\n\n' + LEGENDE_VOIE.modele;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '◇';
       icone.style.color = teinteModele(v.modele);
       puce.style.background = teinteModele(v.modele);
@@ -830,7 +903,6 @@ function dessinerArbre() {
       d.title = a.attentes.length + ' périodes d’attente, ' + duree(total) + ' en tout'
         + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '')
         + '\n\n' + LEGENDE_VOIE.attente;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '⊝';
       icone.style.color = 'var(--requete)';
       puce.style.background = 'var(--requete)';
@@ -842,7 +914,6 @@ function dessinerArbre() {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
       d.title = n + ' boucle(s), ' + its + ' itération(s)\n\n' + LEGENDE_VOIE.boucles;
-      tiret.textContent = '│ '.repeat(a.profondeur);
       icone.textContent = '⟳';
       icone.style.color = 'var(--boucle)';
       puce.style.background = 'var(--boucle)';
@@ -852,7 +923,18 @@ function dessinerArbre() {
       etat.textContent = its + ' it.';
       surLigne(() => carteBoucle(a.boucles[0], a, 0));
     }
-    d.append(rangement, tiret, icone, puce, etiq, etat);
+    d.append(rangement, indent, chevron, icone, puce, etiq, etat);
+    // Une ligne repliée dit combien d'agents elle dissimule.
+    if (v.genre === 'agent' && agentsReplies.has(a.id)) {
+      const caches = document.createElement('span');
+      caches.className = 'caches';
+      const n = compterDescendants(a.id);
+      caches.textContent = n ? '+' + n : '…';
+      caches.title = n
+        ? n + ' sous-agent(s) replié(s), et toutes les voies de celui-ci'
+        : 'les voies de cet agent sont repliées';
+      d.insertBefore(caches, etat);
+    }
     return d;
   }));
 }
