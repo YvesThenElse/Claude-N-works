@@ -124,6 +124,9 @@ function etatVide() {
     // lecture de cache et de création de cache. Elle monte jusqu'à saturer la fenêtre,
     // puis retombe d'un coup au compactage — mesuré : 996 455 puis 52 151.
     contexte: [],
+    // Les instants où l'agent prend la parole. Sans eux, le temps qu'il passe à réfléchir
+    // entre deux appels d'outils ressemblerait à de l'attente, alors qu'il travaille.
+    paroles: [],
     compactages: [],
     reveils: [],      // les réveils de boucle vus du côté du système
     erreurs: [],      // les messages que Claude Code s'écrit à lui-même sur une panne
@@ -182,6 +185,7 @@ function avaler(etat, ligne) {
     }
     if (ligne.message && ligne.message.model) etat.modele = ligne.message.model;
     if (ligne.effort) etat.effort = ligne.effort;
+    if (t !== null) etat.paroles.push(t);
     const dit = texteDe(ligne.message?.content);
     if (dit.trim()) etat.derniereReponse = dit;
     for (const bloc of ligne.message?.content || []) {
@@ -372,6 +376,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     boucles: construireBoucles(racine.appels, 'racine', racine.reveils,
       [racine.premier, ...racine.requetes.map((r) => r.instant)]),
     contexte: racine.contexte,
+    paroles: racine.paroles,
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
@@ -414,6 +419,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       boucles: construireBoucles(d.appels, sa.agentId, d.reveils,
         [d.premier, ...d.requetes.map((r) => r.instant)]),
       contexte: d.contexte,
+      paroles: d.paroles,
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,
@@ -423,6 +429,15 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       arrierePlan: Boolean(appelParent?.entree?.run_in_background),
       outils: [...d.appels.values()].map(nettoyerAppel),
     });
+  }
+
+  // La voie d'attente, par agent. L'instant présent sert de borne quand la session tourne
+  // encore : une attente en cours n'a pas de fin.
+  const maintenant = Date.now();
+  for (const a of agents) {
+    a.requetesVues = a.id === 'racine' ? racine.requetes.map((r) => r.instant) : [];
+    a.attentes = construireAttentes(a, bornesFin(a, racine), sessionVivante, maintenant);
+    delete a.requetesVues;
   }
 
   // Un agent naît parfois pendant une itération de boucle — et s'il a lui-même des
@@ -623,6 +638,94 @@ function construireBoucles(appels, idAgent, reveils = [], departsPossibles = [])
     }
   }
   return boucles.filter((b) => b.iterations.length > 0);
+}
+
+// En deçà d'une demi-minute sans rien, ce n'est pas de l'attente : c'est le temps normal
+// d'un tour de boucle de l'agent.
+const SEUIL_ATTENTE_MS = 30000;
+
+/**
+ * Les moments où le système ne travaille pas mais patiente. Trois formes, mesurées sur les
+ * transcripts (§5 octies d'OBSERVATIONS-FORMAT.md) :
+ *
+ *   `question`   — un `AskUserQuestion` posé et pas encore répondu ;
+ *   `sommeil`    — une boucle qui dort entre deux tours, après un `ScheduleWakeup` ;
+ *   `inoccupée`  — le tour s'est achevé et plus personne n'a repris la main.
+ *
+ * Les deux dernières se lisent comme des intervalles sans le moindre événement. La
+ * première est au contraire un appel d'outil bien présent, dont la durée *est* l'attente :
+ * elle est donc traitée à part, et les trous qu'elle recouvre ne sont pas comptés deux
+ * fois.
+ */
+function construireAttentes(agent, finSession, sessionVivante, maintenant) {
+  const attentes = [];
+  const appels = agent.outils
+    .filter((o) => o.debut !== null)
+    .sort((x, y) => x.debut - y.debut);
+
+  for (const o of appels) {
+    if (o.nom !== 'AskUserQuestion') continue;
+    attentes.push({
+      debut: o.debut,
+      fin: o.fin,
+      genre: 'question',
+      detail: o.resume || 'une question posée à l’utilisateur',
+      ouverte: o.fin === null,
+    });
+  }
+  const couvertParUneQuestion = (a, b) => attentes.some(
+    (q) => q.genre === 'question' && q.debut <= a && (q.fin ?? Infinity) >= b);
+
+  // Les intervalles sans aucun événement.
+  const instants = [];
+  for (const o of appels) {
+    instants.push(o.debut);
+    if (o.fin !== null) instants.push(o.fin);
+  }
+  for (const r of agent.requetesVues || []) instants.push(r);
+  for (const p of agent.paroles || []) instants.push(p);
+  instants.sort((x, y) => x - y);
+
+  let precedent = agent.debut;
+  for (const t of instants) {
+    if (precedent !== null && t - precedent > SEUIL_ATTENTE_MS
+        && !couvertParUneQuestion(precedent, t)) {
+      const avant = appels.filter((o) => o.debut <= precedent).pop();
+      attentes.push({
+        debut: precedent,
+        fin: t,
+        genre: avant && avant.nom === 'ScheduleWakeup' ? 'sommeil' : 'inoccupée',
+        detail: avant ? 'après un ' + avant.nom : 'avant toute action',
+        ouverte: false,
+      });
+    }
+    precedent = precedent === null ? t : Math.max(precedent, t);
+  }
+
+  // Et si la session tourne encore sans rien faire depuis un moment, l'attente dure.
+  const dernier = instants.length ? instants[instants.length - 1] : agent.debut;
+  if (sessionVivante && dernier !== null && maintenant - dernier > SEUIL_ATTENTE_MS
+      && !couvertParUneQuestion(dernier, maintenant)) {
+    const avant = appels.filter((o) => o.debut <= dernier).pop();
+    attentes.push({
+      debut: dernier,
+      fin: null,
+      genre: avant && avant.nom === 'ScheduleWakeup' ? 'sommeil' : 'inoccupée',
+      detail: avant ? 'après un ' + avant.nom : 'en attente',
+      ouverte: true,
+    });
+  }
+
+  attentes.sort((x, y) => x.debut - y.debut);
+  for (const a of attentes) {
+    a.dureeMs = (a.fin ?? (sessionVivante ? maintenant : finSession)) - a.debut;
+  }
+  return attentes;
+}
+
+/** La borne de fin à prendre pour un agent dont la fin n'est pas connue. */
+function bornesFin(agent, racine) {
+  return agent.fin ?? racine.dernier ?? agent.debut;
 }
 
 function nettoyerAppel(a) {

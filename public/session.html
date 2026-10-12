@@ -15,6 +15,7 @@
     --boucle: #2ac3de;
     --compact: #bb9af7;
     --panne: #f7768e;
+    --attente: #565f89;
   }
   * { box-sizing: border-box; }
   body {
@@ -170,6 +171,8 @@
     <span><i class="puce" style="background:var(--boucle);border-radius:50%"></i>boucle</span>
     <span><i class="puce" style="background:var(--compact)"></i>compactage</span>
     <span><i class="puce" style="background:var(--panne);border-radius:50%"></i>panne</span>
+    <span><i class="puce" style="background:var(--requete)"></i>question posée</span>
+    <span><i class="puce" style="background:var(--attente)"></i>inoccupée</span>
   </div>
 </div>
 
@@ -375,6 +378,7 @@ function construireVoies() {
     if (elContexte.checked && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a });
     }
+    if ((a.attentes || []).length) voies.push({ genre: 'attente', agent: a });
     if ((a.boucles || []).length) voies.push({ genre: 'boucles', agent: a });
   }
   return voies;
@@ -419,6 +423,17 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
       d.addEventListener('click', () => carteContexte(a));
+    } else if (v.genre === 'attente') {
+      const total = a.attentes.reduce((n, x) => n + (x.dureeMs || 0), 0);
+      const questions = a.attentes.filter((x) => x.genre === 'question').length;
+      d.title = a.attentes.length + ' périodes d’attente, ' + duree(total) + ' en tout'
+        + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '');
+      tiret.textContent = '│ '.repeat(a.profondeur) + '⏸ ';
+      puce.style.background = 'var(--requete)';
+      etiq.textContent = 'attente';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = duree(total);
+      d.addEventListener('click', () => carteAttentes(a));
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
@@ -581,6 +596,10 @@ function dessinerPiste() {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
     if (v.genre === 'contexte') {
       svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      return;
+    }
+    if (v.genre === 'attente') {
+      svg.append(dessinerVoieAttente(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
@@ -1020,6 +1039,38 @@ function carteContexte(a) {
   ouvrirPanneau('contexte', a.nom, morceaux);
 }
 
+/** Carte de l'attente : le détail d'une période, et le compte de toutes. */
+function carteAttentes(agent, visee) {
+  const parGenre = {};
+  for (const at of agent.attentes) {
+    if (!parGenre[at.genre]) parGenre[at.genre] = { n: 0, ms: 0 };
+    parGenre[at.genre].n += 1;
+    parGenre[at.genre].ms += at.dureeMs || 0;
+  }
+  const total = Object.values(parGenre).reduce((n, v) => n + v.ms, 0);
+
+  const dl = document.createElement('dl');
+  if (visee) {
+    ligne(dl, 'Cette attente', NOM_ATTENTE[visee.genre]);
+    ligne(dl, 'Durée', duree(visee.dureeMs) + (visee.ouverte ? '  (toujours en cours)' : ''));
+    ligne(dl, 'Début', heure(visee.debut));
+    ligne(dl, 'Fin', visee.fin ? heure(visee.fin) : 'pas encore');
+    ligne(dl, 'Contexte', visee.detail);
+  }
+  ligne(dl, 'Attente totale', duree(total) + ' sur ' + agent.attentes.length + ' périodes');
+  for (const [genre, v] of Object.entries(parGenre).sort((a, b) => b[1].ms - a[1].ms)) {
+    ligne(dl, '— ' + genre, v.n + ' fois, ' + duree(v.ms));
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Une attente est un intervalle de plus de trente secondes sans aucun '
+    + 'événement — ni appel d’outil, ni parole de l’agent — ou bien une question posée et '
+    + 'restée sans réponse. Les pauses de réflexion de l’agent ne comptent pas : ses '
+    + 'propres messages sont des événements.';
+  ouvrirPanneau('attente', agent.nom, [dl, p]);
+}
+
 function carteRequete(r) {
   ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
 }
@@ -1204,6 +1255,48 @@ function dessinerVoieContexte(agent, centre, axe, ref) {
       + ')\n' + heure(c.instant)
       + (ref.fenetreConnue ? '' : '\n\nCette session n’a jamais compacté : on ignore la '
         + 'taille réelle de la fenêtre, donc l’échelle est relative et la couleur neutre.'))));
+    g.append(prise);
+  }
+  return g;
+}
+
+const COULEUR_ATTENTE = {
+  question: 'var(--requete)',
+  sommeil: 'var(--boucle)',
+  inoccupée: 'var(--attente)',
+};
+const NOM_ATTENTE = {
+  question: 'une question posée, sans réponse encore',
+  sommeil: 'une boucle qui dort entre deux tours',
+  inoccupée: 'le tour est fini, personne n’a repris la main',
+};
+
+/**
+ * La voie d'attente : les moments où le système ne travaille pas mais patiente. Une
+ * attente sans fin — la session tourne encore et personne ne répond — reste ouverte à
+ * droite, en pointillés, comme une barre d'agent en cours.
+ */
+function dessinerVoieAttente(agent, centre, axe, visible) {
+  const g = el('g', {});
+  for (const at of agent.attentes) {
+    const x0 = axe.x(at.debut);
+    const x1 = Math.max(x0 + 1.5, axe.x(at.fin ?? deroule.fin));
+    if (!visible(x0, x1)) continue;
+    const couleur = COULEUR_ATTENTE[at.genre] || 'var(--attente)';
+    g.append(el('rect', {
+      x: x0, y: centre - 6, width: x1 - x0, height: 12, rx: 2,
+      fill: couleur, opacity: at.genre === 'question' ? '.8' : '.55',
+      ...(at.ouverte ? { 'stroke-dasharray': '3 2', stroke: couleur } : {}),
+    }));
+    const prise = el('rect', {
+      x: x0 - 2, y: centre - 9, width: (x1 - x0) + 4, height: 18, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      NOM_ATTENTE[at.genre] + '\n' + duree(at.dureeMs)
+      + '\nde ' + heure(at.debut) + (at.fin ? '\nà ' + heure(at.fin) : '\n(toujours en cours)')
+      + (at.detail ? '\n\n' + at.detail.slice(0, 160) : ''))));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteAttentes(agent, at); });
     g.append(prise);
   }
   return g;

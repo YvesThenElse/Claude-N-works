@@ -247,6 +247,11 @@ haut de la piste, dont le pas suit l'échelle, calculée par segment actif puisq
 n'avance pas au même rythme de part et d'autre d'un repli. La molette zoome autour du
 curseur ; le bouton gauche enfoncé déplace la vue. Un glissé franc n'ouvre pas de carte.
 
+**La voie d'attente** — *demandée après le lot 6*. Sous celle du contexte, les moments où le
+système patiente au lieu de travailler : une question posée et sans réponse, une boucle qui
+dort, ou un tour achevé que personne n'a repris. Les pauses de réflexion de l'agent en sont
+exclues, ses messages comptant comme des événements.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 

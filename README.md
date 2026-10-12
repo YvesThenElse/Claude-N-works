@@ -194,6 +194,29 @@ dent de scie est franche, et c'est le fait le moins intuitif du fonctionnement d
 Les pannes d'API — messages de modèle `<synthetic>` portant `API Error: …` — ont leur
 repère et sont comptées sur la carte de l'agent.
 
+### La voie d'attente
+
+Sous le contexte, une voie montre les moments où le système **ne travaille pas mais
+patiente**. Trois formes, chacune avec sa couleur :
+
+| | Ce que c'est |
+|---|---|
+| ambre | une `AskUserQuestion` posée et pas encore répondue |
+| cyan | une boucle qui dort entre deux tours, après un `ScheduleWakeup` |
+| gris | le tour s'est achevé et personne n'a repris la main |
+
+Une attente est un intervalle de plus de trente secondes **sans aucun événement**, ou bien
+une question restée sans réponse. Une attente en cours — la session tourne, personne ne
+répond — reste ouverte à droite, en pointillés.
+
+**Les pauses de réflexion de l'agent n'en sont pas.** Ses propres messages comptent comme
+des événements, sinon le temps qu'il passe à réfléchir entre deux appels ressemblerait à de
+l'attente. Mesuré : les compter élimine 59 fausses attentes sur une session et 106 sur une
+autre, pour seulement une heure et demie de différence — c'étaient bien des pauses courtes.
+
+Sur la session Litanie : **10,9 jours d'attente sur 11,1 jours** — dont 6,9 j de sommeil de
+boucle, 3,1 j d'inoccupation et 21,6 h de questions posées.
+
 ### Les boucles
 
 Une boucle est une suite de réveils délimitée par un arrêt. Sa carte montre la répétition
