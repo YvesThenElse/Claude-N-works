@@ -252,6 +252,9 @@ function construireAxe(instants, debut, fin, pxParMs, replier) {
       largeur: total,
       segments: [{ t0: debut, t1: fin, x0: 0, x1: total, vide: false }],
       x: (t) => (t - debut) * pxParMs,
+      // L'inverse doit exister ici aussi : le zoom à la molette s'en sert pour retenir
+      // l'instant sous le curseur, et son absence faisait échouer tout le geste.
+      t: (px) => debut + px / pxParMs,
       replies: 0,
       elide: 0,
     };
