@@ -14,12 +14,14 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const readline = require('node:readline');
 
-const LIMITE_TEXTE = 4000; // au-delà, on tronque : un prompt peut faire des pages
-// Par appel d'outil on est bien plus avare : une session en compte des milliers, et tout
-// garder ferait gonfler le modèle au-delà du raisonnable.
-const LIMITE_APPEL = 700;
-// Par appel au modèle on est plus avare encore : une session en compte deux mille.
-const LIMITE_REQUETE = 300;
+// Rien n'est tronqué. La mesure a tranché : sur le plus gros transcript de la machine,
+// 37 Mo et 1717 appels d'outils, tout garder porte le modèle de 4,7 à 8,6 Mo — et une
+// limite à 700 caractères amputait 44 % des entrées d'outils et 32 % de leurs résultats,
+// c'est-à-dire précisément ce qu'on vient lire. Le pire contenu observé fait 27 176
+// caractères ; aucun ne dépasse cent mille.
+const LIMITE_TEXTE = Infinity;
+const LIMITE_APPEL = Infinity;
+const LIMITE_REQUETE = Infinity;
 
 // ----------------------------------------------------------------------- petits outils
 
@@ -40,7 +42,8 @@ function texteDe(contenu) {
 
 function tronquer(texte, limite = LIMITE_TEXTE) {
   if (typeof texte !== 'string') return '';
-  return texte.length > limite ? texte.slice(0, limite) + '\n…' : texte;
+  if (!Number.isFinite(limite) || texte.length <= limite) return texte;
+  return texte.slice(0, limite) + '\n…';
 }
 
 /** Le texte d'un résultat d'outil, quelle que soit la forme qu'il a prise. */

@@ -99,7 +99,14 @@ sa carte — dans l'arbre comme dans la piste. Celle d'un agent donne
 son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, son effort, ses
 jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
-donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
+donne son entrée et son résultat **en entier**.
+Rien n'est tronqué. La mesure a tranché : sur le plus gros transcript de la machine,
+37 Mo et 1717 appels d'outils, tout garder porte le modèle de 4,7 à 8,0 Mo — tandis qu'une
+limite à 700 caractères amputait **44 % des entrées d'outils et 32 % de leurs résultats**,
+c'est-à-dire précisément ce qu'on vient lire. Le coût mesuré côté navigateur : 22 ms pour
+analyser les 7,9 Mo de JSON, 2 s pour charger la page. Le plus gros contenu observé fait
+29 143 caractères, aucun ne dépasse cent mille.
+
 Les blocs d'entrée et de résultat sont **ouverts d'emblée** : c'est le contenu qu'on vient
 lire, le replier imposait un clic pour voir l'essentiel. Chacun garde sa hauteur bornée et
 son propre ascenseur. Seules les instructions chargées d'un skill restent repliées : des
