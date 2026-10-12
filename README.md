@@ -100,6 +100,10 @@ son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, s
 jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
 donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
+Les blocs d'entrée et de résultat sont **ouverts d'emblée** : c'est le contenu qu'on vient
+lire, le replier imposait un clic pour voir l'essentiel. Chacun garde sa hauteur bornée et
+son propre ascenseur. Seules les instructions chargées d'un skill restent repliées : des
+milliers de caractères, et ce n'est pas ce qu'on regarde en premier.
 Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée **et les
 instructions réellement chargées** — l'appel dit ce qu'on a demandé, l'attachement
 `invoked_skills` dit ce qui a été injecté : 8 778 caractères pour le skill `loop`.

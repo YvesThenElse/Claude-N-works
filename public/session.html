@@ -704,8 +704,12 @@ function ligne(dl, cle, valeur, mono) {
   dl.append(dt, dd);
 }
 
-/** Un bloc replié par défaut : un prompt ou une sortie peut faire des pages (§6.4). */
-function blocReplie(titre, contenu, ouvert) {
+/**
+ * Un bloc dépliable. Ouvert par défaut : ce qu'un agent a reçu et rendu, ou ce qu'un outil
+ * a pris et renvoyé, est le contenu principal de la carte — le replier imposait un clic
+ * pour voir l'essentiel. La hauteur reste bornée, chaque bloc ayant son propre ascenseur.
+ */
+function blocReplie(titre, contenu, ouvert = true) {
   if (!contenu) return null;
   const d = document.createElement('details');
   d.className = 'bloc';
@@ -867,9 +871,11 @@ function carteOutil(o, agent) {
       ligne(dl, 'Chargé depuis', charge.chemin, true);
       ligne(dl, 'Taille chargée', charge.taille + ' caractères');
       const tronqueSkill = charge.taille && charge.taille > charge.contenu.length;
+      // Seule exception : les instructions d'un skill font des milliers de caractères et
+      // ne sont pas ce qu'on vient lire en premier.
       morceaux.push(blocReplie(
         'instructions réellement chargées' + (tronqueSkill ? ' — extrait' : ''),
-        charge.contenu));
+        charge.contenu, false));
       if (tronqueSkill) {
         const p = document.createElement('p');
         p.className = 'avert';
