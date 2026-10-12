@@ -1,0 +1,143 @@
+# La brigade de cuisine
+
+Un kit à déposer dans un projet vide. On y demande un plat, et une brigade le prépare :
+un chef qui ne cuisine pas, des commis spécialisés qui travaillent en même temps, et des
+attentes qui durent vraiment le temps de la préparation.
+
+Il n'y a rien à comprendre sur la cuisine. Ce qu'on vient voir, c'est **la forme d'une
+orchestration dans le temps** — et c'est pour ça que les gestes attendent pour de bon :
+sans durée, tous les agents se superposent en une seule colonne et il n'y a plus rien à
+regarder.
+
+## Poser le kit
+
+```sh
+mkdir mon-service && cd mon-service
+cp -r /chemin/vers/Claude-N-works/exemples/cuisine/. .
+```
+
+Le point final de `cuisine/.` compte : sans lui, `.claude/` reste derrière et rien ne se
+déclenche.
+
+Puis, dans ce répertoire :
+
+```sh
+claude
+```
+
+**Accepte le dialogue de confiance** que Claude Code pose à la première ouverture d'un
+répertoire. Sans lui, les permissions du kit sont ignorées — mesuré : *« Ignoring 10
+permissions.allow entries from .claude/settings.json: this workspace has not been
+trusted »* — et le service s'arrête au premier script.
+
+Puis une seule phrase :
+
+> prépare-moi une ratatouille
+
+N'importe quel plat fait l'affaire — le chef écrit la fiche technique du plat demandé.
+`/service blanquette de veau` fait la même chose plus directement.
+
+## Regarder
+
+Depuis le dépôt Claude N Works, dans un autre terminal :
+
+```sh
+node serveur.js
+```
+
+puis <http://127.0.0.1:7420>, et la session de cuisine y est — pendant qu'elle tourne,
+et après.
+
+## Ce qu'il y a à voir
+
+**Un arbre à trois étages.** Le chef de cuisine est la session elle-même. Il appelle des
+commis, et il appelle au moins un *chef de partie* qui appelle à son tour ses propres
+commis : c'est le troisième étage, celui qu'on ne voit pas dans une brigade plate.
+Dans la ligne du temps, l'indentation le donne directement.
+
+Le troisième étage cache une surprise, et le kit est fait pour qu'on la rencontre : **un
+agent lancé depuis un agent part en arrière-plan.** L'outil répond « Async agent launched
+successfully » en un dixième de seconde, et le parent peut rendre la main pendant que ses
+commis travaillent encore. Mesuré au premier essai : un chef de partie rendu en 28 s pour
+des commis qui ont taillé pendant deux minutes. C'est pour cela que le chef de partie
+attend ses fichiers avant de conclure — sans cette barrière, son poste mentirait sur sa
+propre durée.
+
+**Un peigne, pas un escalier.** Les postes partent ensemble, dans un seul message
+contenant plusieurs appels d'agent. Leurs barres se chevauchent, et le service dure le
+temps du poste le plus lent — pas la somme des postes. La fiche de fin (`service.md`)
+chiffre l'écart entre les deux.
+
+**Quatre tempéraments de poste.** C'est le vrai sujet du kit :
+
+| Poste | Sa forme dans le temps |
+|---|---|
+| taillage | une marche par légume — le même geste qui revient, court |
+| cuisson | deux ou trois gestes seulement, dont un très long : un agent qui attend travaille |
+| sauce | un geste qui **revient parce que le précédent n'allait pas** — on goûte, on rectifie, on réduit encore |
+| dressage | le seul qui consomme : il vide la mise en place qu'il met dans l'assiette |
+
+**Une courbe de fichiers qui monte puis redescend.** Chaque commis dépose un fichier par
+élément préparé, et la courbe de la voie *fichiers* monte d'une marche à chaque fois.
+
+La descente demande une attention particulière, parce que **cette courbe est par agent** :
+elle compte les fichiers qu'un agent a fait exister, lui, et elle ne décroît que s'il
+supprime quelque chose qu'il avait écrit. Le dressage retire les treize fichiers de la
+mise en place, mais il les a reçus des autres : chez lui ils comptent comme *suppressions
+non attribuées*, et sa courbe ne bouge pas. La vraie descente est chez le commis au
+taillage, qui met ses propres parures au fond de légumes à la fin de son poste : sa courbe
+monte à deux fichiers par légume, puis retombe de moitié.
+
+Dans les deux cas, la suppression se fait **un chemin écrit en toutes lettres** à la fois.
+Un `rm mise-en-place/*.md` effacerait autant de fichiers, mais l'observateur refuse de
+deviner ce qu'un motif recouvre, et la courbe resterait en l'air.
+
+**Une barrière.** Le dressage n'est lancé qu'une fois tous les postes rendus. Dans la
+ligne du temps, le peigne s'arrête net et un seul trait reprend après.
+
+## Combien ça dure
+
+Une minute de recette vaut 2 secondes de montre. Mais ce n'est pas le minuteur qui fait la
+durée d'un service : c'est le temps que les agents passent à réfléchir et à écrire entre
+deux gestes. Mesuré sur une ratatouille complète — 9 agents, 22 gestes, 13 fichiers —
+**9 minutes de montre** pour 2 minutes et demie d'attentes de minuteur.
+
+Le parallélisme, lui, se mesure : les cinq postes totalisent 418 s de travail pour 204 s
+de temps réellement occupé, soit **2,05×**. C'est le chiffre que `service.md` recalcule à
+chaque service.
+
+Pour allonger ou raccourcir les attentes :
+
+```sh
+CADENCE=5 claude     # une minute de recette = 5 secondes
+```
+
+La cadence ne change que l'échelle, jamais les proportions : c'est le seul endroit où
+l'on triche, et on triche partout pareil.
+
+## Ce qu'il y a dans le kit
+
+```
+.claude/agents/     cinq spécialités — chef de partie, taillage, cuisson, sauce, dressage
+.claude/skills/     service (le chef d'orchestre) + les gestes de chaque poste
+.claude/settings.json   les permissions, pour que le service ne s'arrête pas à chaque outil
+minuteur.sh         attend le temps d'un geste et le consigne dans le journal
+ouvrir-service.sh   ouvre un service daté et le lien 'courant'
+service/            tout ce que la brigade produit — un répertoire par service
+```
+
+Le `journal.ndjson` de chaque service est la **vérité de terrain** : ce que la brigade a
+réellement attendu, geste par geste, avec ses horodatages. C'est contre lui qu'on vérifie
+que la ligne du temps ne raconte pas d'histoires.
+
+## Si le service se passe mal
+
+| Ce qu'on voit | Ce que c'est |
+|---|---|
+| un seul agent, une seule barre | le chef a cuisiné lui-même ; relancer en lui rappelant qu'il ne touche pas au minuteur |
+| des barres en escalier, aucune ne se chevauche | les postes ont été lancés un par un au lieu d'un seul message |
+| un geste coupé à 2 minutes pile | l'appel Bash n'avait pas de `timeout` : il faut `(minutes × 2 + 30) × 1000` ms |
+| la courbe des fichiers ne redescend pas | le dressage a supprimé avec un motif au lieu de chemins littéraux |
+| rien ne démarre, un avertissement sur `permissions.allow` | le répertoire n'a pas été déclaré de confiance |
+| les commis tournent en rond, « This command requires approval » | le minuteur a été appelé par un chemin absolu : une règle de permission matche la commande **telle qu'écrite**, et celle du kit autorise `./minuteur.sh` |
+| deux services mélangés dans le même journal | deux `claude` lancés en même temps dans le même projet : le lien `courant` ne désigne qu'un service à la fois |

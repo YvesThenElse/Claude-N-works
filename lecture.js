@@ -489,7 +489,8 @@ async function listerSousAgents(cheminTranscript) {
 }
 
 /** L'état d'un agent, selon les trois fins possibles mesurées en §5 quater. */
-function conclure({ appelParent, notification, interrompu, sessionVivante, dernierSigne }) {
+function conclure({ appelParent, notification, interrompu, sessionVivante, dernierSigne,
+                   appelEnSuspens = false }) {
   if (interrompu) {
     return { etat: 'interrompu', fin: appelParent?.fin ?? dernierSigne };
   }
@@ -514,6 +515,14 @@ function conclure({ appelParent, notification, interrompu, sessionVivante, derni
   if (lanceEnFond) {
     // Le tool_result marque le lancement, pas la fin.
     if (notification) return { etat: 'terminé', fin: notification.instant };
+    // Sans notification — le cas des agents imbriqués, dont le parent a fermé son
+    // transcript avant d'en recevoir une — on juge l'agent sur son propre transcript,
+    // exactement comme on juge la racine : plus aucun appel en suspens dans une session
+    // qui ne tourne plus, c'est qu'il a rendu. Tant que la session vit, on s'abstient :
+    // un agent entre deux outils n'a lui non plus rien en suspens.
+    if (!sessionVivante && !appelEnSuspens && dernierSigne !== null) {
+      return { etat: 'terminé', fin: dernierSigne };
+    }
     return sessionVivante
       ? { etat: 'en cours', fin: null }
       : { etat: 'fin inconnue', fin: dernierSigne };
@@ -610,6 +619,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       interrompu: d.interrompu,
       sessionVivante,
       dernierSigne: d.dernier,
+      appelEnSuspens: [...d.appels.values()].some((a) => a.fin === null),
     });
 
     const res = appelParent && typeof appelParent.resultat === 'object' ? appelParent.resultat : null;

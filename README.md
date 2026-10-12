@@ -6,6 +6,10 @@ ses outils, dans le temps.
 - **Ce qu'on construit** → [`CAHIER-DES-CHARGES.md`](CAHIER-DES-CHARGES.md)
 - **Comment Claude Code écrit ses traces** → [`OBSERVATIONS-FORMAT.md`](OBSERVATIONS-FORMAT.md),
   la référence de format, mesurée et non devinée.
+- **De quoi nourrir l'observateur** → [`exemples/`](exemples/LISEZ-MOI.md), des kits à
+  déposer dans un répertoire vide, qui produisent une session dont la ligne du temps montre
+  quelque chose. Le premier, [`cuisine/`](exemples/cuisine/LISEZ-MOI.md), met en scène une
+  brigade : un chef qui ne cuisine pas, des postes en parallèle, une barrière avant l'envoi.
 
 ## Lancer
 

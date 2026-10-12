@@ -257,8 +257,11 @@ demandé `run_in_background`. Trois conséquences, toutes mesurées sur la même
    part vers son parent — lequel a déjà fermé son transcript. Sur la session mesurée,
    seule la racine en contient, et pour le chef de partie, pas pour ses commis. La seule
    fin connaissable d'un agent de profondeur 2 est donc **le dernier enregistrement de son
-   propre transcript**, et c'est à ce titre qu'on l'affiche en « fin inconnue » : on sait
-   jusqu'où il a travaillé, on ne voit pas qu'il s'est arrêté.
+   propre transcript**. On le juge alors comme on juge la racine : dans une session qui ne
+   tourne plus, un agent dont plus aucun appel n'est en suspens a rendu — « terminé » à ce
+   dernier enregistrement. S'il reste un appel sans résultat, il est mort en travaillant,
+   et c'est « fin inconnue ». Tant que la session vit, on s'abstient de trancher : un agent
+   entre deux outils n'a lui non plus rien en suspens.
 
 Un orchestrateur qui ignore ce point croit son étage terminé alors qu'il commence : dans
 le kit, le chef de partie attend ses fichiers par une boucle `until` avant de conclure.

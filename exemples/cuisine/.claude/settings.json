@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./minuteur.sh:*)",
+      "Bash(./ouvrir-service.sh:*)",
+      "Bash(until:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Read",
+      "Write",
+      "Glob",
+      "Skill"
+    ]
+  }
+}
