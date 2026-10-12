@@ -126,8 +126,30 @@ garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-
 | curseur « échelle » | même zoom, centré sur la vue |
 
 Le zoom à la molette relève l'instant sous le curseur avant de changer d'échelle, puis
-recale le défilement pour qu'il retombe au même endroit. Mesuré sur huit crans consécutifs :
-la dérive reste **sous le demi-pixel** et ne s'accumule pas.
+recale le défilement pour qu'il retombe au même endroit. Mesuré sur vingt crans consécutifs,
+soit un facteur mille d'échelle : la dérive reste **sous le demi-pixel** et ne s'accumule
+pas.
+
+La plage de zoom va de « toute la session dans la fenêtre » jusqu'à **46 pixels par
+seconde** sur un transcript de onze jours — assez pour séparer deux appels distants de
+quelques dizaines de millisecondes. Deux bornes l'arrêtent : un pixel par milliseconde,
+au-delà duquel il n'y a plus rien à gagner, et une largeur de dessin de 16 millions de
+pixels. Cette seconde borne vient d'une mesure : le navigateur place correctement un
+élément jusqu'à 20 millions de pixels, et **écrête à 33 554 428** — au-delà, la fin du
+dessin se replie sur elle-même.
+
+**On ne dessine que ce qui est visible**, élargi d'une marge, et on redessine en défilant.
+Sans ce découpage, la règle seule produisait 140 000 traits et 70 000 étiquettes à fond de
+zoom, soit deux secondes par redessin — inutilisable à la molette. Mesuré après :
+
+| Échelle | Largeur | Éléments | Redessin |
+|---|---|---|---|
+| 0,1 px/min | 896 px | 5 960 | 50 ms |
+| 1,8 px/s | 637 000 px | 1 144 | 14 ms |
+| 45,8 px/s | 16 000 000 px | 823 | **11 ms** |
+
+Et le contrôle qui compte : dix appels pris sur toute la durée des onze jours sont bien
+dessinés quand on défile jusqu'à eux. Le découpage ne cache rien.
 
 Un glissé de plus de quatre pixels n'ouvre pas de carte — sans quoi tout déplacement qui
 part d'une barre en ouvrirait une. En deçà, c'est un clic et il agit normalement. Vérifié
@@ -135,9 +157,15 @@ sur quatre essais : le clic ouvre à chaque fois, le glissé jamais.
 
 ### La règle du temps
 
-Une graduation en haut de la piste, avec un filet pâle qui descend sur les voies. Le pas
-suit l'échelle — 12 h, 1 h, 10 min, 2 min, jusqu'à la seconde — et les instants sont ronds
-en **heure locale**, pas en temps epoch.
+Une graduation en haut de la piste, avec un filet pâle qui descend sur les voies. Les
+instants sont ronds en **heure locale**, pas en temps epoch, et le pas suit l'échelle en
+privilégiant les repères qui se lisent vite — l'heure ronde, puis les dizaines de minutes
+(:00, :10, :20…), puis les multiples de cinq, puis la minute. Le quart d'heure, la
+demi-heure et les deux minutes sont écartés exprès. Mesuré du plus large au plus serré :
+
+```
+12 h  →  3 h  →  1 h  →  10 min  →  5 min  →  1 min  →  30 s  →  10 s  →  5 s
+```
 
 Elle se calcule **par segment actif**, et non sur toute la largeur : les temps morts étant
 repliés, le temps n'avance pas au même rythme d'un bout à l'autre, et une graduation

@@ -189,12 +189,19 @@ const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
 const REGLE_BAS = 24;      // la ligne de base de la règle du temps
 const HAUTEUR_BARRE = 16;
 const LARGEUR_VIDE = 22;     // largeur donnée à un temps mort replié
+const LARGEUR_MAX = 16000000; // largeur maximale du dessin, bien sous l'écrêtage à 33,5 M
+// À fond de zoom, une règle dessinée sur toute la largeur produit 140 000 traits et
+// 70 000 étiquettes, soit deux secondes par redessin — inutilisable à la molette. On ne
+// dessine donc que la fenêtre visible, élargie d'une marge pour que le défilement doux ne
+// révèle pas de vide, et on redessine quand on s'est assez éloigné.
+const MARGE_RENDU = 2500;
 const SEUIL_VIDE_MIN_MS = 60000; // on ne replie jamais un trou de moins d'une minute
 const PART_VIDE = 400;      // ni un trou de moins d'un quatre-centième de la session
 
 let deroule = null;
 let vise = null;
 let axeCourant = null;
+let rendu = null;   // ce qui a été dessiné, pour savoir quand il faut recommencer
 
 const elTitre = document.getElementById('titre');
 const elResume = document.getElementById('resume');
@@ -441,7 +448,11 @@ function dessinerPiste() {
     ? tempsActif(instants, d.debut, d.fin)
     : { actif: span, n: 0 };
   const min = Math.max(dispo - n * LARGEUR_VIDE, dispo * 0.25) / actif;
-  const max = Math.max(min * 2, 1 / 1000);
+  // Jusqu'où aller en zoom ? Deux bornes. Le navigateur écrête un élément au-delà de
+  // 33 554 428 px — mesuré : jusqu'à 20 millions tout reste à sa place, à 50 millions la
+  // fin du dessin se replie sur elle-même. On s'arrête donc bien en deçà. Et au-delà d'un
+  // pixel par milliseconde, il n'y a plus rien à y gagner.
+  const max = Math.max(min * 2, Math.min(1, LARGEUR_MAX / actif));
   const p = Number(elZoom.value) / 100;
   const pxParMs = min * Math.pow(max / min, p);
   elZoomTexte.textContent = pxParMs * 1000 >= 1
@@ -450,6 +461,13 @@ function dessinerPiste() {
 
   const axe = construireAxe(instants, d.debut, d.fin, pxParMs, elReplier.checked);
   axeCourant = axe;
+
+  const vue = {
+    x0: elPiste.scrollLeft - MARGE_RENDU,
+    x1: elPiste.scrollLeft + elPiste.clientWidth + MARGE_RENDU,
+  };
+  rendu = { defil: elPiste.scrollLeft, largeur: axe.largeur };
+  const visible = (a, b) => b >= vue.x0 && a <= vue.x1;
   elReplis.textContent = axe.replies
     ? axe.replies + ' temps mort' + (axe.replies > 1 ? 's' : '') + ' replié'
       + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
@@ -469,7 +487,7 @@ function dessinerPiste() {
   defs.append(degrade);
   svg.append(defs);
 
-  svg.append(dessinerRegle(axe, pxParMs, hauteur));
+  svg.append(dessinerRegle(axe, pxParMs, hauteur, vue));
 
   // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
   for (const s of axe.segments) {
@@ -594,6 +612,7 @@ function dessinerPiste() {
       if (o.debut === null) continue;
       const ox = axe.x(o.debut);
       const largeur = o.fin !== null ? Math.max(1.5, axe.x(o.fin) - ox) : 1.5;
+      if (!visible(ox, ox + largeur)) continue;
       const estAgent = o.nom === 'Agent' || o.nom === 'Task';
       const couleur = o.ok === false ? 'var(--outil-echec)'
         : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
@@ -975,9 +994,13 @@ function carteRequete(r) {
 
 // Les pas d'une règle du temps, du plus fin au plus large. On choisit le premier qui
 // laisse assez de place entre deux étiquettes pour qu'elles ne se chevauchent pas.
+// Les pas retenus suivent une préférence : l'heure ronde d'abord, puis les dizaines de
+// minutes (:00, :10, :20…), puis les multiples de cinq, puis la minute. En dessous, la
+// même progression en secondes. Les pas intermédiaires — le quart d'heure, la demi-heure,
+// les deux minutes — sont écartés : ils donnent des repères qu'on lit moins vite.
 const PAS_REGLE = [
-  1000, 2000, 5000, 10000, 15000, 30000,
-  60000, 2 * 60000, 5 * 60000, 10 * 60000, 15 * 60000, 30 * 60000,
+  1000, 5000, 10000, 30000,
+  60000, 5 * 60000, 10 * 60000,
   3600000, 2 * 3600000, 3 * 3600000, 6 * 3600000, 12 * 3600000,
   86400000, 2 * 86400000, 7 * 86400000, 28 * 86400000,
 ];
@@ -1001,21 +1024,25 @@ function etiquetteTemps(instant, pas) {
  * régulière en pixels mentirait. Chaque segment reçoit donc ses propres graduations, à des
  * instants ronds de l'heure locale, et le pas est choisi d'après l'échelle courante.
  */
-function dessinerRegle(axe, pxParMs, hauteur) {
+function dessinerRegle(axe, pxParMs, hauteur, vue) {
   const g = el('g', {});
   const place = 72; // largeur minimale réservée à une étiquette
   const pas = PAS_REGLE.find((p) => p * pxParMs >= place) || PAS_REGLE[PAS_REGLE.length - 1];
 
   g.append(el('line', {
-    x1: 0, y1: REGLE_BAS, x2: axe.largeur, y2: REGLE_BAS,
+    x1: Math.max(0, vue.x0), y1: REGLE_BAS, x2: Math.min(axe.largeur, vue.x1), y2: REGLE_BAS,
     stroke: 'var(--trait)', 'stroke-width': 1,
   }));
 
   // Une étiquette n'est écrite que si la place est libre. Le trait de graduation, lui,
   // reste toujours : il ne peut pas se chevaucher, et il garde la verticale lisible.
-  let finDerniereEtiquette = -Infinity;
-  const placeLibre = (x) => x - finDerniereEtiquette >= place;
-  const occuper = (x) => { finDerniereEtiquette = x + place; };
+  // `occuper` retient l'abscisse de la dernière étiquette écrite, et non sa fin : y
+  // ajouter `place` reviendrait à exiger deux fois l'écartement voulu, et une étiquette
+  // sur deux sauterait — c'est ce qui donnait des pas de deux minutes là où la minute
+  // tenait largement.
+  let derniereEtiquette = -Infinity;
+  const placeLibre = (x) => x - derniereEtiquette >= place;
+  const occuper = (x) => { derniereEtiquette = x; };
 
   let jourPrecedent = null;
   for (const s of axe.segments) {
@@ -1025,6 +1052,7 @@ function dessinerRegle(axe, pxParMs, hauteur) {
     // échelle le pas retenu peut dépasser la durée du segment et la règle resterait
     // muette — constaté : 12 h de pas pour des segments de quelques heures.
     const xd = axe.x(s.t0);
+    if (s.x1 < vue.x0 || s.x0 > vue.x1) continue; // segment hors de vue : rien à graduer
     g.append(el('line', {
       x1: xd, y1: REGLE_BAS - 8, x2: xd, y2: REGLE_BAS,
       stroke: 'var(--texte)', 'stroke-width': 1, opacity: '.5',
@@ -1048,8 +1076,16 @@ function dessinerRegle(axe, pxParMs, hauteur) {
     // On s'aligne sur des instants ronds de l'heure **locale**, pas de l'époque.
     const decalage = new Date(s.t0).getTimezoneOffset() * 60000;
     let t = Math.ceil((s.t0 - decalage) / pas) * pas + decalage;
+    // On saute directement au premier instant visible plutôt que de parcourir des
+    // dizaines de milliers de graduations hors champ.
+    if (axe.x(t) < vue.x0) {
+      const sauts = Math.floor((vue.x0 - axe.x(t)) / (pas * pxParMs));
+      if (sauts > 0) t += sauts * pas;
+    }
     for (; t <= s.t1; t += pas) {
       const x = axe.x(t);
+      if (x > vue.x1) break;
+      if (x < vue.x0) continue;
       if (x - xd < place * 0.6) continue; // trop près du repère de départ : illisible
       g.append(el('line', {
         x1: x, y1: REGLE_BAS - 5, x2: x, y2: REGLE_BAS,
@@ -1264,7 +1300,16 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); })
 elReplier.addEventListener('change', dessiner);
 elContexte.addEventListener('change', dessiner);
 // L'arbre et les voies doivent rester alignés quand on fait défiler.
-elPiste.addEventListener('scroll', () => { elArbre.scrollTop = elPiste.scrollTop; });
+let redessinPrevu = false;
+elPiste.addEventListener('scroll', () => {
+  elArbre.scrollTop = elPiste.scrollTop;
+  // On a quitté la zone déjà dessinée : il faut en dessiner une nouvelle. Le report au
+  // prochain rafraîchissement d'écran évite d'en faire un par événement de défilement.
+  if (!rendu || redessinPrevu) return;
+  if (Math.abs(elPiste.scrollLeft - rendu.defil) < MARGE_RENDU * 0.6) return;
+  redessinPrevu = true;
+  requestAnimationFrame(() => { redessinPrevu = false; dessinerPiste(); });
+});
 
 // ------------------------------------------------------- la souris dans la ligne du temps
 

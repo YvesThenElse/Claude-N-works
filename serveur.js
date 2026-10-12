@@ -206,7 +206,10 @@ function traiter(requete, reponse) {
         reponse.end(`page introuvable : ${PAGE}\n`);
         return;
       }
-      reponse.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      reponse.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+      });
       reponse.end(contenu);
     });
     return;
@@ -281,7 +284,10 @@ function traiter(requete, reponse) {
         reponse.end('page de session introuvable\n');
         return;
       }
-      reponse.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      reponse.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+      });
       reponse.end(contenu);
     });
     return;
