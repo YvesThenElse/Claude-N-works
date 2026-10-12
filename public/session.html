@@ -378,6 +378,7 @@ const elListeVoies = document.getElementById('listeVoies');
 const VOIES_ANNEXES = [
   { cle: 'tours', nom: 'tours', teinte: '#7aa2f7' },
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
+  { cle: 'reflexion', nom: 'réflexion', teinte: '#c4a7ff' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
@@ -385,7 +386,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
 };
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
@@ -670,6 +671,10 @@ function construireVoies() {
     if (voiesVisibles.outils && (a.outils || []).length) {
       voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.reflexion
+        && (a.requetesModele || []).some((r) => r.jetons.reflexion > 0)) {
+      voies.push({ genre: 'reflexion', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a, prof: a.profondeur + 1 });
     }
@@ -764,6 +769,17 @@ const LEGENDE_VOIE = {
     'La teinte dit quel modèle a répondu.',
     'Une réponse d’un seul bloc n’a pas de durée mesurable : seul un trait',
     'reste. C’était le cas de 45 % des appels de la session Litanie.',
+  ].join('\n'),
+  reflexion: [
+    'Une barre par appel où le modèle a réfléchi avant de répondre.',
+    'Sa hauteur suit le nombre de jetons de réflexion, à l’échelle de la',
+    'racine : sans quoi le pic écraserait tout le reste.',
+    '',
+    'Pas de barre : ce tour-là, il a répondu sans réfléchir.',
+    '',
+    'Le contenu de la réflexion n’est pas conservé par le transcript —',
+    'seule sa signature l’est. On sait qu’elle a eu lieu et combien elle a',
+    'coûté, jamais ce qu’elle disait.',
   ].join('\n'),
   contenu: [
     'De quoi le contexte était fait à chaque appel, en parts empilées :',
@@ -861,6 +877,20 @@ function dessinerArbre() {
       etiq.textContent = a.nom;
       etat.textContent = a.outils.length + ' out.';
       surLigne(() => { vise = a.id; dessiner(); carteAgent(a); });
+    } else if (v.genre === 'reflexion') {
+      const avec = a.requetesModele.filter((r) => r.jetons.reflexion > 0);
+      const total = avec.reduce((n, r) => n + r.jetons.reflexion, 0);
+      const pic = Math.max(0, ...avec.map((r) => r.jetons.reflexion));
+      d.title = avec.length + ' appels sur ' + a.requetesModele.length + ' comportent une '
+        + 'réflexion\n' + total.toLocaleString('fr-FR') + ' jetons en tout, le plus long '
+        + pic.toLocaleString('fr-FR') + '\n\n' + LEGENDE_VOIE.reflexion;
+      icone.textContent = '∿';
+      icone.style.color = '#c4a7ff';
+      puce.style.background = '#c4a7ff';
+      etiq.textContent = 'réflexion';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = Math.round(total / 1000) + ' k jet.';
+      surLigne(() => carteReflexion(a));
     } else if (v.genre === 'contexte') {
       const sien = Math.max(...a.contexte.map((c) => c.jetons));
       const ref = refContexte();
@@ -1196,6 +1226,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'outils') {
       svg.append(dessinerVoieOutils(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'reflexion') {
+      svg.append(dessinerVoieReflexion(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
@@ -1783,6 +1817,49 @@ function detaillerEntree(dl, j, nombre) {
   ligne(dl, '— payés au prix fort', nombre(j.entree)
     + (entree ? '   (' + Math.round(((j.entree || 0) / entree) * 100) + ' %)' : ''));
   return entree ? (j.cacheLu || 0) / entree : 0;
+}
+
+/** Carte de la réflexion : quand le modèle réfléchit, et combien. */
+function carteReflexion(agent) {
+  const reqs = agent.requetesModele;
+  const avec = reqs.filter((r) => r.jetons.reflexion > 0);
+  const jetons = avec.map((r) => r.jetons.reflexion).sort((a, b) => a - b);
+  const total = jetons.reduce((n, j) => n + j, 0);
+  const sortie = reqs.reduce((n, r) => n + r.jetons.sortie, 0);
+  const nombre = (n) => (n || 0).toLocaleString('fr-FR');
+
+  const dl = document.createElement('dl');
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Appels avec réflexion', avec.length + ' sur ' + reqs.length
+    + '   (' + Math.round(avec.length * 100 / Math.max(1, reqs.length)) + ' %)');
+  ligne(dl, 'Jetons de réflexion', nombre(total)
+    + '   soit ' + Math.round(total * 100 / Math.max(1, sortie)) + ' % de tout ce qu’il a produit');
+  ligne(dl, 'Par réflexion', jetons.length
+    ? 'médiane ' + nombre(jetons[Math.floor(jetons.length / 2)])
+      + ', la plus longue ' + nombre(jetons[jetons.length - 1])
+    : null);
+
+  // Réfléchit-il davantage avant d'appeler un outil, ou avant de parler ?
+  const avant = { avecOutil: [0, 0], sansOutil: [0, 0] };
+  for (const r of avec) {
+    const cle = r.outils.length ? 'avecOutil' : 'sansOutil';
+    avant[cle][0] += 1;
+    avant[cle][1] += r.jetons.reflexion;
+  }
+  const moy = (q) => (q[0] ? Math.round(q[1] / q[0]) : 0);
+  ligne(dl, 'Avant d’appeler un outil',
+    avant.avecOutil[0] + ' fois, ' + nombre(moy(avant.avecOutil)) + ' jetons en moyenne');
+  ligne(dl, 'Avant de seulement parler',
+    avant.sansOutil[0] + ' fois, ' + nombre(moy(avant.sansOutil)) + ' jetons en moyenne');
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Le contenu de la réflexion n’est pas conservé par le transcript : seule '
+    + 'sa signature l’est. On sait donc qu’elle a eu lieu et ce qu’elle a coûté, jamais ce '
+    + 'qu’elle disait. La hauteur des barres suit la racine du nombre de jetons, sans quoi '
+    + 'le pic écraserait toutes les autres.';
+
+  ouvrirPanneau('réflexion', agent.nom, [dl, p]);
 }
 
 /**
@@ -2391,6 +2468,50 @@ const NOM_ATTENTE = {
   inoccupée: 'le tour est fini, personne n’a repris la main',
 };
 
+/**
+ * La voie de réflexion. Une barre par appel où le modèle a réfléchi, de hauteur
+ * proportionnelle à la racine du nombre de jetons : la médiane est à 248 jetons et le pic
+ * à 3 475, donc une échelle linéaire écraserait les quatre cinquièmes des barres contre la
+ * ligne de base. L'absence de barre est un signal aussi : ce tour-là, il n'a pas réfléchi.
+ */
+function dessinerVoieReflexion(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const avec = agent.requetesModele.filter((r) => r.jetons.reflexion > 0);
+  if (!avec.length) return g;
+  const pic = Math.max(...avec.map((r) => r.jetons.reflexion));
+  const bas = centre + 11;
+  const hauteurMax = 22;
+
+  g.append(el('line', {
+    x1: axe.x(agent.debut), y1: bas, x2: axe.x(agent.fin ?? deroule.fin), y2: bas,
+    stroke: '#c4a7ff', 'stroke-width': 1, opacity: '.25',
+  }));
+
+  for (const r of avec) {
+    const x = axe.x(r.debut);
+    if (!visible(x - 2, x + 2)) continue;
+    const h = Math.max(2, Math.sqrt(r.jetons.reflexion / pic) * hauteurMax);
+    g.append(el('rect', {
+      x: x - 1.1, y: bas - h, width: 2.2, height: h, rx: 1,
+      fill: '#c4a7ff', opacity: '.85',
+    }));
+    const prise = el('rect', {
+      x: x - 3.5, y: bas - hauteurMax - 2, width: 7, height: hauteurMax + 6,
+      fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      r.jetons.reflexion.toLocaleString('fr-FR') + ' jetons de réflexion'
+      + '\n' + heure(r.debut)
+      + '\n' + r.jetons.sortie.toLocaleString('fr-FR') + ' jetons de sortie en tout'
+      + (r.outils.length ? '\npuis ' + r.outils.join(', ') : '\npuis aucun outil')
+      + '\n\nle contenu de la réflexion n’est pas conservé')));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteModele(agent, r.modele, r); });
+    g.append(prise);
+  }
+  return g;
+}
+
 /** Ce qu'un tour contient : les appels d'outils et les requêtes au modèle qui tombent dedans. */
 function contenuDuTour(agent, tour) {
   const dedans = (x) => x >= tour.debut && x <= tour.fin;
@@ -2794,6 +2915,9 @@ function remplirMenuVoies() {
     if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
     if ((a.tours || []).length) presentes.tours = (presentes.tours || 0) + 1;
     if ((a.outils || []).length) presentes.outils = (presentes.outils || 0) + 1;
+    if ((a.requetesModele || []).some((r) => r.jetons.reflexion > 0)) {
+      presentes.reflexion = (presentes.reflexion || 0) + 1;
+    }
     if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
     presentes.modele = (presentes.modele || 0) + modelesDe(a).length;

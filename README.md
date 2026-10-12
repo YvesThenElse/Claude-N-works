@@ -362,6 +362,22 @@ contient, et la part de sa durée passée dans les outils et chez le modèle. Ex
 un tour de 10 minutes, 27 appels `Bash`, 28 requêtes au modèle — 20 % du temps dans les
 outils, 51 % chez le modèle.
 
+### La réflexion
+
+Une barre par appel où le modèle a réfléchi avant de répondre, de hauteur proportionnelle
+au nombre de jetons de réflexion — **à l'échelle de la racine**, parce que la médiane est à
+248 jetons et le pic à 3 475 : une échelle linéaire écraserait les quatre cinquièmes des
+barres contre la ligne de base. L'absence de barre est un signal aussi : ce tour-là, il a
+répondu sans réfléchir.
+
+Sur la session Litanie : **886 appels sur 2011 comportent une réflexion** (44 %), pour
+319 699 jetons — soit 18 % de tout ce que le modèle a produit. Et un contraste que la carte
+donne : il réfléchit **359 jetons en moyenne avant d'appeler un outil**, mais **517 avant de
+seulement parler**.
+
+Le contenu de la réflexion n'est pas conservé par le transcript, seule sa signature l'est.
+On sait donc qu'elle a eu lieu et ce qu'elle a coûté, jamais ce qu'elle disait.
+
 ### Les appels au modèle
 
 Une voie par modèle réellement appelé, sous l'agent qui l'appelle. Chaque appel s'y lit en
