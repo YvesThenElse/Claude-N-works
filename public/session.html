@@ -190,7 +190,9 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const HAUTEUR_VOIE = 35.2;   // doit valoir la hauteur d'un nœud de l'arbre (2.2rem)
 const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
 const REGLE_BAS = 24;      // la ligne de base de la règle du temps
-const HAUTEUR_BARRE = 16;
+const HAUTEUR_BARRE = 15;     // la barre de l'agent
+const HAUTEUR_DUREE = 10;     // la bande de durée d'un appel d'outil, sous la barre
+const LARGEUR_PRISE_MIN = 10; // un appel bref doit rester visable à la souris
 const LARGEUR_VIDE = 22;     // largeur donnée à un temps mort replié
 const LARGEUR_MAX = 16000000; // largeur maximale du dessin, bien sous l'écrêtage à 33,5 M
 // À fond de zoom, une règle dessinée sur toute la largeur produit 140 000 traits et
@@ -505,18 +507,32 @@ function dessinerPiste() {
 
   svg.append(dessinerRegle(axe, pxParMs, hauteur, vue));
 
-  // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
+  // Les temps morts repliés, en bande claire sur le fond sombre : une bande sombre s'y
+  // noyait, alors que le repli est justement ce qu'il ne faut pas rater.
   for (const s of axe.segments) {
     if (!s.vide) continue;
+    // La bande monte jusqu'en haut, règle comprise : c'est bien l'axe du temps lui-même
+    // qui saute ici, et non seulement les voies.
     svg.append(el('rect', {
-      x: s.x0, y: REGLE_BAS + 1, width: LARGEUR_VIDE, height: hauteur - REGLE_BAS - 1,
-      fill: '#000', opacity: '.28',
+      x: s.x0, y: 0, width: LARGEUR_VIDE, height: hauteur,
+      fill: 'var(--texte)', opacity: '.085',
     }));
+    // Deux bords fins : sans eux, deux replis voisins se confondraient en une seule bande.
+    for (const bx of [s.x0, s.x0 + LARGEUR_VIDE]) {
+      svg.append(el('line', {
+        x1: bx, y1: 0, x2: bx, y2: hauteur,
+        stroke: 'var(--texte)', 'stroke-width': 1, opacity: '.16',
+      }));
+    }
+    // Le « ⋯ » se place sur la ligne des étiquettes de la règle, où rien ne le recouvre :
+    // plus bas, les repères de requête passaient dessus.
+    // Trois points ordinaires : le caractère d'ellipse médiane manque à certaines polices
+    // et s'affichait en carré vide.
     const t = el('text', {
-      x: s.x0 + LARGEUR_VIDE / 2, y: REGLE_BAS + 16, 'text-anchor': 'middle',
-      fill: 'var(--texte-faible)', 'font-size': '8.5',
+      x: s.x0 + LARGEUR_VIDE / 2, y: REGLE_BAS - 6, 'text-anchor': 'middle',
+      fill: 'var(--texte)', 'font-size': '13', opacity: '.7', 'letter-spacing': '1',
     });
-    t.textContent = '⋯';
+    t.textContent = '...';
     t.append(el('title', {}, document.createTextNode(
       'temps mort replié : ' + duree(s.t1 - s.t0) + '\nde ' + heure(s.t0) + '\nà ' + heure(s.t1))));
     svg.append(t);
@@ -604,7 +620,12 @@ function dessinerPiste() {
     }
     if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
     const a = v.agent;
-    const y = centre - HAUTEUR_BARRE / 2;
+    // La voie se partage en deux : la barre de l'agent au-dessus, la bande de durée des
+    // appels d'outils en dessous. L'ensemble reste centré sur la voie.
+    const y = centre - (HAUTEUR_BARRE + HAUTEUR_DUREE) / 2;
+    const yDuree = y + HAUTEUR_BARRE;
+    const hautPrise = y - 3;
+    const hauteurPrise = HAUTEUR_BARRE + HAUTEUR_DUREE + 6;
     const x0 = a.debut === null ? 0 : axe.x(a.debut);
     const finEffective = a.fin ?? d.fin;
     const x1 = Math.max(x0 + 2, axe.x(finEffective));
@@ -638,16 +659,16 @@ function dessinerPiste() {
         : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
       if (largeur > 2) {
         g.append(el('rect', {
-          x: ox, y: y + HAUTEUR_BARRE, width: largeur, height: 4,
-          fill: couleur, opacity: '.5',
+          x: ox, y: yDuree, width: largeur, height: HAUTEUR_DUREE, rx: 1.5,
+          fill: couleur, opacity: '.6',
         }));
       }
       g.append(el('rect', {
-        x: ox, y: y - 3, width: 1.8, height: HAUTEUR_BARRE + 9, fill: couleur,
+        x: ox, y: hautPrise, width: 1.8, height: hauteurPrise, fill: couleur,
       }));
       const titre = el('rect', {
-        x: ox - 2.5, y: y - 3, width: Math.max(6, largeur + 5), height: HAUTEUR_BARRE + 9,
-        fill: 'transparent',
+        x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
+        height: hauteurPrise, fill: 'transparent',
       });
       titre.append(el('title', {}, document.createTextNode(
         o.nom + (o.ok === false ? '  — ÉCHEC' : '')

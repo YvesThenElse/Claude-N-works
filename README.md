@@ -87,7 +87,10 @@ elle reste en pointillés, ouverte à droite. Les quatre états mesurés sont di
 en cours, terminé, interrompu, fin inconnue.
 
 Tous les appels d'outils sont là, un par un, à leur instant : un trait net au départ, une
-bande discrète pour la durée. Un appel d'agent et un appel en échec ont leur couleur. Les
+bande de couleur pour la durée, posée sous la barre de l'agent. Un appel d'agent et un
+appel en échec ont leur couleur. La zone de prise fait au moins 10 × 31 pixels, même pour
+un appel qui n'a duré qu'un instant — contre 6 × 25 auparavant, où viser demandait de la
+patience. Les
 requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
 repères verticaux.
 
@@ -247,7 +250,9 @@ boucles presque de bout en bout.
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
 L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée de la session
 (un quatre-centième, jamais moins d'une minute). Chaque repli est **annoncé et compté** —
-« 23 temps morts repliés, 7,0 j élidée » — et la case à cocher le désactive. Rien n'est
+« 23 temps morts repliés, 7,0 j élidée » — et la case à cocher le désactive. À l'écran,
+c'est une bande verticale gris très clair qui traverse toute la hauteur, règle comprise :
+l'axe du temps lui-même saute là, et une bande sombre s'y serait noyée. Rien n'est
 masqué en silence.
 
 Un « temps mort » est un intervalle où **aucun événement n'est enregistré** : pas un appel
