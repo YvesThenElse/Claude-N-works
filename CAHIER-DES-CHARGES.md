@@ -260,7 +260,9 @@ dit : 45 % des réponses tiennent en un seul bloc et n'ont donc pas de durée.
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 
-**Les cartes**, en panneau. Sélectionner un agent, un skill ou une boucle ouvre sa carte.
+**Les cartes**, en modale au milieu de l'écran. Sélectionner un agent, un skill ou une
+boucle ouvre sa carte ; le fond ou la touche d'échappement la referment. Un tiroir latéral
+était trop étroit pour lire un contexte ou un long résultat d'outil.
 
 ---
 

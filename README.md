@@ -95,7 +95,9 @@ requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversen
 repères verticaux.
 
 Cliquer un agent, un appel d'outil, une boucle, une requête ou une voie de contexte ouvre
-sa carte — dans l'arbre comme dans la piste. Celle d'un agent donne
+sa carte — dans l'arbre comme dans la piste. La carte s'ouvre en **modale au milieu de
+l'écran**, large de 62 rem au lieu des 31 d'un tiroir latéral : lire un contexte ou un long
+résultat d'outil demande de la largeur. Le fond ou Échap la referment. Celle d'un agent donne
 son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, son effort, ses
 jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil

@@ -58,17 +58,24 @@
   .vise-barre { outline: 1px solid var(--accent); }
   .message { padding: 3rem 1.5rem; color: var(--texte-faible); }
 
-  /* Le panneau des cartes : il recouvre la droite de la piste sans la faire bouger. */
+  /* Les cartes s'ouvrent en modale au milieu de l'écran : la lecture d'un contexte ou
+     d'un long résultat demande de la largeur, qu'un tiroir latéral ne donne pas. */
   .panneau {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(31rem, 94vw);
-    background: var(--fond-carte); border-left: 1px solid var(--trait);
-    box-shadow: -14px 0 34px #0008; overflow-y: auto; padding: 1.2rem 1.3rem 3rem;
-    display: none;
+    position: fixed; inset: 0; z-index: 40;
+    background: #080a0ecc;
+    display: none; align-items: center; justify-content: center;
+    padding: 2.5vh 2vw;
   }
-  .panneau.ouvert { display: block; }
+  .panneau.ouvert { display: flex; }
+  .panneau .boite {
+    background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 12px;
+    box-shadow: 0 22px 60px #000a;
+    width: min(62rem, 96vw); max-height: 95vh; overflow-y: auto;
+    padding: 1.3rem 1.5rem 2.2rem;
+  }
   .panneau .fermer {
     float: right; background: none; border: 0; color: var(--texte-faible);
-    font-size: 1.3rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
+    font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
   }
   .panneau .fermer:hover { color: var(--texte); }
   .panneau .genre {
@@ -77,8 +84,8 @@
   }
   .panneau h2 { font-size: 1.05rem; margin: .25rem 0 .9rem; font-weight: 600; }
   .panneau dl {
-    display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem;
-    margin: 0 0 1rem; font-size: .82rem;
+    display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1.4rem;
+    margin: 0 0 1rem; font-size: .84rem;
   }
   .panneau dt { color: var(--texte-faible); }
   .panneau dd { margin: 0; overflow-wrap: anywhere; }
@@ -262,7 +269,9 @@
   <div class="piste" id="piste"><p class="message">Lecture du transcript…</p></div>
 </div>
 
-<aside class="panneau" id="panneau" aria-live="polite"></aside>
+<div class="panneau" id="panneau" aria-live="polite" role="dialog" aria-modal="true">
+  <div class="boite" id="panneauBoite"></div>
+</div>
 
 <script>
 'use strict';
@@ -995,6 +1004,10 @@ function dessinerPiste() {
 // ------------------------------------------------------------------------- les cartes
 
 const elPanneau = document.getElementById('panneau');
+const elBoite = document.getElementById('panneauBoite');
+
+// Cliquer le fond, hors de la boîte, referme la modale.
+elPanneau.addEventListener('click', (e) => { if (e.target === elPanneau) fermerPanneau(); });
 
 function ligne(dl, cle, valeur, mono) {
   if (valeur === null || valeur === undefined || valeur === '') return;
@@ -1025,7 +1038,7 @@ function blocReplie(titre, contenu, ouvert = true) {
 
 function ouvrirPanneau(genre, titre, elements) {
   if (genre !== 'boucle') iterationVisee = null;
-  elPanneau.replaceChildren();
+  elBoite.replaceChildren();
   const fermer = document.createElement('button');
   fermer.className = 'fermer';
   fermer.textContent = '×';
@@ -1033,9 +1046,9 @@ function ouvrirPanneau(genre, titre, elements) {
   fermer.addEventListener('click', fermerPanneau);
   const g = document.createElement('div'); g.className = 'genre'; g.textContent = genre;
   const h = document.createElement('h2'); h.textContent = titre;
-  elPanneau.append(fermer, g, h, ...elements.filter(Boolean));
+  elBoite.append(fermer, g, h, ...elements.filter(Boolean));
   elPanneau.classList.add('ouvert');
-  elPanneau.scrollTop = 0;
+  elBoite.scrollTop = 0;
 }
 
 /**
@@ -1055,7 +1068,7 @@ function amenerEnVue(t0, t1) {
 
 function fermerPanneau() {
   elPanneau.classList.remove('ouvert');
-  elPanneau.replaceChildren();
+  elBoite.replaceChildren();
   iterationVisee = null;
   if (boucleVisee !== null) {
     boucleVisee = null;
