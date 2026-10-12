@@ -117,6 +117,34 @@ ligne peut être incomplète, donc on ne traite que jusqu'au dernier saut de lig
 garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-agent n'a
 été lancé, donc on le cherche à chaque passage et pas une seule fois à l'ouverture.
 
+### Se déplacer dans la ligne du temps
+
+| Geste | Effet |
+|---|---|
+| molette | zoome **autour du curseur** : l'instant sous le pointeur y reste |
+| bouton gauche enfoncé + souris | déplace la vue, horizontalement et verticalement |
+| curseur « échelle » | même zoom, centré sur la vue |
+
+Le zoom à la molette relève l'instant sous le curseur avant de changer d'échelle, puis
+recale le défilement pour qu'il retombe au même endroit. Mesuré sur huit crans consécutifs :
+la dérive reste **sous le demi-pixel** et ne s'accumule pas.
+
+Un glissé de plus de quatre pixels n'ouvre pas de carte — sans quoi tout déplacement qui
+part d'une barre en ouvrirait une. En deçà, c'est un clic et il agit normalement. Vérifié
+sur quatre essais : le clic ouvre à chaque fois, le glissé jamais.
+
+### La règle du temps
+
+Une graduation en haut de la piste, avec un filet pâle qui descend sur les voies. Le pas
+suit l'échelle — 12 h, 1 h, 10 min, 2 min, jusqu'à la seconde — et les instants sont ronds
+en **heure locale**, pas en temps epoch.
+
+Elle se calcule **par segment actif**, et non sur toute la largeur : les temps morts étant
+repliés, le temps n'avance pas au même rythme d'un bout à l'autre, et une graduation
+régulière en pixels mentirait. Chaque segment porte en plus un repère daté à son départ,
+car à grande échelle le pas retenu peut dépasser la durée d'un segment — la règle serait
+alors muette. Une étiquette qui n'a pas la place n'est pas écrite ; son trait reste.
+
 ### Le contexte, les compactages et les pannes
 
 La taille du contexte a sa propre voie, en aire remplie d'un dégradé vertical du vert au
@@ -164,6 +192,21 @@ L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée 
 (un quatre-centième, jamais moins d'une minute). Chaque repli est **annoncé et compté** —
 « 23 temps morts repliés, 7,0 j élidée » — et la case à cocher le désactive. Rien n'est
 masqué en silence.
+
+Un « temps mort » est un intervalle où **aucun événement n'est enregistré** : pas un appel
+d'outil qui commence ou finit, pas un agent qui naît ou meurt, pas une requête. Classés sur
+les deux grosses sessions, les 45 trous repliés se répartissent ainsi :
+
+| Ce que c'était | Trous | Durée |
+|---|---|---|
+| Après un `Bash` — le tour s'achève et plus personne au clavier | 26 | 253 h |
+| Après un `ScheduleWakeup` — une boucle qui dort entre deux tours | 7 | 98 h |
+| Pendant un `AskUserQuestion` — l'agent attend une réponse d'Yves | 8 | 37 h |
+| Après une notification ou un envoi de fichier | 4 | 22 h |
+
+C'est donc **de l'attente**, sous trois formes. Et le contrôle qui compte : les seuls appels
+d'outil plus longs que le seuil de repli sont des `AskUserQuestion` — c'est-à-dire de
+l'attente eux-mêmes. **Aucun travail en cours n'est jamais replié.**
 
 ### Mesures
 

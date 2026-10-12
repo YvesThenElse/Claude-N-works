@@ -399,6 +399,34 @@ troisième tour, et sa filiation reste lisible par ailleurs dans l'arbre. Les de
 informations sont distinctes et toutes deux nécessaires : *qui* l'a lancé, et *quand* dans
 la répétition.
 
+## 5 octies. Ce qu'un « temps mort » est vraiment
+
+Un temps mort, au sens de la ligne du temps, est un intervalle où le transcript n'enregistre
+**rien** : ni appel d'outil qui commence ou finit, ni agent qui naît ou meurt, ni requête.
+Reste à savoir ce que l'agent faisait pendant ce temps-là. Classement des 45 trous repliés
+des deux plus grosses sessions, selon le dernier appel qui les précède ou qui les couvre :
+
+| Ce qui précédait | Trous | Durée |
+|---|---|---|
+| un `Bash` | 26 | 253 h |
+| un `ScheduleWakeup` | 7 | 98 h |
+| un `AskUserQuestion` **encore en cours** | 8 | 37 h |
+| une notification, un envoi de fichier | 4 | 22 h |
+
+Les trois formes d'attente : une boucle qui dort entre deux tours, l'agent qui attend une
+réponse, et la session simplement inoccupée après un tour achevé.
+
+**Le contrôle qui compte** : un repli pourrait-il avaler du travail en cours — une
+compilation de quarante minutes, par exemple ? Sur ces deux sessions, les **seuls** appels
+d'outil plus longs que le seuil de repli sont des `AskUserQuestion` : cinq d'un côté, trois
+de l'autre. Aucun `Bash`, aucun agent. Et un `AskUserQuestion` qui dure est lui-même de
+l'attente. Aucun travail n'est donc replié.
+
+Une réserve honnête : les instants retenus pour détecter les trous sont ceux des appels
+d'outils, des agents et des requêtes — pas ceux des messages de texte de l'agent. Un trou
+peut donc commencer quelques secondes trop tôt, à la dernière action plutôt qu'à la
+dernière parole.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :

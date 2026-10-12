@@ -242,6 +242,11 @@ au-delà du périmètre initial, tous lus dans des données déjà présentes :
   visible d'un coup d'œil ;
 - **les pannes d'API** sont des repères à part, et comptées sur la carte de l'agent.
 
+**La règle du temps et la souris** — *demandées après le lot 6*. Une graduation datée en
+haut de la piste, dont le pas suit l'échelle, calculée par segment actif puisque le temps
+n'avance pas au même rythme de part et d'autre d'un repli. La molette zoome autour du
+curseur ; le bouton gauche enfoncé déplace la vue. Un glissé franc n'ouvre pas de carte.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 

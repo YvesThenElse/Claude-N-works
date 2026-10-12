@@ -40,7 +40,7 @@
   .puce { width: .7rem; height: .7rem; border-radius: 2px; display: inline-block; }
 
   .cadre { display: grid; grid-template-columns: 19rem 1fr; height: calc(100vh - 11rem); }
-  .arbre { border-right: 1px solid var(--trait); overflow: hidden; padding-top: 2.1rem; }
+  .arbre { border-right: 1px solid var(--trait); overflow: hidden; padding-top: 3.4rem; }
   .noeud {
     height: 2.2rem; display: flex; align-items: center; gap: .4rem;
     padding: 0 .7rem; cursor: pointer; white-space: nowrap;
@@ -51,7 +51,8 @@
   .noeud .etiq { overflow: hidden; text-overflow: ellipsis; }
   .noeud .etat { margin-left: auto; font-size: .72rem; color: var(--texte-faible); }
 
-  .piste { overflow: auto; position: relative; }
+  .piste { overflow: auto; position: relative; cursor: grab; overscroll-behavior-x: contain; }
+  .piste:active { cursor: grabbing; }
   svg { display: block; }
   .vise-barre { outline: 1px solid var(--accent); }
   .message { padding: 3rem 1.5rem; color: var(--texte-faible); }
@@ -184,7 +185,8 @@
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const HAUTEUR_VOIE = 35.2;   // doit valoir la hauteur d'un nœud de l'arbre (2.2rem)
-const MARGE_HAUT = 33.6;    // doit valoir le padding-top de l'arbre (2.1rem)
+const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
+const REGLE_BAS = 24;      // la ligne de base de la règle du temps
 const HAUTEUR_BARRE = 16;
 const LARGEUR_VIDE = 22;     // largeur donnée à un temps mort replié
 const SEUIL_VIDE_MIN_MS = 60000; // on ne replie jamais un trou de moins d'une minute
@@ -192,6 +194,7 @@ const PART_VIDE = 400;      // ni un trou de moins d'un quatre-centième de la s
 
 let deroule = null;
 let vise = null;
+let axeCourant = null;
 
 const elTitre = document.getElementById('titre');
 const elResume = document.getElementById('resume');
@@ -277,7 +280,19 @@ function construireAxe(instants, debut, fin, pxParMs, replier) {
     }
     return x;
   }
-  return { largeur: x, segments, x: projeter, replies, elide };
+  /** L'inverse de `projeter` : quel instant se trouve à cette abscisse. */
+  function instantA(px) {
+    for (const s of segments) {
+      if (px > s.x1) continue;
+      if (s.vide) return s.t0; // dans un temps mort replié, on rend son bord gauche
+      const p = s.x1 === s.x0 ? 0 : (px - s.x0) / (s.x1 - s.x0);
+      return s.t0 + p * (s.t1 - s.t0);
+    }
+    const fin = segments[segments.length - 1];
+    return fin ? fin.t1 : debut;
+  }
+
+  return { largeur: x, segments, x: projeter, t: instantA, replies, elide };
 }
 
 /** Le temps réellement occupé, trous repliés exclus : sert à calculer l'échelle juste. */
@@ -434,6 +449,7 @@ function dessinerPiste() {
     : (pxParMs * 60000).toFixed(1) + ' px/min';
 
   const axe = construireAxe(instants, d.debut, d.fin, pxParMs, elReplier.checked);
+  axeCourant = axe;
   elReplis.textContent = axe.replies
     ? axe.replies + ' temps mort' + (axe.replies > 1 ? 's' : '') + ' replié'
       + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
@@ -453,15 +469,17 @@ function dessinerPiste() {
   defs.append(degrade);
   svg.append(defs);
 
+  svg.append(dessinerRegle(axe, pxParMs, hauteur));
+
   // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
   for (const s of axe.segments) {
     if (!s.vide) continue;
     svg.append(el('rect', {
-      x: s.x0, y: 0, width: LARGEUR_VIDE, height: hauteur,
+      x: s.x0, y: REGLE_BAS + 1, width: LARGEUR_VIDE, height: hauteur - REGLE_BAS - 1,
       fill: '#000', opacity: '.28',
     }));
     const t = el('text', {
-      x: s.x0 + LARGEUR_VIDE / 2, y: 16, 'text-anchor': 'middle',
+      x: s.x0 + LARGEUR_VIDE / 2, y: REGLE_BAS + 16, 'text-anchor': 'middle',
       fill: 'var(--texte-faible)', 'font-size': '8.5',
     });
     t.textContent = '⋯';
@@ -475,11 +493,12 @@ function dessinerPiste() {
   if (d.sessionVivante) {
     const x = axe.x(Math.min(Date.now(), d.fin));
     svg.append(el('line', {
-      x1: x, y1: 20, x2: x, y2: hauteur,
+      x1: x, y1: REGLE_BAS + 2, x2: x, y2: hauteur,
       stroke: 'var(--en-cours)', 'stroke-width': 1.4, opacity: '.8',
     }));
     const marque = el('text', {
-      x: x - 4, y: 30, 'text-anchor': 'end', fill: 'var(--en-cours)', 'font-size': '9',
+      x: x - 4, y: REGLE_BAS + 14, 'text-anchor': 'end', fill: 'var(--en-cours)',
+      'font-size': '9',
     });
     marque.textContent = 'maintenant';
     svg.append(marque);
@@ -493,12 +512,12 @@ function dessinerPiste() {
       const x = axe.x(k.instant);
       const g = el('g', {});
       g.append(el('line', {
-        x1: x, y1: 18, x2: x, y2: hauteur,
+        x1: x, y1: REGLE_BAS + 2, x2: x, y2: hauteur,
         stroke: 'var(--compact)', 'stroke-width': 1.2, 'stroke-dasharray': '2 3',
         opacity: '.85',
       }));
       const et = el('text', {
-        x: x + 3, y: 30, fill: 'var(--compact)', 'font-size': '8.5',
+        x: x + 3, y: REGLE_BAS + 16, fill: 'var(--compact)', 'font-size': '8.5',
       });
       et.textContent = '⟲';
       g.append(et);
@@ -512,10 +531,10 @@ function dessinerPiste() {
       const x = axe.x(err.instant);
       const g = el('g', {});
       g.append(el('line', {
-        x1: x, y1: 18, x2: x, y2: hauteur, stroke: 'var(--panne)', 'stroke-width': 1.2,
-        opacity: '.8',
+        x1: x, y1: REGLE_BAS + 2, x2: x, y2: hauteur, stroke: 'var(--panne)',
+        'stroke-width': 1.2, opacity: '.8',
       }));
-      g.append(el('circle', { cx: x, cy: 18, r: 3, fill: 'var(--panne)' }));
+      g.append(el('circle', { cx: x, cy: REGLE_BAS + 8, r: 3, fill: 'var(--panne)' }));
       g.append(el('title', {}, document.createTextNode(
         'panne — ' + heure(err.instant) + '\n' + err.texte)));
       svg.append(g);
@@ -528,10 +547,10 @@ function dessinerPiste() {
     const x = axe.x(r.instant);
     const g = el('g', {});
     g.append(el('line', {
-      x1: x, y1: 20, x2: x, y2: hauteur,
+      x1: x, y1: REGLE_BAS + 4, x2: x, y2: hauteur,
       stroke: 'var(--requete)', 'stroke-width': 1, opacity: '.55',
     }));
-    g.append(el('circle', { cx: x, cy: 20, r: 3.5, fill: 'var(--requete)' }));
+    g.append(el('circle', { cx: x, cy: REGLE_BAS + 10, r: 3.5, fill: 'var(--requete)' }));
     g.append(el('title', {}, document.createTextNode(
       'requête — ' + heure(r.instant) + '\n\n' + (r.texte || '').slice(0, 400))));
     g.style.cursor = 'pointer';
@@ -954,6 +973,119 @@ function carteRequete(r) {
   ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
 }
 
+// Les pas d'une règle du temps, du plus fin au plus large. On choisit le premier qui
+// laisse assez de place entre deux étiquettes pour qu'elles ne se chevauchent pas.
+const PAS_REGLE = [
+  1000, 2000, 5000, 10000, 15000, 30000,
+  60000, 2 * 60000, 5 * 60000, 10 * 60000, 15 * 60000, 30 * 60000,
+  3600000, 2 * 3600000, 3 * 3600000, 6 * 3600000, 12 * 3600000,
+  86400000, 2 * 86400000, 7 * 86400000, 28 * 86400000,
+];
+
+function etiquetteTemps(instant, pas) {
+  const d = new Date(instant);
+  const deuxChiffres = (n) => String(n).padStart(2, '0');
+  if (pas < 60000) {
+    return deuxChiffres(d.getHours()) + ':' + deuxChiffres(d.getMinutes())
+      + ':' + deuxChiffres(d.getSeconds());
+  }
+  if (pas < 86400000) return deuxChiffres(d.getHours()) + 'h' + deuxChiffres(d.getMinutes());
+  return deuxChiffres(d.getDate()) + '/' + deuxChiffres(d.getMonth() + 1);
+}
+
+/**
+ * La règle du temps, en haut de la piste.
+ *
+ * Elle se calcule **par segment actif** et non sur toute la largeur : avec les temps morts
+ * repliés, le temps n'avance pas au même rythme d'un bout à l'autre, et une graduation
+ * régulière en pixels mentirait. Chaque segment reçoit donc ses propres graduations, à des
+ * instants ronds de l'heure locale, et le pas est choisi d'après l'échelle courante.
+ */
+function dessinerRegle(axe, pxParMs, hauteur) {
+  const g = el('g', {});
+  const place = 72; // largeur minimale réservée à une étiquette
+  const pas = PAS_REGLE.find((p) => p * pxParMs >= place) || PAS_REGLE[PAS_REGLE.length - 1];
+
+  g.append(el('line', {
+    x1: 0, y1: REGLE_BAS, x2: axe.largeur, y2: REGLE_BAS,
+    stroke: 'var(--trait)', 'stroke-width': 1,
+  }));
+
+  // Une étiquette n'est écrite que si la place est libre. Le trait de graduation, lui,
+  // reste toujours : il ne peut pas se chevaucher, et il garde la verticale lisible.
+  let finDerniereEtiquette = -Infinity;
+  const placeLibre = (x) => x - finDerniereEtiquette >= place;
+  const occuper = (x) => { finDerniereEtiquette = x + place; };
+
+  let jourPrecedent = null;
+  for (const s of axe.segments) {
+    if (s.vide) continue;
+
+    // Un repère au départ de chaque segment actif, quoi qu'il arrive. Sans lui, à grande
+    // échelle le pas retenu peut dépasser la durée du segment et la règle resterait
+    // muette — constaté : 12 h de pas pour des segments de quelques heures.
+    const xd = axe.x(s.t0);
+    g.append(el('line', {
+      x1: xd, y1: REGLE_BAS - 8, x2: xd, y2: REGLE_BAS,
+      stroke: 'var(--texte)', 'stroke-width': 1, opacity: '.5',
+    }));
+    const dep = new Date(s.t0);
+    if (placeLibre(xd)) {
+      const bornes = el('text', {
+        x: xd + 3, y: REGLE_BAS - 7, fill: 'var(--texte)', 'font-size': '9.5',
+        opacity: '.85',
+      });
+      bornes.textContent = String(dep.getDate()).padStart(2, '0') + '/'
+        + String(dep.getMonth() + 1).padStart(2, '0') + ' '
+        + String(dep.getHours()).padStart(2, '0') + 'h'
+        + String(dep.getMinutes()).padStart(2, '0');
+      bornes.append(el('title', {}, document.createTextNode(heure(s.t0))));
+      g.append(bornes);
+      occuper(xd);
+    }
+    jourPrecedent = dep.toDateString();
+
+    // On s'aligne sur des instants ronds de l'heure **locale**, pas de l'époque.
+    const decalage = new Date(s.t0).getTimezoneOffset() * 60000;
+    let t = Math.ceil((s.t0 - decalage) / pas) * pas + decalage;
+    for (; t <= s.t1; t += pas) {
+      const x = axe.x(t);
+      if (x - xd < place * 0.6) continue; // trop près du repère de départ : illisible
+      g.append(el('line', {
+        x1: x, y1: REGLE_BAS - 5, x2: x, y2: REGLE_BAS,
+        stroke: 'var(--texte-faible)', 'stroke-width': 1, opacity: '.7',
+      }));
+      // Un filet très pâle descend sur toute la hauteur : on suit la verticale à l'œil.
+      g.append(el('line', {
+        x1: x, y1: REGLE_BAS, x2: x, y2: hauteur,
+        stroke: 'var(--texte)', 'stroke-width': 1, opacity: '.045',
+      }));
+      const jour = new Date(t).toDateString();
+      if (!placeLibre(x)) { jourPrecedent = jour; continue; }
+      const et = el('text', {
+        x: x + 3, y: REGLE_BAS - 7, fill: 'var(--texte-faible)', 'font-size': '9.5',
+      });
+      et.textContent = etiquetteTemps(t, pas);
+      g.append(et);
+      occuper(x);
+
+      // Le jour ne s'écrit qu'au changement de date, sous l'heure.
+      if (jour !== jourPrecedent && pas < 86400000) {
+        const dt = new Date(t);
+        const ej = el('text', {
+          x: x + 3, y: REGLE_BAS + 10, fill: 'var(--texte-faible)',
+          'font-size': '8.5', opacity: '.8',
+        });
+        ej.textContent = String(dt.getDate()).padStart(2, '0') + '/'
+          + String(dt.getMonth() + 1).padStart(2, '0');
+        g.append(ej);
+      }
+      jourPrecedent = jour;
+    }
+  }
+  return g;
+}
+
 /**
  * La taille du contexte, en aire remplie d'un dégradé vertical : vert en bas quand il
  * reste de la place, rouge en haut quand la fenêtre sature. Le dégradé étant vertical,
@@ -1133,6 +1265,89 @@ elReplier.addEventListener('change', dessiner);
 elContexte.addEventListener('change', dessiner);
 // L'arbre et les voies doivent rester alignés quand on fait défiler.
 elPiste.addEventListener('scroll', () => { elArbre.scrollTop = elPiste.scrollTop; });
+
+// ------------------------------------------------------- la souris dans la ligne du temps
+
+const PAS_MOLETTE = 2.5;   // crans d'échelle par coup de molette
+const SEUIL_GLISSE = 4;    // en deçà, c'est un clic et non un déplacement
+
+/**
+ * La molette zoome **autour du curseur** : l'instant qui se trouve sous le pointeur doit
+ * y rester après le changement d'échelle. On le relève avant, on redessine, puis on
+ * recale le défilement pour qu'il retombe au même endroit à l'écran.
+ */
+elPiste.addEventListener('wheel', (e) => {
+  if (!deroule || !axeCourant) return;
+  if (e.ctrlKey) return;                  // on laisse le zoom du navigateur tranquille
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // défilement horizontal du pavé
+  e.preventDefault();
+
+  const cadre = elPiste.getBoundingClientRect();
+  const dansLeCadre = e.clientX - cadre.left;          // où est le curseur dans la fenêtre
+  const instantVise = axeCourant.t(elPiste.scrollLeft + dansLeCadre);
+
+  const avant = Number(elZoom.value);
+  const apres = Math.min(100, Math.max(0, avant - Math.sign(e.deltaY) * PAS_MOLETTE));
+  if (apres === avant) return;
+  elZoom.value = String(apres);
+  dessinerPiste();
+
+  elPiste.scrollLeft = axeCourant.x(instantVise) - dansLeCadre;
+}, { passive: false });
+
+// Glisser avec le bouton gauche déplace la ligne du temps.
+let glisse = null;
+let vientDeGlisser = false;
+
+elPiste.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  glisse = {
+    departX: e.clientX,
+    departY: e.clientY,
+    defilX: elPiste.scrollLeft,
+    defilY: elPiste.scrollTop,
+    parcouru: 0,
+  };
+  vientDeGlisser = false;
+  // La capture du pointeur est un confort — elle garde le glissé vivant quand le curseur
+  // sort du cadre. Si le navigateur la refuse, le glissé doit marcher quand même.
+  try { elPiste.setPointerCapture(e.pointerId); } catch { /* tant pis */ }
+});
+
+elPiste.addEventListener('pointermove', (e) => {
+  if (!glisse) return;
+  const dx = e.clientX - glisse.departX;
+  const dy = e.clientY - glisse.departY;
+  glisse.parcouru = Math.max(glisse.parcouru, Math.abs(dx), Math.abs(dy));
+  if (glisse.parcouru < SEUIL_GLISSE) return;
+  elPiste.style.cursor = 'grabbing';
+  elPiste.scrollLeft = glisse.defilX - dx;
+  elPiste.scrollTop = glisse.defilY - dy;
+});
+
+function finGlisse(e) {
+  if (!glisse) return;
+  // Un déplacement franc ne doit pas se comporter aussi comme un clic sur une barre.
+  vientDeGlisser = glisse.parcouru >= SEUIL_GLISSE;
+  glisse = null;
+  elPiste.style.cursor = '';
+  try {
+    if (e && e.pointerId !== undefined && elPiste.hasPointerCapture(e.pointerId)) {
+      elPiste.releasePointerCapture(e.pointerId);
+    }
+  } catch { /* le pointeur a déjà disparu */ }
+}
+
+elPiste.addEventListener('pointerup', finGlisse);
+elPiste.addEventListener('pointercancel', finGlisse);
+
+// En phase de capture, donc avant que les barres et les marques ne voient le clic.
+elPiste.addEventListener('click', (e) => {
+  if (!vientDeGlisser) return;
+  vientDeGlisser = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
 </script>
 </body>
 </html>
