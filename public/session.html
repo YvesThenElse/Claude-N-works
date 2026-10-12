@@ -726,6 +726,11 @@ const LEGENDE_VOIE = {
     '   vert         un appel ordinaire',
     '   violet       un appel d’agent, qui lance un sous-agent',
     '   rose         un appel en échec',
+    '',
+    'Un arc rose relie un échec à l’appel qui le rattrape, la pointe sur',
+    'la reprise. Sur l’ensemble des transcrits, 78 % des échecs sont suivis',
+    'du même outil — mais presque jamais à l’identique : l’agent corrige',
+    'son entrée et relance.',
   ].join('\n'),
   contexte: [
     'La taille du contexte au fil du temps.',
@@ -2451,6 +2456,31 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
   const yDuree = centre + 2;
   const hautPrise = centre - 11;
   const hauteurPrise = 24;
+
+  // Les reprises : un arc qui relie l'échec à l'appel qui le rattrape. Mesuré sur le
+  // corpus, l'agent relance presque toujours le même outil avec une entrée corrigée —
+  // c'est ce geste de correction qu'on veut voir, pas seulement la marque rouge.
+  const parId = new Map(agent.outils.map((o) => [o.id, o]));
+  for (const o of agent.outils) {
+    if (!o.repriseParId) continue;
+    const cible = parId.get(o.repriseParId);
+    if (!cible || o.debut === null || cible.debut === null) continue;
+    const xa = axe.x(o.debut);
+    const xb = axe.x(cible.debut);
+    if (!visible(Math.min(xa, xb) - 6, Math.max(xa, xb) + 6)) continue;
+    const haut = centre - 15;
+    const milieu = (xa + xb) / 2;
+    g.append(el('path', {
+      d: `M ${xa.toFixed(1)} ${centre - 10} Q ${milieu.toFixed(1)} ${haut - 6} ${xb.toFixed(1)} ${centre - 10}`,
+      fill: 'none', stroke: 'var(--outil-echec)', 'stroke-width': 1.2, opacity: '.85',
+    }));
+    // Une pointe sur l'appel qui reprend.
+    g.append(el('path', {
+      d: `M ${(xb - 3).toFixed(1)} ${centre - 14} L ${xb.toFixed(1)} ${(centre - 9).toFixed(1)} `
+        + `L ${(xb + 3).toFixed(1)} ${centre - 14} Z`,
+      fill: 'var(--outil-echec)', opacity: '.9',
+    }));
+  }
   for (const o of agent.outils) {
     if (o.debut === null) continue;
     const ox = axe.x(o.debut);
@@ -2472,9 +2502,16 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
       x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
       height: hauteurPrise, fill: 'transparent',
     });
+    const suite = o.suite === 'corrigée' ? '\nrepris juste après, avec une entrée corrigée'
+      : o.suite === 'identique' ? '\nrelancé juste après, à l’identique'
+      : o.suite === 'autre' ? '\npas de reprise : l’agent est passé à autre chose'
+      : o.suite === 'rien' ? '\npas de reprise : c’était son dernier appel' : '';
+    const reprend = o.reprendId
+      ? '\nreprend un ' + o.repriseDe + ' qui a échoué' : '';
     prise.append(el('title', {}, document.createTextNode(
       o.nom + (o.ok === false ? '  — ÉCHEC' : '')
       + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
+      + suite + reprend
       + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));
     prise.style.cursor = 'pointer';
     prise.addEventListener('click', (e) => {

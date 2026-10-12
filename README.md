@@ -92,6 +92,18 @@ d'agent, une question à l'utilisateur — masquait l'agent lui-même et rendait
 barre illisible. Chacun y figure à son instant : un trait net au départ, une bande de
 couleur pour la durée. Un appel d'agent et un appel en échec ont leur couleur.
 
+### Les échecs et leurs reprises
+
+Un appel en échec est rose, et **un arc le relie à l'appel qui le rattrape**, la pointe sur
+la reprise. Le survol dit de quelle sorte de reprise il s'agit.
+
+La forme de la signalétique vient d'une mesure, pas d'une intuition. Sur les **297 échecs**
+de l'ensemble des transcrits, 78 % sont suivis d'un appel **du même outil** — mais presque
+jamais à l'identique : seulement 5 cas de relance telle quelle, contre une large majorité
+d'entrées corrigées. Le geste à rendre visible n'est donc pas « il réessaie », c'est « il
+corrige et relance ». Sur la session Litanie : 28 échecs, dont **23 repris avec une entrée
+corrigée** et 5 abandonnés au profit d'autre chose.
+
 ### Chercher dans un texte
 
 Tout bloc de texte de plus de quatre cents caractères porte une barre de recherche :

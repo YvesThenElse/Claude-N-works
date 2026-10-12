@@ -585,6 +585,26 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     });
   }
 
+  // Les échecs et ce qui les suit. Mesuré sur les 297 échecs du corpus : 78 % sont suivis
+  // d'un appel du même outil, mais presque jamais à l'identique — cinq cas seulement.
+  // L'agent corrige et relance ; c'est ce geste-là qu'il faut rendre visible.
+  for (const a of agents) {
+    const ordonnes = a.outils.filter((o) => o.debut !== null).sort((x, y) => x.debut - y.debut);
+    ordonnes.forEach((o, i) => {
+      if (o.ok !== false) return;
+      const suivant = ordonnes[i + 1];
+      if (!suivant || suivant.nom !== o.nom) {
+        o.suite = suivant ? 'autre' : 'rien';
+        return;
+      }
+      o.suite = suivant.entree === o.entree ? 'identique' : 'corrigée';
+      o.repriseParId = suivant.id;
+      suivant.reprendId = o.id;
+      suivant.repriseDe = o.nom;
+      suivant.repriseGenre = o.suite;
+    });
+  }
+
   // La voie d'attente, par agent. L'instant présent sert de borne quand la session tourne
   // encore : une attente en cours n'a pas de fin.
   const maintenant = Date.now();
