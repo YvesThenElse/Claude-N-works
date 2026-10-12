@@ -140,8 +140,11 @@ de mesure du banc de Litanie jusqu'à …"}`.
 
 **Constaté.** Une boucle `/loop` en allure libre se lit entièrement dans le transcript :
 
-- son ouverture est le `tool_use` `Skill` avec `skill:"loop"` ; `args` contient la consigne
-  et la condition d'arrêt ;
+- son ouverture est **parfois** le `tool_use` `Skill` avec `skill:"loop"`, dont les `args`
+  contiennent la consigne et la condition d'arrêt — mais seulement 3 des 10 boucles de la
+  session Litanie en ont un. Ce qui identifie une boucle à coup sûr est son **arrêt**, et
+  la consigne se relit alors dans le champ `prompt` des réveils (§5 quinquies
+  d'`OBSERVATIONS-FORMAT.md`) ;
 - chaque itération se referme par un `tool_use` `ScheduleWakeup` dont l'`input` donne
   `delaySeconds`, `noop` (vrai = rien n'a changé, faux = quelque chose a été produit),
   `reason` (une phrase sur ce qui est attendu) et `prompt` (la consigne rejouée) ;
@@ -376,7 +379,8 @@ arbre, plus le repli des temps morts rendu nécessaire par la mesure.
 **Lot 5 — le temps réel.** Suivi de la fin du fichier, agents qui apparaissent et se
 grisent en direct, marque de l'instant présent.
 
-**Lot 6 — la boucle.** La carte de boucle et sa bande d'itérations.
+**Lot 6 — la boucle. Fait le 12 octobre 2026.** La carte de boucle et sa bande
+d'itérations.
 
 L'ordre n'est pas négociable sur un point : le lot 1 passe avant tout le reste.
 

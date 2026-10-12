@@ -93,6 +93,26 @@
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
   }
+  .bande { display: flex; flex-wrap: wrap; gap: 3px; margin: .5rem 0 .2rem; }
+  .bande i {
+    width: 15px; height: 22px; border-radius: 2px; cursor: pointer;
+    background: var(--outil); position: relative;
+  }
+  .bande i.rien { background: var(--trait); }
+  .bande i.vise { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .bande i:hover { filter: brightness(1.4); }
+  .iteration {
+    margin-top: .7rem; padding: .6rem .75rem; background: var(--fond);
+    border: 1px solid var(--trait); border-radius: 6px; font-size: .82rem;
+  }
+  .iteration .quand { color: var(--texte-faible); font-size: .76rem; }
+  .boutons-boucles { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; }
+  .boutons-boucles button {
+    background: var(--fond); border: 1px solid var(--trait); color: var(--texte);
+    border-radius: 999px; padding: .12rem .6rem; font-size: .74rem; cursor: pointer;
+    font-family: inherit;
+  }
+  .boutons-boucles button:hover { border-color: var(--accent); color: var(--accent); }
   .puces-outils { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0 0; }
   .puces-outils span {
     background: var(--fond); border: 1px solid var(--trait); border-radius: 999px;
@@ -114,6 +134,7 @@
   </label>
   <label><input type="checkbox" id="replier" checked> replier les temps morts</label>
   <span id="replis"></span>
+  <span id="boucles" style="display:flex;gap:.4rem;align-items:center"></span>
   <div class="legende">
     <span><i class="puce" style="background:var(--en-cours)"></i>en cours</span>
     <span><i class="puce" style="background:var(--termine)"></i>terminé</span>
@@ -154,6 +175,7 @@ const elZoom = document.getElementById('zoom');
 const elZoomTexte = document.getElementById('zoomTexte');
 const elReplier = document.getElementById('replier');
 const elReplis = document.getElementById('replis');
+const elBoucles = document.getElementById('boucles');
 
 function duree(ms) {
   if (ms === null || ms === undefined) return '—';
@@ -409,7 +431,9 @@ function dessinerPiste() {
       titre.style.cursor = 'pointer';
       titre.addEventListener('click', (e) => {
         e.stopPropagation();
-        vise = a.id; dessiner(); carteOutil(o, a);
+        vise = a.id; dessiner();
+        const b = o.boucle && (a.boucles || []).find((x) => x.id === o.boucle);
+        if (b) carteBoucle(b, a, o.rang); else carteOutil(o, a);
       });
       g.append(titre);
     }
@@ -549,16 +573,98 @@ function carteOutil(o, agent) {
       + 'contient davantage.';
     morceaux.push(p);
   }
-  if (estSkill && o.skill === 'loop') {
-    const p = document.createElement('p');
-    p.className = 'avert';
-    p.textContent = "Ce skill ouvre une boucle. Sa carte, avec la bande d'itérations, "
-      + 'arrive au lot 6.';
-    morceaux.push(p);
-  }
+
   ouvrirPanneau(estSkill ? 'skill' : "appel d'outil",
     estSkill ? o.skill : o.nom + (o.resume ? ' — ' + o.resume.slice(0, 60) : ''),
     morceaux);
+}
+
+/**
+ * Carte de boucle — §6.3. Ce qu'elle doit rendre visible : la répétition, et l'avancement
+ * dans cette répétition.
+ */
+function carteBoucle(b, agent, rangVise) {
+  const dl = document.createElement('dl');
+  ligne(dl, 'État', b.etat);
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Itérations', String(b.iterations.length));
+  ligne(dl, 'Sans effet', b.sansEffet
+    ? b.sansEffet + ' sur ' + b.iterations.length
+      + (b.sansEffetALaFin ? '  —  dont ' + b.sansEffetALaFin + ' de suite à la fin' : '')
+    : 'aucune');
+  ligne(dl, 'Début', b.debut ? heure(b.debut) : null);
+  ligne(dl, 'Fin', b.fin ? heure(b.fin) : 'pas encore');
+  ligne(dl, 'Durée', duree((b.fin ?? Date.now()) - b.debut));
+  ligne(dl, 'Ouverte par', b.source === 'skill'
+    ? 'un appel du skill loop'
+    : "aucun appel de skill — consigne relue dans le réveil");
+
+  const morceaux = [dl];
+
+  const titreBande = document.createElement('div');
+  titreBande.style.cssText = 'font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--texte-faible);margin-top:1rem';
+  titreBande.textContent = 'la répétition — une case par itération, dans l’ordre';
+  const bande = document.createElement('div');
+  bande.className = 'bande';
+  const detail = document.createElement('div');
+  detail.className = 'iteration';
+
+  function montrer(rang) {
+    const it = b.iterations[rang];
+    [...bande.children].forEach((c, i) => c.classList.toggle('vise', i === rang));
+    detail.replaceChildren();
+    const titre = document.createElement('div');
+    titre.innerHTML = '';
+    titre.append(document.createTextNode(
+      'itération ' + (rang + 1) + ' sur ' + b.iterations.length
+      + ' — ' + (it.noop ? "rien n'a changé" : 'quelque chose a été produit')));
+    titre.style.fontWeight = '600';
+    const quand = document.createElement('div');
+    quand.className = 'quand';
+    quand.textContent = heure(it.instant)
+      + (it.delaiS ? '  ·  prochain réveil demandé dans ' + duree(it.delaiS * 1000) : '');
+    const raison = document.createElement('div');
+    raison.style.marginTop = '.35rem';
+    raison.textContent = it.raison || '(aucune raison donnée)';
+    detail.append(titre, quand, raison);
+  }
+
+  b.iterations.forEach((it, rang) => {
+    const c = document.createElement('i');
+    c.className = it.noop ? 'rien' : '';
+    c.title = 'itération ' + (rang + 1) + (it.noop ? " — rien n'a changé" : '');
+    c.addEventListener('click', () => montrer(rang));
+    bande.append(c);
+  });
+
+  const legende = document.createElement('div');
+  legende.style.cssText = 'font-size:.74rem;color:var(--texte-faible);margin-top:.15rem';
+  legende.textContent = 'case pleine : quelque chose a été produit · case grise : rien n’a changé';
+
+  morceaux.push(titreBande, bande, legende, detail,
+    blocReplie('consigne de la boucle', b.consigne));
+  ouvrirPanneau('boucle', b.consigne
+    ? b.consigne.replace(/^\/loop\s*/, '').slice(0, 70)
+    : 'boucle sans consigne retrouvée', morceaux);
+  montrer(rangVise >= 0 && rangVise < b.iterations.length ? rangVise : 0);
+}
+
+function listerBoucles() {
+  const toutes = [];
+  for (const a of deroule.agents) for (const b of a.boucles || []) toutes.push([b, a]);
+  if (!toutes.length) { elBoucles.replaceChildren(); return; }
+  const titre = document.createElement('span');
+  titre.textContent = toutes.length + (toutes.length > 1 ? ' boucles' : ' boucle') + ' :';
+  const boutons = document.createElement('span');
+  boutons.className = 'boutons-boucles';
+  toutes.forEach(([b, a], i) => {
+    const bt = document.createElement('button');
+    bt.textContent = '#' + (i + 1) + ' · ' + b.iterations.length + ' it.';
+    bt.title = (b.consigne || '').slice(0, 160);
+    bt.addEventListener('click', () => carteBoucle(b, a, 0));
+    boutons.append(bt);
+  });
+  elBoucles.replaceChildren(titre, boutons);
 }
 
 function carteRequete(r) {
@@ -597,6 +703,7 @@ fetch('/api/session?id=' + encodeURIComponent(id || ''))
     deroule = d;
     elTitre.textContent = (d.session && d.session.nom) || d.agents[0]?.nom || id;
     resumer(d);
+    listerBoucles();
     dessiner();
   })
   .catch((e) => {

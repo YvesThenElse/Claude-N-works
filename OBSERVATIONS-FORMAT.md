@@ -268,6 +268,29 @@ de la session vit encore. Un agent sans marqueur de fin dans une session dont le
 est mort doit s'afficher *interrompu, fin inconnue* — et non *en cours*. La dernière ligne
 écrite donne au mieux une borne basse de l'instant de sa mort.
 
+## 5 quinquies. Une boucle ne laisse pas toujours d'acte de naissance
+
+Le §3.4 disait qu'une boucle s'ouvre par un `tool_use` `Skill` portant `skill: "loop"`.
+C'est vrai, mais incomplet. Compté sur la session Litanie : **183 appels `ScheduleWakeup`,
+dont 10 portant `stop: true`, pour seulement 3 appels du skill `loop`**. Les sept autres
+boucles n'ont aucun appel de skill — une boucle relancée par `/loop` tapé à la main ne
+produit pas de `tool_use`.
+
+Ce qui est constant, en revanche, c'est la **mort** : un `ScheduleWakeup` avec
+`stop: true`. La règle de regroupement qui marche, et qui a été vérifiée :
+
+1. grouper les réveils en suites délimitées par les `stop: true` ;
+2. rattacher à une suite le `Skill` `loop` qui la précède immédiatement, s'il existe ;
+3. à défaut, lire la consigne dans le champ `prompt` du réveil, qui rejoue l'entrée
+   `/loop` telle quelle.
+
+Vérification : les dix suites obtenues contiennent 5, 14, 24, 10, 34, 6, 5, 45, 16 et 14
+itérations, soit **173 au total — exactement le nombre de réveils qui ne sont pas des
+arrêts**. Aucune itération perdue, aucune comptée deux fois.
+
+Enfin, `noop` vaut `true` sur 24 réveils, `false` sur 149, et **`null` sur les 10 arrêts** :
+c'est cohérent, un arrêt n'étant pas une itération.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :
@@ -340,6 +363,10 @@ Deux conséquences dans la foulée :
 est le plus souvent simplement absent, et non `false`. Écrire `ok = !bloc.is_error` déclare
 donc « succès » une information qu'on n'a pas. Trois états valent mieux que deux : échec,
 succès, non renseigné — ce dernier s'omettant à l'affichage.
+
+**C9 — une boucle se reconnaît par sa mort, pas par sa naissance** (§5 quinquies). Le §3.4
+du cahier des charges est à amender : seules 3 des 10 boucles de la session Litanie
+commencent par un appel du skill.
 
 **C8 — ce qui reste non vérifié.** Un sous-agent qui échoue de lui-même, sur une erreur
 d'API ou un dépassement, plutôt que d'être interrompu de l'extérieur.

@@ -32,7 +32,7 @@ Le programme **ne fait que lire**. Il n'écrit jamais dans `~/.claude`.
 | 3 — la ligne du temps | fait |
 | 4 — les cartes | fait |
 | 5 — le temps réel | à faire |
-| 6 — la carte de boucle | à faire |
+| 6 — la carte de boucle | fait |
 
 ### Ce que fait l'écran des sessions
 
@@ -65,6 +65,17 @@ jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa 
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
 donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
 Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée.
+
+### Les boucles
+
+Une boucle est une suite de réveils délimitée par un arrêt. Sa carte montre la répétition
+telle quelle : une case par itération, pleine si quelque chose a été produit, grise si rien
+n'a changé. Cliquer une case donne son instant, le délai demandé pour le réveil suivant, et
+la raison écrite à ce moment-là. L'en-tête compte les itérations sans effet, et combien de
+suite à la fin — le signe d'une boucle qui tourne à vide.
+
+Sur la session Litanie : dix boucles, 173 itérations, retrouvées sans en perdre ni en
+compter deux fois.
 
 **Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.

@@ -306,6 +306,7 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
       ? racine.dernier - racine.premier : null,
     jetons: null,
     outils: [...racine.appels.values()].map(nettoyerAppel),
+    boucles: construireBoucles(racine.appels, 'racine'),
   });
 
   for (const sa of sousAgents) {
@@ -342,12 +343,27 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
       dureeMs: res?.totalDurationMs ?? (fin !== null && debut !== null ? fin - debut : null),
       jetons: res?.totalTokens ?? null,
       compteurs: res?.toolStats ?? null,
+      boucles: construireBoucles(d.appels, sa.agentId),
       statutBrut: typeof appelParent?.resultat === 'string'
         ? appelParent.resultat
         : (res?.status ?? null),
       arrierePlan: Boolean(appelParent?.entree?.run_in_background),
       outils: [...d.appels.values()].map(nettoyerAppel),
     });
+  }
+
+  // Chaque réveil porte le numéro de sa boucle et son rang, pour qu'un clic sur la marque
+  // ouvre directement la bonne itération.
+  for (const a of agents) {
+    const parAppel = new Map();
+    for (const b of a.boucles || []) {
+      b.iterations.forEach((it, rang) => parAppel.set(it.idAppel, { boucle: b.id, rang }));
+      if (b.idSkill) parAppel.set(b.idSkill, { boucle: b.id, rang: -1 });
+    }
+    for (const o of a.outils) {
+      const lien = parAppel.get(o.id);
+      if (lien) { o.boucle = lien.boucle; o.rang = lien.rang; }
+    }
   }
 
   // L'ordre de `readdir` n'a aucun sens : on classe par naissance, ce qui donne des voies
@@ -373,6 +389,87 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
     requetes: racine.requetes,
     agents,
   };
+}
+
+/**
+ * Les boucles d'un agent — §6.3 du cahier des charges.
+ *
+ * Une boucle `/loop` en allure libre ne laisse pas toujours d'acte de naissance : sur les
+ * dix boucles de la session Litanie, trois seulement commencent par un `tool_use` `Skill`.
+ * Ce qui est constant, c'est leur mort : un `ScheduleWakeup` portant `stop: true`. On
+ * groupe donc les réveils en suites délimitées par ces arrêts, et on rattache le `Skill`
+ * d'ouverture quand il y en a un. À défaut, la consigne se lit dans le champ `prompt` des
+ * réveils, qui rejoue l'entrée `/loop` telle quelle.
+ */
+function construireBoucles(appels, idAgent) {
+  const suite = [...appels.values()]
+    .filter((a) => a.nom === 'Skill' || a.nom === 'ScheduleWakeup')
+    .sort((x, y) => (x.debut ?? 0) - (y.debut ?? 0));
+
+  const boucles = [];
+  let courante = null;
+  let skillEnAttente = null;
+
+  const ouvrir = (depart) => {
+    courante = {
+      id: idAgent + '-boucle-' + boucles.length,
+      agent: idAgent,
+      consigne: '',
+      source: null,
+      debut: depart,
+      fin: null,
+      etat: 'en cours',
+      iterations: [],
+    };
+    if (skillEnAttente) {
+      courante.consigne = tronquer(skillEnAttente.entree?.args || '');
+      courante.source = 'skill';
+      courante.debut = skillEnAttente.debut ?? depart;
+      courante.idSkill = skillEnAttente.id;
+      skillEnAttente = null;
+    }
+    boucles.push(courante);
+  };
+
+  for (const a of suite) {
+    if (a.nom === 'Skill') {
+      if (a.entree?.skill === 'loop') skillEnAttente = a;
+      continue;
+    }
+    const e = a.entree || {};
+    if (!courante) ouvrir(a.debut);
+    if (e.stop === true) {
+      courante.fin = a.debut;
+      courante.etat = 'arrêtée';
+      courante = null;
+      continue;
+    }
+    courante.iterations.push({
+      instant: a.debut,
+      noop: e.noop === true,
+      raison: typeof e.reason === 'string' ? e.reason : null,
+      delaiS: typeof e.delaySeconds === 'number' ? e.delaySeconds : null,
+      idAppel: a.id,
+    });
+    // Le prompt rejoué porte la consigne, utile quand aucun Skill n'a ouvert la boucle.
+    if (!courante.consigne && typeof e.prompt === 'string' && e.prompt !== 'null') {
+      courante.consigne = tronquer(e.prompt);
+      courante.source = 'réveil';
+    }
+  }
+
+  for (const b of boucles) {
+    if (b.fin === null && b.iterations.length) {
+      b.fin = b.iterations[b.iterations.length - 1].instant;
+    }
+    // Combien de passages de suite n'ont rien produit, à la fin : le signe qu'une boucle
+    // tourne à vide.
+    let sansEffet = 0;
+    for (let i = b.iterations.length - 1; i >= 0 && b.iterations[i].noop; i -= 1) sansEffet += 1;
+    b.sansEffetALaFin = sansEffet;
+    b.sansEffet = b.iterations.filter((i) => i.noop).length;
+  }
+  return boucles.filter((b) => b.iterations.length > 0);
 }
 
 function nettoyerAppel(a) {
