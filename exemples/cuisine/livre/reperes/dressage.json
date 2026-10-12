@@ -1,0 +1,19 @@
+{
+  "id": "dressage",
+  "poste": "dressage",
+  "principe": "Le dressage passe en dernier et consomme : ce qui entre dans l'assiette quitte la mise en place.",
+  "couches": [
+    { "rang": 1, "couche": "base — féculent, purée, fond d'assiette" },
+    { "rang": 2, "couche": "pièce principale" },
+    { "rang": 3, "couche": "garniture" },
+    { "rang": 4, "couche": "sauce, en cordon ou versée devant le client" },
+    { "rang": 5, "couche": "finition — herbes, croquant, zeste, au dernier moment" }
+  ],
+  "durees": { "par-couche": "1 à 3 minutes" },
+  "temperatures": [
+    { "service": "assiette chaude", "pour": "plats en sauce, velouté" },
+    { "service": "assiette tiède", "pour": "risotto, pâtes" },
+    { "service": "assiette froide", "pour": "entrées, desserts" }
+  ],
+  "note": "On ne dresse que ce qui est là. Faire l'inventaire de la mise en place avant de monter l'assiette, pas après."
+}

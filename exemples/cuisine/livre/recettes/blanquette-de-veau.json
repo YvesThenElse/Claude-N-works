@@ -1,0 +1,44 @@
+{
+  "id": "blanquette-de-veau",
+  "nom": "Blanquette de veau à l'ancienne",
+  "synonymes": ["blanquette", "veau à la blanche"],
+  "resume": "Une longue cuisson blanche, une garniture tournée à part, un velouté lié au dernier moment.",
+  "postes": [
+    {
+      "poste": "taillage",
+      "agent": "chef-de-partie",
+      "pourquoi": "Deux lots qui n'ont rien à voir : les légumes du bouillon d'un côté, la garniture blanche de l'autre.",
+      "gestes": [
+        { "geste": "tailler les carottes en sifflets", "minutes": 5 },
+        { "geste": "tailler le céleri et le poireau", "minutes": 5 },
+        { "geste": "clouter l'oignon", "minutes": 3 },
+        { "geste": "tourner les champignons de Paris", "minutes": 8 },
+        { "geste": "éplucher les petits oignons grelots", "minutes": 6 }
+      ],
+      "depose": ["carottes", "celeri-poireau", "oignon-cloute", "champignons", "grelots"]
+    },
+    {
+      "poste": "cuisson",
+      "agent": "commis-cuisson",
+      "gestes": [
+        { "geste": "blanchir le veau et rafraîchir", "minutes": 8 },
+        { "geste": "remettre à l'eau froide avec la garniture aromatique", "minutes": 4 },
+        { "geste": "cuire à frémissement, jamais à ébullition", "minutes": 25 },
+        { "geste": "laisser reposer dans son bouillon", "minutes": 8 }
+      ],
+      "depose": ["cuisson-veau"]
+    },
+    {
+      "poste": "sauce",
+      "agent": "commis-saucier",
+      "gestes": [
+        { "geste": "monter un roux blanc sans coloration", "minutes": 5 },
+        { "geste": "mouiller au bouillon de cuisson passé", "minutes": 4 },
+        { "geste": "réduire et lier", "minutes": 12 },
+        { "geste": "goûter, rectifier, finir crème et jaune", "minutes": 5 }
+      ],
+      "depose": ["veloute"]
+    }
+  ],
+  "dressage": "Veau au centre, garniture blanche autour, velouté nappant par-dessus, riz pilaf à part."
+}

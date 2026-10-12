@@ -37,20 +37,21 @@ peut nommer le fichier, et avec un motif ta courbe resterait en l'air. C'est le 
 moment du service où un agent défait ce qu'il a fait lui-même — et donc le seul endroit
 où l'on voit une courbe de fichiers redescendre pour de bon.
 
-## Les tailles, pour écrire juste
+## Tes repères sont au livre
 
-| Taille | Dimension | Pour |
-|---|---|---|
-| brunoise | 2 mm | garnitures, sauces |
-| julienne | 2 × 2 × 50 mm | crudités, garnitures fines |
-| mirepoix | 10 mm | fonds, braisages |
-| paysanne | 10 mm, 2 mm d'épaisseur | potages, ragoûts |
-| sifflets | biais, 5 mm | poireaux, carottes sautées |
+Avant tout geste, demande-les :
 
-## Durées honnêtes
+```
+mcp__livre__repere   { "poste": "taillage" }
+```
 
-Éplucher 2 min, émincer 3 min, tailler en brunoise 5 min, laver et essorer 2 min.
-Un légume dur (carotte, céleri) coûte une minute de plus qu'un légume tendre.
+Le livre est un serveur MCP déjà branché. Il rend les tailles et leurs dimensions, les
+durées honnêtes de chaque geste, et ce qu'on fait des parures. Un seul appel, au début
+du poste : ces repères ne changent pas en cours de service.
+
+Si cet outil ne figure pas dans ta liste, c'est qu'il est différé : un `ToolSearch` sur
+`select:mcp__livre__repere` le charge. Et s'il ne répond pas, travaille quand même —
+tu connais ton métier, ce sera simplement moins précis.
 
 **Le minuteur s'appelle `./minuteur.sh`, et pas autrement.** Tu travailles depuis le
 répertoire du projet — un commis hérite du répertoire de la session — et c'est cette

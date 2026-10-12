@@ -1,0 +1,42 @@
+{
+  "id": "tarte-aux-pommes",
+  "nom": "Tarte aux pommes",
+  "synonymes": ["tarte", "pommes", "dessert"],
+  "resume": "Un plat sucré, pour montrer que la brigade ne dépend pas de ce qu'il y a dans l'assiette : les postes gardent la même forme.",
+  "postes": [
+    {
+      "poste": "taillage",
+      "agent": "chef-de-partie",
+      "pourquoi": "Les pommes de la compote et celles du rangement ne se taillent pas pareil.",
+      "gestes": [
+        { "geste": "éplucher et tailler les pommes à compote", "minutes": 7 },
+        { "geste": "tailler les pommes du dessus en lamelles régulières", "minutes": 8 },
+        { "geste": "zester le citron et préparer le sirop", "minutes": 4 }
+      ],
+      "depose": ["pommes-compote", "pommes-lamelles", "sirop"]
+    },
+    {
+      "poste": "cuisson",
+      "agent": "commis-cuisson",
+      "gestes": [
+        { "geste": "foncer le moule et laisser reposer la pâte au froid", "minutes": 10 },
+        { "geste": "cuire le fond à blanc", "minutes": 12 },
+        { "geste": "garnir et cuire la tarte", "minutes": 25 },
+        { "geste": "laisser tiédir sur grille", "minutes": 8 }
+      ],
+      "depose": ["fond-cuit", "tarte"]
+    },
+    {
+      "poste": "sauce",
+      "agent": "commis-saucier",
+      "gestes": [
+        { "geste": "compoter les pommes au beurre et à la vanille", "minutes": 12 },
+        { "geste": "réduire jusqu'à ce que la compote tienne à la cuillère", "minutes": 8 },
+        { "geste": "goûter et rectifier le sucre et le citron", "minutes": 3 },
+        { "geste": "monter un caramel de nappage", "minutes": 6 }
+      ],
+      "depose": ["compote", "nappage"]
+    }
+  ],
+  "dressage": "Part de tarte tiède, nappage au pinceau, quenelle de crème fraîche, zeste de citron râpé au dernier moment."
+}

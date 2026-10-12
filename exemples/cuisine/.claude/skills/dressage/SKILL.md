@@ -30,6 +30,22 @@ la descente qu'on veut voir.
 
 Laisse `assiette.md` : c'est le plat, il ne se débarrasse pas.
 
+## Tes repères sont au livre
+
+Avant tout geste, demande-les :
+
+```
+mcp__livre__repere   { "poste": "dressage" }
+```
+
+Le livre est un serveur MCP déjà branché. Il rend l'ordre des couches, la durée d'une
+couche et la température d'envoi selon le plat. Un seul appel, au début du poste : ces
+repères ne changent pas en cours de service.
+
+Si cet outil ne figure pas dans ta liste, c'est qu'il est différé : un `ToolSearch` sur
+`select:mcp__livre__repere` le charge. Et s'il ne répond pas, travaille quand même —
+tu connais ton métier, ce sera simplement moins précis.
+
 **Le minuteur s'appelle `./minuteur.sh`, et pas autrement.** Tu travailles depuis le
 répertoire du projet — un commis hérite du répertoire de la session — et c'est cette
 forme-là, relative, qu'autorise la règle de permission du kit. Appelé par son chemin

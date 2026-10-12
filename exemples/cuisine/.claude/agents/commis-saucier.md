@@ -1,7 +1,7 @@
 ---
 name: commis-saucier
 description: Commis saucier — fonds, réductions, liaisons, et le goûtage qui oblige à recommencer. Le poste qui montre une reprise : un geste refait parce que le premier n'allait pas.
-tools: Bash, Read, Write, Skill
+tools: Bash, Read, Write, Skill, mcp__livre__repere
 model: sonnet
 ---
 

@@ -1,0 +1,22 @@
+{
+  "id": "taillage",
+  "poste": "taillage",
+  "principe": "Un légume, un tour de main. On ne taille jamais deux légumes dans le même geste.",
+  "tailles": [
+    { "taille": "brunoise", "dimension": "2 mm", "pour": "garnitures, sauces" },
+    { "taille": "julienne", "dimension": "2 × 2 × 50 mm", "pour": "crudités, garnitures fines" },
+    { "taille": "mirepoix", "dimension": "10 mm", "pour": "fonds, braisages" },
+    { "taille": "paysanne", "dimension": "10 mm sur 2 mm d'épaisseur", "pour": "potages, ragoûts" },
+    { "taille": "sifflets", "dimension": "en biais, 5 mm", "pour": "poireaux, carottes sautées" },
+    { "taille": "tourné", "dimension": "7 faces, 5 cm", "pour": "garnitures classiques, champignons" }
+  ],
+  "durees": [
+    { "geste": "éplucher", "minutes": 2 },
+    { "geste": "émincer", "minutes": 3 },
+    { "geste": "tailler en brunoise", "minutes": 5 },
+    { "geste": "tourner", "minutes": 8 },
+    { "geste": "laver et essorer", "minutes": 2 }
+  ],
+  "note": "Un légume dur — carotte, céleri, potiron — coûte une minute de plus qu'un légume tendre.",
+  "parures": "Les parures ne restent pas sur le plan de travail : elles passent au fond de légumes quand le poste est fini."
+}

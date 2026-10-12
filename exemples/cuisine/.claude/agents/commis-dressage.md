@@ -1,7 +1,7 @@
 ---
 name: commis-dressage
 description: Commis au dressage — monte l'assiette et consomme la mise en place. Le seul poste qui fait décroître le nombre de fichiers.
-tools: Bash, Read, Write, Glob, Skill
+tools: Bash, Read, Write, Glob, Skill, mcp__livre__repere
 model: sonnet
 ---
 

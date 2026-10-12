@@ -13,9 +13,10 @@ Cette règle n'est pas un décor. Un chef qui taille lui-même ses oignons produ
 ligne du temps plate : un seul agent, une seule barre. Ce qu'on veut donner à voir,
 c'est une brigade — plusieurs postes qui avancent en même temps, chacun à son rythme.
 
-**Ne lis pas les skills des postes.** `taillage`, `cuisson`, `sauce` et `dressage` sont
-les manières de faire de tes commis, pas les tiennes : chacun charge la sienne. Les lire
-te coûte du temps et ne change rien à ta commande.
+**Ne lis pas les skills des postes, et ne demande pas leurs repères au livre.**
+`taillage`, `cuisson`, `sauce` et `dressage` sont les manières de faire de tes commis, pas
+les tiennes : chacun charge sa skill et interroge le livre pour son propre poste. Le faire
+à leur place te coûte du temps et ne change rien à ta commande.
 
 ## 1. Ouvrir le service
 
@@ -23,15 +24,38 @@ te coûte du temps et ne change rien à ta commande.
 ./ouvrir-service.sh "<nom du plat>"
 ```
 
+Depuis ton répertoire de travail, et **sans `cd`** : le script est à la racine du projet,
+pas dans le dossier de cette skill, et un `cd` te vaut un `No such file or directory`.
+
 Le script rend le chemin du service. **Il doit figurer en absolu dans chaque commande
 que tu passes** : un commis ne voit rien de cette conversation.
 
 Le minuteur, lui, s'appelle toujours `./minuteur.sh` — tes commis héritent de ton
 répertoire, et c'est cette forme-là qu'autorise la règle de permission du kit.
 
-## 2. Écrire la fiche
+## 2. Consulter le livre
 
-Dans `<service>/fiche.md`, décompose le plat en **trois ou quatre postes** parmi :
+Le livre de recettes est un serveur MCP, déjà branché. Deux appels :
+
+```
+mcp__livre__chercher   { "plat": "<ce que l'utilisateur a demandé>" }
+mcp__livre__recette    { "id": "<l'identifiant rendu par chercher>" }
+```
+
+La fiche rendue est déjà découpée en postes, avec les gestes et leurs minutes : c'est la
+matière de tes commandes, tu n'as pas à l'inventer.
+
+Si ces deux outils ne figurent pas dans ta liste, c'est qu'ils sont différés : un
+`ToolSearch` sur `select:mcp__livre__chercher,mcp__livre__recette` les charge.
+
+**Si le plat n'est pas au livre**, `chercher` te le dit et rend une liste vide. Compose
+alors la fiche toi-même, dans la même forme — c'est le cas normal, le livre ne contient
+que cinq recettes et l'utilisateur demandera autre chose.
+
+## 3. Écrire la fiche
+
+Dans `<service>/fiche.md`, recopie ce que le livre a rendu — ou, s'il n'avait rien,
+décompose le plat en **trois ou quatre postes** parmi :
 
 | Poste | Sous-agent | Ce qui s'y passe |
 |---|---|---|
@@ -56,7 +80,7 @@ plat est bon.
 C'est ce que tu as prévu, et il servira à la fin à mesurer l'écart avec ce qui s'est
 vraiment passé.
 
-## 3. Passer les commandes — toutes dans le même message
+## 4. Passer les commandes — toutes dans le même message
 
 Lance tous les postes de la fiche **en un seul message contenant plusieurs appels à
 l'outil Agent**. C'est le cœur de la démonstration : lancés un par un, les postes
@@ -78,11 +102,11 @@ ensemble — mesuré : quatre postes lancés d'un coup se chevauchent et le serv
 temps du plus lent. En les passant en arrière-plan tu gagnes zéro parallélisme de plus et
 tu perds ta barrière : la main te revient aussitôt, et plus rien ne t'empêche de dresser
 sur une sauce qui n'existe pas. Attendre le retour de tes commis, c'est la barrière de
-l'étape 4, et elle ne coûte rien.
+l'étape 5, et elle ne coûte rien.
 
-## 4. Attendre, puis envoyer
+## 5. Attendre, puis envoyer
 
-Quand tous les postes ont rendu — c'est-à-dire quand les appels d'agent de l'étape 3 te
+Quand tous les postes ont rendu — c'est-à-dire quand les appels d'agent de l'étape 4 te
 sont tous revenus — et pas avant, lance **un seul** `commis-dressage`.
 Il lit la mise en place, monte l'assiette, et en retire ce qu'il y a mis.
 
@@ -90,7 +114,7 @@ Cette barrière est volontaire : le dressage d'un plat dont la sauce n'est pas p
 n'a pas de sens, et la ligne du temps doit montrer un palier net entre le peigne des
 postes et le trait du dressage.
 
-## 5. Fermer le service
+## 6. Fermer le service
 
 Écris `<service>/service.md` :
 

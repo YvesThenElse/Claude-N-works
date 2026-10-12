@@ -1,7 +1,7 @@
 ---
 name: commis-cuisson
 description: Commis à la cuisson — met au feu et surveille. Peu de gestes, de longues attentes : le poste qui montre qu'un agent occupé n'est pas un agent bavard.
-tools: Bash, Read, Write, Skill
+tools: Bash, Read, Write, Skill, mcp__livre__repere
 model: sonnet
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: commis-taillage
 description: Commis au taillage — épluche, émince, taille. Fait le même geste autant de fois qu'il y a de légumes : c'est le poste qui montre une répétition dans le temps.
-tools: Bash, Read, Write, Skill
+tools: Bash, Read, Write, Skill, mcp__livre__repere
 model: sonnet
 ---
 

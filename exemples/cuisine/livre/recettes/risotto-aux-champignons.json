@@ -1,0 +1,43 @@
+{
+  "id": "risotto-aux-champignons",
+  "nom": "Risotto aux champignons",
+  "synonymes": ["risotto", "riz aux champignons"],
+  "resume": "Le seul plat du livre où la cuisson ne peut pas attendre : tout doit être prêt avant que le riz parte.",
+  "postes": [
+    {
+      "poste": "taillage",
+      "agent": "chef-de-partie",
+      "pourquoi": "Les champignons et les aromates demandent deux mains différentes, et le riz n'attendra pas.",
+      "gestes": [
+        { "geste": "brosser et émincer les cèpes", "minutes": 7 },
+        { "geste": "tailler les girolles et les champignons de Paris", "minutes": 6 },
+        { "geste": "ciseler l'échalote très fin", "minutes": 4 },
+        { "geste": "hacher le persil plat", "minutes": 3 }
+      ],
+      "depose": ["cepes", "girolles", "echalote", "persil"]
+    },
+    {
+      "poste": "cuisson",
+      "agent": "commis-cuisson",
+      "gestes": [
+        { "geste": "nacrer le riz à l'huile et à l'échalote", "minutes": 5 },
+        { "geste": "déglacer au vin blanc et laisser évaporer", "minutes": 4 },
+        { "geste": "mouiller louche à louche au bouillon chaud", "minutes": 18 },
+        { "geste": "mantecare hors du feu, beurre et parmesan", "minutes": 4 }
+      ],
+      "depose": ["risotto"]
+    },
+    {
+      "poste": "sauce",
+      "agent": "commis-saucier",
+      "gestes": [
+        { "geste": "monter un bouillon de parures de champignons", "minutes": 8 },
+        { "geste": "réduire aux trois quarts", "minutes": 15 },
+        { "geste": "goûter et rectifier", "minutes": 3 },
+        { "geste": "monter au beurre froid", "minutes": 4 }
+      ],
+      "depose": ["jus-de-champignons"]
+    }
+  ],
+  "dressage": "Risotto coulant étalé à l'assiette tiède, champignons poêlés dessus, cordon de jus, persil et copeaux de parmesan."
+}

@@ -27,17 +27,21 @@ Dans le journal, on doit pouvoir lire qu'un geste est revenu, et pourquoi.
 Écris `<service>/mise-en-place/sauce.md` : la base, la texture obtenue, et la liste des
 rectifications avec ce que chacune a corrigé.
 
-## Repères
+## Tes repères sont au livre
 
-| Sauce | Base | Liaison |
-|---|---|---|
-| jus corsé | fond brun réduit | réduction seule |
-| velouté | fond clair + roux blanc | roux |
-| émulsion chaude | réduction + beurre | monter au beurre froid |
-| coulis | légume cuit | mixé, passé au chinois |
+Avant tout geste, demande-les :
 
-Une réduction de moitié prend 10 min, aux trois quarts 18 min. On ne presse pas une
-réduction en montant le feu : elle attache, et il faut tout recommencer.
+```
+mcp__livre__repere   { "poste": "sauce" }
+```
+
+Le livre est un serveur MCP déjà branché. Il rend le déroulé d'une sauce, les bases et
+leurs liaisons, et le temps que prend une réduction. Un seul appel, au début du poste :
+ces repères ne changent pas en cours de service.
+
+Si cet outil ne figure pas dans ta liste, c'est qu'il est différé : un `ToolSearch` sur
+`select:mcp__livre__repere` le charge. Et s'il ne répond pas, travaille quand même —
+tu connais ton métier, ce sera simplement moins précis.
 
 **Le minuteur s'appelle `./minuteur.sh`, et pas autrement.** Tu travailles depuis le
 répertoire du projet — un commis hérite du répertoire de la session — et c'est cette

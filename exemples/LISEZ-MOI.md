@@ -6,7 +6,7 @@ de Claude N Works : c'est de la matière à observer avec.
 
 | Kit | Ce qu'il met en évidence |
 |---|---|
-| [`cuisine/`](cuisine/LISEZ-MOI.md) | l'orchestration : un arbre à trois étages, des postes en parallèle, une barrière, et quatre tempéraments d'agent |
+| [`cuisine/`](cuisine/LISEZ-MOI.md) | l'orchestration : un arbre à trois étages, des postes en parallèle, une barrière, quatre tempéraments d'agent — et un serveur MCP, le livre de recettes, que le chef et les commis consultent chacun pour leur part |
 
 La marche à suivre est la même pour tous : copier le contenu du kit — **point final
 compris**, sinon `.claude/` reste derrière — dans un répertoire vide, y lancer `claude`,

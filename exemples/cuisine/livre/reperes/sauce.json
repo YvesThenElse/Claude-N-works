@@ -1,0 +1,23 @@
+{
+  "id": "sauce",
+  "poste": "sauce",
+  "principe": "C'est le seul poste où l'on refait. Une sauce se juge en bouche, et le jugement arrive après coup.",
+  "deroule": [
+    { "temps": "monter le fond — suer la garniture, mouiller", "minutes": "5 à 8" },
+    { "temps": "réduire", "minutes": "8 à 15, en un seul geste" },
+    { "temps": "goûter et dire franchement ce qui manque", "minutes": "1" },
+    { "temps": "rectifier puis réduire à nouveau", "minutes": "2 à 4, une fois ou deux, pas plus" },
+    { "temps": "lier et passer", "minutes": "3 à 5" }
+  ],
+  "bases": [
+    { "sauce": "jus corsé", "base": "fond brun réduit", "liaison": "réduction seule" },
+    { "sauce": "velouté", "base": "fond clair et roux blanc", "liaison": "roux" },
+    { "sauce": "émulsion chaude", "base": "réduction", "liaison": "monter au beurre froid" },
+    { "sauce": "coulis", "base": "légume cuit", "liaison": "mixé, passé au chinois" }
+  ],
+  "reductions": [
+    { "de": "moitié", "minutes": 10 },
+    { "de": "trois quarts", "minutes": 18 }
+  ],
+  "note": "On ne presse pas une réduction en montant le feu : elle attache, et il faut tout recommencer."
+}

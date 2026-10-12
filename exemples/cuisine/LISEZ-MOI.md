@@ -95,6 +95,43 @@ deviner ce qu'un motif recouvre, et la courbe resterait en l'air.
 **Une barrière.** Le dressage n'est lancé qu'une fois tous les postes rendus. Dans la
 ligne du temps, le peigne s'arrête net et un seul trait reprend après.
 
+## Le livre de recettes, en MCP
+
+Le kit embarque son propre serveur MCP : `livre/serveur.js`, en Node, sans aucune
+dépendance, déclaré dans `.mcp.json` à la racine. Il part donc avec le dossier, comme le
+reste — rien à installer, rien à configurer.
+
+Il expose trois outils en lecture seule :
+
+| Outil | Qui l'appelle | Ce qu'il rend |
+|---|---|---|
+| `chercher` | le chef | les plats du livre qui ressemblent à ce qu'on a demandé |
+| `recette` | le chef | la fiche technique entière : postes, gestes, minutes, dépôts |
+| `repere` | chaque commis | les repères de son métier — tailles, points de cuisson, temps de réduction, ordre des couches |
+
+**Le partage est volontaire : la skill dit comment travailler, le livre dit quoi.** Les
+tables de référence ont quitté les skills pour entrer dans le livre, si bien qu'un commis
+doit l'interroger pour savoir qu'une brunoise fait 2 mm ou qu'une volaille se sort à 74 °C.
+Dans la ligne du temps, on voit donc des appels MCP à deux étages de l'arbre : le chef qui
+sort la recette, puis chaque commis qui demande ses repères — et c'est exactement ce qu'on
+veut donner à voir d'un serveur MCP, un service que plusieurs agents consultent chacun pour
+sa part.
+
+Cinq recettes au livre : ratatouille, blanquette de veau, velouté de potiron, risotto aux
+champignons, tarte aux pommes. **Demander autre chose est le cas normal** — `chercher` rend
+une liste vide, le dit franchement, et le chef compose la fiche lui-même. Ajouter une
+recette, c'est déposer un fichier JSON dans `livre/recettes/` sur le modèle des autres : le
+serveur relit le dossier à chaque appel, rien à redémarrer.
+
+Pour l'éprouver sans Claude Code, le serveur parle sur l'entrée standard :
+
+```sh
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node livre/serveur.js
+```
+
+Si le livre manque, la brigade cuisine quand même : les skills disent aux commis de
+travailler de mémoire, simplement avec moins de précision.
+
 ## Combien ça dure
 
 Une minute de recette vaut 2 secondes de montre. Mais ce n'est pas le minuteur qui fait la
@@ -120,7 +157,11 @@ l'on triche, et on triche partout pareil.
 ```
 .claude/agents/     cinq spécialités — chef de partie, taillage, cuisson, sauce, dressage
 .claude/skills/     service (le chef d'orchestre) + les gestes de chaque poste
-.claude/settings.json   les permissions, pour que le service ne s'arrête pas à chaque outil
+.claude/settings.json   les permissions et l'autorisation du serveur MCP
+.mcp.json           déclare le livre de recettes
+livre/serveur.js    le livre — un serveur MCP en stdio, sans dépendance
+livre/recettes/     une recette par fichier JSON
+livre/reperes/      les repères de métier, un fichier par poste
 minuteur.sh         attend le temps d'un geste et le consigne dans le journal
 ouvrir-service.sh   ouvre un service daté et le lien 'courant'
 service/            tout ce que la brigade produit — un répertoire par service
@@ -140,4 +181,5 @@ que la ligne du temps ne raconte pas d'histoires.
 | la courbe des fichiers ne redescend pas | le dressage a supprimé avec un motif au lieu de chemins littéraux |
 | rien ne démarre, un avertissement sur `permissions.allow` | le répertoire n'a pas été déclaré de confiance |
 | les commis tournent en rond, « This command requires approval » | le minuteur a été appelé par un chemin absolu : une règle de permission matche la commande **telle qu'écrite**, et celle du kit autorise `./minuteur.sh` |
+| aucun appel `mcp__livre__…` nulle part | le serveur du `.mcp.json` n'a pas été autorisé : `enabledMcpjsonServers` doit nommer `livre`, et le répertoire être de confiance |
 | deux services mélangés dans le même journal | deux `claude` lancés en même temps dans le même projet : le lien `courant` ne désigne qu'un service à la fois |

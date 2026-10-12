@@ -24,18 +24,21 @@ ligne du temps doit montrer une longue attente comme une longue attente.
 Entre deux temps, écris où en est la cuisson dans `<service>/mise-en-place/<nom>.md` :
 température, aspect, point visé.
 
-## Points de cuisson
+## Tes repères sont au livre
 
-| Pièce | Cœur | Repos |
-|---|---|---|
-| bœuf saignant | 52 °C | 8 min |
-| bœuf à point | 58 °C | 8 min |
-| volaille | 74 °C | 5 min |
-| poisson | 50 °C | 3 min |
-| légume braisé | fondant sous la pointe | — |
+Avant tout geste, demande-les :
 
-Le repos n'est pas du temps perdu : c'est le dernier geste de la cuisson, et il compte
-dans ton poste.
+```
+mcp__livre__repere   { "poste": "cuisson" }
+```
+
+Le livre est un serveur MCP déjà branché. Il rend le déroulé d'un poste cuisson et les
+points de cuisson par pièce, cœur et repos compris. Un seul appel, au début du poste :
+ces repères ne changent pas en cours de service.
+
+Si cet outil ne figure pas dans ta liste, c'est qu'il est différé : un `ToolSearch` sur
+`select:mcp__livre__repere` le charge. Et s'il ne répond pas, travaille quand même —
+tu connais ton métier, ce sera simplement moins précis.
 
 **Le minuteur s'appelle `./minuteur.sh`, et pas autrement.** Tu travailles depuis le
 répertoire du projet — un commis hérite du répertoire de la session — et c'est cette

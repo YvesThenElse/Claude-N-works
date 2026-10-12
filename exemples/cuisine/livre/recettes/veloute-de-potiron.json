@@ -1,0 +1,53 @@
+{
+  "id": "veloute-de-potiron",
+  "nom": "Velouté de potiron",
+  "synonymes": ["velouté de courge", "soupe de potiron", "potiron"],
+  "resume": "Un velouté lisse, une garniture croquante montée à part : le contraste se joue au dressage.",
+  "postes": [
+    {
+      "poste": "taillage",
+      "agent": "chef-de-partie",
+      "pourquoi": "La courge d'un côté, les aromates de l'autre — deux lots que rien n'oblige à s'attendre.",
+      "gestes": [
+        { "geste": "fendre, épépiner et tailler le potiron en cubes", "minutes": 8 },
+        { "geste": "éplucher et tailler les pommes de terre", "minutes": 5 },
+        { "geste": "émincer l'oignon et le blanc de poireau", "minutes": 4 },
+        { "geste": "hacher l'ail et effeuiller la sauge", "minutes": 4 }
+      ],
+      "depose": ["potiron", "pommes-de-terre", "oignon-poireau", "ail-sauge"]
+    },
+    {
+      "poste": "cuisson",
+      "agent": "commis-cuisson",
+      "gestes": [
+        { "geste": "suer les aromates au beurre sans coloration", "minutes": 6 },
+        { "geste": "ajouter le potiron, mouiller au bouillon de volaille", "minutes": 4 },
+        { "geste": "cuire jusqu'au fondant sous la pointe", "minutes": 22 },
+        { "geste": "mixer et passer au chinois étamine", "minutes": 6 }
+      ],
+      "depose": ["cuisson-veloute"]
+    },
+    {
+      "poste": "sauce",
+      "agent": "commis-saucier",
+      "gestes": [
+        { "geste": "réduire une part du bouillon en fond de potiron", "minutes": 8 },
+        { "geste": "crémer et muscader", "minutes": 4 },
+        { "geste": "goûter et rectifier", "minutes": 3 }
+      ],
+      "depose": ["fond-potiron"]
+    },
+    {
+      "poste": "garniture",
+      "agent": "commis-taillage",
+      "gestes": [
+        { "geste": "torréfier les graines de courge", "minutes": 4 },
+        { "geste": "tailler et dorer des croûtons au beurre noisette", "minutes": 6 },
+        { "geste": "concasser les noisettes", "minutes": 3 },
+        { "geste": "ciseler la ciboulette", "minutes": 3 }
+      ],
+      "depose": ["graines", "croutons", "noisettes", "ciboulette"]
+    }
+  ],
+  "dressage": "Velouté versé devant le client, garniture croquante au centre, quenelle de crème, filet d'huile de courge."
+}

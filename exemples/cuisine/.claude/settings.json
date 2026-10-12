@@ -1,6 +1,8 @@
 {
+  "enabledMcpjsonServers": ["livre"],
   "permissions": {
     "allow": [
+      "mcp__livre",
       "Bash(./minuteur.sh:*)",
       "Bash(./ouvrir-service.sh:*)",
       "Bash(until:*)",

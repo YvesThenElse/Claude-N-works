@@ -1,0 +1,20 @@
+{
+  "id": "cuisson",
+  "poste": "cuisson",
+  "principe": "Peu de gestes, longs. Une grande attente se mène en une fois : on n'ouvre pas un four toutes les minutes.",
+  "deroule": [
+    { "temps": "monter en température", "minutes": "3 à 5" },
+    { "temps": "saisir ou démarrer", "minutes": "4 à 8" },
+    { "temps": "mener", "minutes": "10 à 25, en un seul geste" },
+    { "temps": "sortir et reposer", "minutes": "3 à 10 selon la pièce" }
+  ],
+  "points": [
+    { "piece": "bœuf saignant", "coeur": "52 °C", "repos": "8 min" },
+    { "piece": "bœuf à point", "coeur": "58 °C", "repos": "8 min" },
+    { "piece": "volaille", "coeur": "74 °C", "repos": "5 min" },
+    { "piece": "veau à blanc", "coeur": "frémissement, jamais d'ébullition", "repos": "8 min dans son bouillon" },
+    { "piece": "poisson", "coeur": "50 °C", "repos": "3 min" },
+    { "piece": "légume braisé", "coeur": "fondant sous la pointe", "repos": "—" }
+  ],
+  "note": "Le repos n'est pas du temps perdu : c'est le dernier geste de la cuisson, et il compte dans le poste."
+}
