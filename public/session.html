@@ -262,8 +262,26 @@ const VOIES_ANNEXES = [
   { cle: 'contexte', nom: 'contexte', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
   { cle: 'boucles', nom: 'boucles', teinte: 'var(--boucle)' },
+  { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
-const voiesVisibles = { contexte: true, attente: true, boucles: true };
+const voiesVisibles = { contexte: true, attente: true, boucles: true, modele: true };
+
+// Une teinte par modèle. Volontairement distincte des couleurs déjà employées ailleurs :
+// la voie d'un modèle ne doit pas se confondre avec un état d'agent ou une attente.
+const TEINTES_MODELE = {
+  'claude-opus-5': '#d6a4ff',
+  'claude-sonnet-5': '#6ee7d5',
+  'claude-haiku-4-5': '#ffd479',
+};
+const TEINTE_MODELE_AUTRE = '#9aa5ce';
+const teinteModele = (m) => TEINTES_MODELE[m] || TEINTE_MODELE_AUTRE;
+
+/** Les modèles qu'un agent a réellement appelés, dans l'ordre de première apparition. */
+function modelesDe(agent) {
+  const vus = [];
+  for (const r of agent.requetesModele || []) if (!vus.includes(r.modele)) vus.push(r.modele);
+  return vus;
+}
 const elReplis = document.getElementById('replis');
 const elBoucles = document.getElementById('boucles');
 const elBouclesTitre = document.getElementById('bouclesTitre');
@@ -440,6 +458,11 @@ function construireVoies() {
     if (voiesVisibles.boucles && (a.boucles || []).length) {
       voies.push({ genre: 'boucles', agent: a });
     }
+    // Une voie par modèle réellement appelé : un agent peut en employer plusieurs, et les
+    // mélanger sur une seule ligne masquerait lequel répond vite.
+    if (voiesVisibles.modele) {
+      for (const m of modelesDe(a)) voies.push({ genre: 'modele', agent: a, modele: m });
+    }
   }
   return voies;
 }
@@ -483,6 +506,16 @@ const LEGENDE_VOIE = {
     'Une barre en pointillés, ouverte à droite, est une attente en cours.',
     'La durée est écrite dessous quand la barre est assez large.',
     'Les pauses de réflexion de l’agent n’en sont pas : il travaille alors.',
+  ].join('\n'),
+  modele: [
+    'Un appel au modèle, de gauche à droite :',
+    '   trait vertical  l’instant de l’appel',
+    '   ligne fine      l’attente avant le premier bloc de réponse',
+    '   rectangle plein la réponse, du premier bloc au dernier',
+    '',
+    'La teinte dit quel modèle a répondu.',
+    'Une réponse d’un seul bloc n’a pas de durée mesurable : seul un trait',
+    'reste. C’était le cas de 45 % des appels de la session Litanie.',
   ].join('\n'),
   boucles: [
     'Chaque boucle est un rail, du début à l’arrêt :',
@@ -533,6 +566,20 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
       d.addEventListener('click', () => carteContexte(a));
+    } else if (v.genre === 'modele') {
+      const reqs = a.requetesModele.filter((r) => r.modele === v.modele);
+      const lat = reqs.reduce((n, r) => n + r.latenceMs, 0) / Math.max(1, reqs.length);
+      const rep = reqs.reduce((n, r) => n + r.reponseMs, 0) / Math.max(1, reqs.length);
+      d.title = v.modele + '\n' + reqs.length + ' appel(s)'
+        + '\nlatence moyenne ' + duree(Math.round(lat))
+        + '\nréponse moyenne ' + duree(Math.round(rep))
+        + '\n\n' + LEGENDE_VOIE.modele;
+      tiret.textContent = '│ '.repeat(a.profondeur) + '◇ ';
+      puce.style.background = teinteModele(v.modele);
+      etiq.textContent = v.modele.replace(/^claude-/, '');
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = reqs.length + ' app.';
+      d.addEventListener('click', () => carteModele(a, v.modele));
     } else if (v.genre === 'attente') {
       const total = a.attentes.reduce((n, x) => n + (x.dureeMs || 0), 0);
       const questions = a.attentes.filter((x) => x.genre === 'question').length;
@@ -772,6 +819,10 @@ function dessinerPiste() {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
     if (v.genre === 'contexte') {
       svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      return;
+    }
+    if (v.genre === 'modele') {
+      svg.append(dessinerVoieModele(v.agent, v.modele, centre, axe, visible));
       return;
     }
     if (v.genre === 'attente') {
@@ -1267,6 +1318,44 @@ function carteContexte(a) {
   ouvrirPanneau('contexte', a.nom, morceaux);
 }
 
+/** Carte d'un modèle : ce qu'on a mesuré de ses appels, et le détail de l'un d'eux. */
+function carteModele(agent, modele, visee) {
+  const reqs = agent.requetesModele.filter((r) => r.modele === modele);
+  const moyenne = (f) => reqs.reduce((n, r) => n + f(r), 0) / Math.max(1, reqs.length);
+  const pire = (f) => reqs.reduce((n, r) => Math.max(n, f(r)), 0);
+  const sansDuree = reqs.filter((r) => r.reponseMs === 0).length;
+
+  const dl = document.createElement('dl');
+  if (visee) {
+    ligne(dl, 'Cet appel', heure(visee.appel));
+    ligne(dl, 'Attente avant réponse', duree(visee.latenceMs));
+    ligne(dl, 'Durée de réponse', visee.reponseMs
+      ? duree(visee.reponseMs)
+      : 'non mesurable — réponse d’un seul bloc');
+    ligne(dl, 'Blocs écrits', String(visee.blocs));
+    ligne(dl, 'Fin de réponse', visee.arret);
+  }
+  ligne(dl, 'Modèle', modele, true);
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Appels', String(reqs.length));
+  ligne(dl, 'Attente avant réponse', 'moyenne ' + duree(Math.round(moyenne((r) => r.latenceMs)))
+    + ', pire ' + duree(pire((r) => r.latenceMs)));
+  ligne(dl, 'Durée de réponse', 'moyenne ' + duree(Math.round(moyenne((r) => r.reponseMs)))
+    + ', pire ' + duree(pire((r) => r.reponseMs)));
+  ligne(dl, 'Sans durée mesurable', sansDuree + ' sur ' + reqs.length
+    + '  (' + Math.round((sansDuree / Math.max(1, reqs.length)) * 100) + ' %)');
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Ce qu’on mesure ici est ce que le transcript permet de mesurer, et non '
+    + 'la latence du réseau. L’« appel » est le dernier événement écrit avant la réponse — '
+    + 'une requête d’Yves, un résultat d’outil, ou le réveil d’une boucle. Le « début de '
+    + 'réponse » est l’instant où le premier bloc a été écrit, pas celui du premier jeton : '
+    + 'un bloc de réflexion long repousse donc ce début. Et une réponse d’un seul bloc n’a '
+    + 'pas de durée mesurable.';
+  ouvrirPanneau('modèle', modele.replace(/^claude-/, ''), [dl, p]);
+}
+
 /** Carte de l'attente : le détail d'une période, et le compte de toutes. */
 function carteAttentes(agent, visee) {
   const parGenre = {};
@@ -1483,6 +1572,53 @@ function dessinerVoieContexte(agent, centre, axe, ref) {
       + ')\n' + heure(c.instant)
       + (ref.fenetreConnue ? '' : '\n\nCette session n’a jamais compacté : on ignore la '
         + 'taille réelle de la fenêtre, donc l’échelle est relative et la couleur neutre.'))));
+    g.append(prise);
+  }
+  return g;
+}
+
+/**
+ * La voie d'un modèle. Chaque appel se lit en trois temps : le trait de l'appel, la ligne
+ * fine de l'attente, puis le rectangle de la réponse. Le décalage entre le trait et le
+ * rectangle *est* la latence — c'est ce qu'on vient voir.
+ */
+function dessinerVoieModele(agent, modele, centre, axe, visible) {
+  const g = el('g', {});
+  const couleur = teinteModele(modele);
+  for (const r of agent.requetesModele) {
+    if (r.modele !== modele) continue;
+    const xa = axe.x(r.appel);
+    const xd = axe.x(r.debut);
+    const xf = Math.max(xd + 1.5, axe.x(r.fin));
+    if (!visible(xa, xf)) continue;
+
+    // L'attente avant la première parole du modèle.
+    if (xd - xa > 0.6) {
+      g.append(el('line', {
+        x1: xa, y1: centre, x2: xd, y2: centre,
+        stroke: couleur, 'stroke-width': 1.2, opacity: '.4',
+      }));
+    }
+    // L'instant de l'appel.
+    g.append(el('rect', {
+      x: xa - 0.9, y: centre - 7, width: 1.8, height: 14, fill: couleur, opacity: '.8',
+    }));
+    // La réponse.
+    g.append(el('rect', {
+      x: xd, y: centre - 5.5, width: xf - xd, height: 11, rx: 2,
+      fill: couleur, opacity: '.85',
+    }));
+
+    const prise = el('rect', {
+      x: xa - 3, y: centre - 10, width: (xf - xa) + 6, height: 20, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      modele + '\nappelé à ' + heure(r.appel)
+      + '\nattente avant la réponse : ' + duree(r.latenceMs)
+      + '\nréponse : ' + (r.reponseMs ? duree(r.reponseMs) : 'd’un seul bloc, durée non mesurable')
+      + '\n' + r.blocs + ' bloc(s)' + (r.arret ? '  ·  ' + r.arret : ''))));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteModele(agent, modele, r); });
     g.append(prise);
   }
   return g;
@@ -1715,6 +1851,7 @@ function remplirMenuVoies() {
     if ((a.contexte || []).length > 1) presentes.contexte = (presentes.contexte || 0) + 1;
     if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
+    presentes.modele = (presentes.modele || 0) + modelesDe(a).length;
   }
   elListeVoies.replaceChildren(...VOIES_ANNEXES.map((v) => {
     const l = document.createElement('label');

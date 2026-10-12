@@ -252,6 +252,11 @@ système patiente au lieu de travailler : une question posée et sans réponse, 
 dort, ou un tour achevé que personne n'a repris. Les pauses de réflexion de l'agent en sont
 exclues, ses messages comptant comme des événements.
 
+**Les appels au modèle** — *demandés après le lot 6*. Une voie par modèle appelé, où chaque
+appel se lit en trois temps : l'instant de l'appel, l'attente avant la première parole du
+modèle, puis la durée de la réponse. Ce qui est mesurable l'est, et ce qui ne l'est pas est
+dit : 45 % des réponses tiennent en un seul bloc et n'ont donc pas de durée.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 

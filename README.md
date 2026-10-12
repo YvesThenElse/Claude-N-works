@@ -277,6 +277,25 @@ réveil. Si le tour n'est pas dans la vue, la ligne du temps s'y transporte ; s'
 déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur Litanie, on voit que la session est faite de
 boucles presque de bout en bout.
 
+### Les appels au modèle
+
+Une voie par modèle réellement appelé, sous l'agent qui l'appelle. Chaque appel s'y lit en
+trois temps : un trait vertical à l'instant de l'**appel**, une ligne fine pour l'**attente
+avant la réponse**, puis un rectangle plein pour la **réponse**, du premier bloc au
+dernier. Le décalage entre le trait et le rectangle est la latence.
+
+Mesuré sur la session Litanie, 2001 appels à `claude-opus-5` : attente avant réponse de
+**7,9 s en moyenne**, réponse de **6,4 s**. La répartition des attentes : 1086 sous 5 s,
+870 entre 5 et 30 s, 44 entre 30 s et 2 min, et **une seule** au-delà.
+
+**Ce qu'on mesure et ce qu'on ne mesure pas**, dit aussi sur la carte. L'« appel » est le
+dernier événement écrit avant la réponse : une requête d'Yves, un résultat d'outil, ou le
+réveil d'une boucle — ce dernier compte, sans quoi la latence d'un tour de boucle
+engloberait tout le sommeil. Le « début de réponse » est l'instant où le premier bloc a été
+écrit, pas celui du premier jeton : un long bloc de réflexion repousse donc ce début. Et
+**45 % des appels n'ont pas de durée de réponse mesurable** — leur réponse tenait en un
+seul bloc, donc début et fin se confondent.
+
 ### Choisir les voies affichées
 
 Un menu « voies » liste les voies annexes — contexte, attente, boucles — avec une case par

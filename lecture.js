@@ -127,6 +127,11 @@ function etatVide() {
     // Les instants où l'agent prend la parole. Sans eux, le temps qu'il passe à réfléchir
     // entre deux appels d'outils ressemblerait à de l'attente, alors qu'il travaille.
     paroles: [],
+    // Un appel au modèle, vu depuis le transcript : l'instant du dernier événement qui le
+    // précède, celui du premier bloc de réponse écrit, et celui du dernier.
+    requetesModele: [],
+    requetesVues_: new Map(),
+    dernierAvantReponse: null,
     compactages: [],
     reveils: [],      // les réveils de boucle vus du côté du système
     erreurs: [],      // les messages que Claude Code s'écrit à lui-même sur une panne
@@ -145,6 +150,11 @@ function avaler(etat, ligne) {
     if (etat.premier === null || t < etat.premier) etat.premier = t;
     if (etat.dernier === null || t > etat.dernier) etat.dernier = t;
   }
+
+  // Tout enregistrement qui n'est pas une réponse du modèle marque le moment où l'on s'est
+  // mis à l'attendre. Un réveil de boucle en fait partie : sans lui, la latence d'un tour
+  // de boucle engloberait tout le sommeil.
+  if (ligne.type !== 'assistant' && t !== null) etat.dernierAvantReponse = t;
 
   if (ligne.type === 'system') {
     if (ligne.subtype === 'compact_boundary') {
@@ -186,6 +196,25 @@ function avaler(etat, ligne) {
     if (ligne.message && ligne.message.model) etat.modele = ligne.message.model;
     if (ligne.effort) etat.effort = ligne.effort;
     if (t !== null) etat.paroles.push(t);
+    const rid = ligne.requestId;
+    if (rid && t !== null && ligne.message?.model) {
+      let r = etat.requetesVues_.get(rid);
+      if (!r) {
+        r = {
+          id: rid,
+          modele: ligne.message.model,
+          appel: etat.dernierAvantReponse,
+          debut: t,
+          fin: t,
+          blocs: 0,
+        };
+        etat.requetesVues_.set(rid, r);
+        etat.requetesModele.push(r);
+      }
+      r.fin = Math.max(r.fin, t);
+      r.blocs += 1;
+      if (ligne.message.stop_reason) r.arret = ligne.message.stop_reason;
+    }
     const dit = texteDe(ligne.message?.content);
     if (dit.trim()) etat.derniereReponse = dit;
     for (const bloc of ligne.message?.content || []) {
@@ -377,6 +406,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       [racine.premier, ...racine.requetes.map((r) => r.instant)]),
     contexte: racine.contexte,
     paroles: racine.paroles,
+    requetesModele: nettoyerRequetes(racine.requetesModele),
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
@@ -420,6 +450,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
         [d.premier, ...d.requetes.map((r) => r.instant)]),
       contexte: d.contexte,
       paroles: d.paroles,
+      requetesModele: nettoyerRequetes(d.requetesModele),
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,
@@ -727,6 +758,26 @@ function construireAttentes(agent, finSession, sessionVivante, maintenant) {
     a.dureeMs = (a.fin ?? (sessionVivante ? maintenant : finSession)) - a.debut;
   }
   return attentes;
+}
+
+/**
+ * Met les requêtes en forme pour l'affichage. On écarte les modèles synthétiques — ce sont
+ * les messages que Claude Code s'écrit à lui-même sur une panne, pas des appels — et les
+ * requêtes dont on ne saurait pas dire quand elles ont été lancées.
+ */
+function nettoyerRequetes(requetes) {
+  return requetes
+    .filter((r) => r.modele && r.modele !== '<synthetic>' && r.appel !== null)
+    .map((r) => ({
+      modele: r.modele,
+      appel: r.appel,
+      debut: r.debut,
+      fin: r.fin,
+      blocs: r.blocs,
+      arret: r.arret || null,
+      latenceMs: Math.max(0, r.debut - r.appel),
+      reponseMs: Math.max(0, r.fin - r.debut),
+    }));
 }
 
 /** La borne de fin à prendre pour un agent dont la fin n'est pas connue. */
