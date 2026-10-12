@@ -209,6 +209,24 @@ le contexte était fait — en parts empilées sur toute la hauteur, puisque la 
 donnée par la voie du dessus : invite système et rappels, résultats d'outils, appels
 d'outils, paroles du modèle, requêtes d'Yves. Cliquer un appel en donne la recette chiffrée.
 
+**On peut lire le contexte lui-même.** La carte d'un appel porte un bloc « lire le contexte
+envoyé à cet appel » : il va chercher au serveur, à la demande, la suite exacte des éléments
+qui composaient le contexte à cet instant — le résumé du dernier compactage, les skills
+chargés, chaque appel d'outil avec sa commande, chaque résultat avec son contenu, les
+rappels, les paroles du modèle. Chaque élément se déplie, et des filtres par genre
+permettent de ne garder que ce qu'on cherche.
+
+C'est servi à la demande parce que c'est gros : 623 ko en 0,4 s pour un contexte de 428
+éléments et 568 439 caractères, sur le plus gros transcript de la machine. Le mettre dans
+la page coûterait ce poids à chaque rafraîchissement, pour quelque chose qu'on ne regarde
+qu'un appel à la fois.
+
+**Deux choses manquent, et l'application le dit plutôt que de les passer sous silence.**
+L'invite système complète, les définitions d'outils et la mémoire du projet ne sont pas
+dans le transcript. Et **le contenu des blocs de réflexion n'est pas conservé** : le
+transcript n'en garde que la signature. Ces blocs apparaissent quand même dans la liste,
+marqués « contenu non conservé », pour qu'on sache qu'ils occupaient de la place.
+
 **Ce que cette voie ne peut pas montrer, et le dit.** Le transcript ne contient pas
 l'invite système complète, les définitions d'outils ni la mémoire du projet. Mesuré sur la
 session Litanie : **1,37 caractère attribué par jeton de contexte**, là où du texte

@@ -7,7 +7,7 @@
 'use strict';
 
 const http = require('node:http');
-const { lireSession } = require('./lecture.js');
+const { lireSession, lireContexte, cheminSousAgents } = require('./lecture.js');
 const { Suiveur } = require('./suivi.js');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -274,6 +274,45 @@ function traiter(requete, reponse) {
       signaler(err);
       try { reponse.end(); } catch { /* le navigateur est déjà parti */ }
     });
+    return;
+  }
+
+  // Le contenu du contexte à un instant donné. Servi à la demande : il pèse plusieurs
+  // centaines de milliers de caractères et on ne le regarde qu'un appel à la fois.
+  if (url.pathname === '/api/contexte') {
+    const id = url.searchParams.get('id');
+    const agent = url.searchParams.get('agent') || 'racine';
+    const borne = Number(url.searchParams.get('instant'));
+    if (!id || !/^[A-Za-z0-9-]{1,64}$/.test(id) || !/^[A-Za-z0-9-]{1,64}$/.test(agent)
+        || !Number.isFinite(borne)) {
+      reponse.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+      reponse.end(JSON.stringify({ erreur: 'paramètres absents ou mal formés' }));
+      return;
+    }
+    lireSessions()
+      .then(async (etat) => {
+        const vivante = etat.sessions.find((s) => s.sessionId === id);
+        const transcript = vivante ? vivante.transcript : await trouverTranscript(id, null);
+        if (!transcript) {
+          reponse.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
+          reponse.end(JSON.stringify({ erreur: 'transcript introuvable' }));
+          return;
+        }
+        const chemin = agent === 'racine'
+          ? transcript
+          : path.join(cheminSousAgents(transcript), 'agent-' + agent + '.jsonl');
+        const contenu = await lireContexte(chemin, borne);
+        reponse.writeHead(200, {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+        });
+        reponse.end(JSON.stringify(contenu));
+      })
+      .catch((err) => {
+        signaler(err);
+        reponse.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+        reponse.end(JSON.stringify({ erreur: String(err) }));
+      });
     return;
   }
 

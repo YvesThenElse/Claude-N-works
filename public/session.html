@@ -114,6 +114,32 @@
   .jauge .valeur { font-size: .82rem; margin-bottom: .1rem; }
   .jauge .valeur b { font-size: 1rem; }
 
+  /* La lecture du contexte : une liste d'éléments dépliables, dans l'ordre. */
+  .ctx-liste { margin-top: .8rem; }
+  .ctx-element { border-top: 1px solid var(--trait); }
+  .ctx-element > summary {
+    cursor: pointer; padding: .3rem .1rem; font-size: .78rem; display: flex;
+    gap: .5rem; align-items: baseline;
+  }
+  .ctx-element > summary:hover { background: var(--fond); }
+  .ctx-element .marque { width: .5rem; height: .5rem; border-radius: 2px; flex: none; }
+  .ctx-element .quoi { color: var(--texte); }
+  .ctx-element .quand { color: var(--texte-faible); font-size: .72rem; }
+  .ctx-element .taille { margin-left: auto; color: var(--texte-faible); font-size: .72rem; }
+  .ctx-element pre {
+    margin: .2rem 0 .5rem; padding: .55rem .7rem; background: var(--fond);
+    border: 1px solid var(--trait); border-radius: 6px;
+    font: 12px/1.5 ui-monospace, Menlo, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: 22rem; overflow: auto;
+  }
+  .ctx-filtres { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0 .2rem; }
+  .ctx-filtres button {
+    background: var(--fond); border: 1px solid var(--trait); color: var(--texte);
+    border-radius: 999px; padding: .1rem .55rem; font-size: .74rem; cursor: pointer;
+    font-family: inherit;
+  }
+  .ctx-filtres button[aria-pressed="false"] { opacity: .4; }
+
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
   }
@@ -1506,6 +1532,105 @@ function carteModele(agent, modele, visee) {
     [dl, ...jauges, explication, ...morceauxEnTete, p]);
 }
 
+const TEINTE_GENRE = {
+  humain: '#e0af68', modele: '#d6a4ff', reflexion: '#9a7fd0',
+  outilEntree: '#7aa2f7', outilSortie: '#9ece6a', systeme: '#565f89', resume: '#bb9af7',
+};
+const NOM_GENRE = {
+  humain: 'requêtes d’Yves', modele: 'paroles du modèle', reflexion: 'réflexions',
+  outilEntree: 'appels d’outils', outilSortie: 'résultats d’outils',
+  systeme: 'système et rappels', resume: 'résumé de compactage',
+};
+
+/**
+ * Lit, auprès du serveur, le contenu du contexte tel qu'il était à cet appel, et l'affiche
+ * élément par élément. C'est servi à la demande : plusieurs centaines de milliers de
+ * caractères, qu'on ne regarde qu'un appel à la fois.
+ */
+async function montrerContenuContexte(agent, requete, hote) {
+  hote.replaceChildren();
+  const attente = document.createElement('p');
+  attente.className = 'avert';
+  attente.textContent = 'lecture du contexte…';
+  hote.append(attente);
+  let data;
+  try {
+    const r = await fetch('/api/contexte?id=' + encodeURIComponent(idSession)
+      + '&agent=' + encodeURIComponent(agent.id)
+      + '&instant=' + requete.appel);
+    data = await r.json();
+    if (data.erreur) throw new Error(data.erreur);
+  } catch (e) {
+    attente.textContent = 'contexte illisible : ' + e.message;
+    return;
+  }
+
+  const actifs = new Set(Object.keys(NOM_GENRE));
+  const liste = document.createElement('div');
+  liste.className = 'ctx-liste';
+
+  const dessinerListe = () => {
+    liste.replaceChildren(...data.elements.filter((e) => actifs.has(e.genre)).map((e) => {
+      const d = document.createElement('details');
+      d.className = 'ctx-element';
+      const s = document.createElement('summary');
+      const m = document.createElement('i');
+      m.className = 'marque';
+      m.style.background = TEINTE_GENRE[e.genre] || 'var(--trait)';
+      const quoi = document.createElement('span');
+      quoi.className = 'quoi';
+      quoi.textContent = e.titre;
+      const quand = document.createElement('span');
+      quand.className = 'quand';
+      quand.textContent = e.instant ? new Date(e.instant).toLocaleTimeString('fr-FR') : '';
+      const taille = document.createElement('span');
+      taille.className = 'taille';
+      taille.textContent = e.vide
+        ? 'contenu non conservé'
+        : (e.texte || '').length.toLocaleString('fr-FR') + ' car.';
+      s.append(m, quoi, quand, taille);
+      const pre = document.createElement('pre');
+      pre.textContent = e.vide
+        ? '(le transcript ne conserve pas le contenu des blocs de réflexion — seule leur '
+          + 'signature est gardée)'
+        : (e.texte || '');
+      d.append(s, pre);
+      return d;
+    }));
+  };
+
+  const filtres = document.createElement('div');
+  filtres.className = 'ctx-filtres';
+  const parGenre = {};
+  for (const e of data.elements) parGenre[e.genre] = (parGenre[e.genre] || 0) + 1;
+  for (const [cle, nom] of Object.entries(NOM_GENRE)) {
+    if (!parGenre[cle]) continue;
+    const b = document.createElement('button');
+    b.textContent = nom + '  ' + parGenre[cle];
+    b.style.borderColor = TEINTE_GENRE[cle];
+    b.setAttribute('aria-pressed', 'true');
+    b.addEventListener('click', () => {
+      const on = b.getAttribute('aria-pressed') === 'true';
+      b.setAttribute('aria-pressed', String(!on));
+      if (on) actifs.delete(cle); else actifs.add(cle);
+      dessinerListe();
+    });
+    filtres.append(b);
+  }
+
+  const entete = document.createElement('p');
+  entete.className = 'avert';
+  entete.style.fontStyle = 'normal';
+  entete.style.color = 'var(--texte-faible)';
+  entete.textContent = data.elements.length + ' éléments, '
+    + data.caracteres.toLocaleString('fr-FR') + ' caractères'
+    + (data.compactages ? '  —  reconstruit depuis le dernier des ' + data.compactages
+      + ' compactage(s) qui précèdent' : '');
+
+  hote.replaceChildren(entete, filtres, liste);
+  dessinerListe();
+}
+
 /** Carte du contenu du contexte à un appel donné. */
 function carteContenu(agent, requete) {
   const c = requete?.composition || {};
@@ -1542,6 +1667,21 @@ function carteContenu(agent, requete) {
       + 'le rapport mesuré est de 1,37 caractère attribué par jeton de contexte, soit '
       + 'environ un tiers.';
     morceaux.push(p);
+  }
+
+  // La lecture du contexte lui-même, chargée après coup.
+  if (requete) {
+    const details = document.createElement('details');
+    details.className = 'bloc';
+    const s = document.createElement('summary');
+    s.textContent = 'lire le contexte envoyé à cet appel';
+    const hote = document.createElement('div');
+    details.append(s, hote);
+    let charge = false;
+    details.addEventListener('toggle', () => {
+      if (details.open && !charge) { charge = true; montrerContenuContexte(agent, requete, hote); }
+    });
+    morceaux.push(details);
   }
 
   ouvrirPanneau('contenu du contexte', agent.nom, morceaux);
@@ -2035,6 +2175,7 @@ function resumer(d) {
 }
 
 const id = new URLSearchParams(location.search).get('id');
+const idSession = id;
 
 /**
  * Le suivi d'une session vivante. Le serveur n'envoie que lorsque le transcript a bougé ;

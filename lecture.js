@@ -937,4 +937,127 @@ function nettoyerAppel(a) {
   };
 }
 
-module.exports = { lireSession, assembler, etatVide, avaler, cheminSousAgents };
+/**
+ * Le contenu du contexte tel qu'il était au moment d'un appel donné.
+ *
+ * On relit le transcript dans l'ordre et on garde tout ce qui précède l'instant visé, en
+ * repartant de zéro à chaque compactage — le résumé qui le suit porte `isCompactSummary`
+ * et devient le premier élément du nouveau contexte.
+ *
+ * Ce qui est rendu est **exact** pour la conversation. Ce qui manque et qui ne peut pas
+ * être reconstruit : l'invite système complète, les définitions d'outils et la mémoire du
+ * projet, que le transcript n'enregistre pas.
+ */
+async function lireContexte(cheminTranscript, borne) {
+  let elements = [];
+  let compactages = 0;
+  const nomDe = new Map(); // id d'appel -> nom d'outil, pour nommer les résultats
+
+  for await (const { ligne } of lignesDe(cheminTranscript)) {
+    const t = instant(ligne);
+    if (t !== null && borne && t > borne) break;
+
+    if (ligne.type === 'system' && ligne.subtype === 'compact_boundary') {
+      elements = [];
+      compactages += 1;
+      continue;
+    }
+
+    if (ligne.type === 'attachment') {
+      const taille = tailleInjectee(ligne.attachment);
+      if (taille > 0) {
+        elements.push({
+          instant: t,
+          genre: 'systeme',
+          titre: ligne.attachment?.type || 'rappel',
+          texte: texteInjecte(ligne.attachment),
+        });
+      }
+      continue;
+    }
+
+    if (ligne.type === 'assistant') {
+      if (ligne.message?.model === '<synthetic>') continue;
+      for (const bloc of ligne.message?.content || []) {
+        if (bloc.type === 'text' && bloc.text) {
+          elements.push({ instant: t, genre: 'modele', titre: 'parole du modèle', texte: bloc.text });
+        } else if (bloc.type === 'thinking') {
+          // Le contenu d'un bloc de réflexion n'est pas conservé : le transcript n'en
+          // garde que la signature. On le montre quand même, pour qu'on sache qu'il
+          // occupait de la place dans le contexte.
+          elements.push({
+            instant: t,
+            genre: 'reflexion',
+            titre: 'réflexion',
+            texte: bloc.thinking || '',
+            vide: !bloc.thinking,
+          });
+        } else if (bloc.type === 'tool_use') {
+          nomDe.set(bloc.id, bloc.name);
+          elements.push({
+            instant: t,
+            genre: 'outilEntree',
+            titre: 'appel de ' + bloc.name,
+            texte: texteEntree(bloc.name, bloc.input),
+          });
+        }
+      }
+      continue;
+    }
+
+    if (ligne.type !== 'user') continue;
+    const contenu = ligne.message?.content;
+
+    if (ligne.isCompactSummary) {
+      elements.push({
+        instant: t, genre: 'resume', titre: 'résumé du compactage', texte: texteDe(contenu),
+      });
+      continue;
+    }
+    if (ligne.origin?.kind === 'human') {
+      elements.push({ instant: t, genre: 'humain', titre: 'requête d’Yves', texte: texteDe(contenu) });
+      continue;
+    }
+    if (Array.isArray(contenu)) {
+      let vu = false;
+      for (const bloc of contenu) {
+        if (bloc.type !== 'tool_result') continue;
+        vu = true;
+        elements.push({
+          instant: t,
+          genre: 'outilSortie',
+          titre: 'résultat de ' + (nomDe.get(bloc.tool_use_id) || 'un outil'),
+          texte: typeof bloc.content === 'string' ? bloc.content : texteDe(bloc.content),
+        });
+      }
+      if (vu) continue;
+    }
+    const texte = texteDe(contenu);
+    if (texte) elements.push({ instant: t, genre: 'systeme', titre: 'message', texte });
+  }
+
+  const caracteres = elements.reduce((n, e) => n + (e.texte || '').length, 0);
+  return { elements, caracteres, compactages, borne };
+}
+
+/** Le texte qu'une pièce jointe injecte, pour pouvoir le relire. */
+function texteInjecte(att) {
+  const bouts = [];
+  if (typeof att.text === 'string') bouts.push(att.text);
+  if (typeof att.content === 'string' && att.content) bouts.push(att.content);
+  if (Array.isArray(att.skills)) {
+    for (const s of att.skills) if (typeof s.content === 'string') bouts.push(s.content);
+  }
+  if (Array.isArray(att.systemPrompt)) {
+    for (const s of att.systemPrompt) if (typeof s === 'string') bouts.push(s);
+  }
+  if (Array.isArray(att.addedBlocks)) {
+    for (const b of att.addedBlocks) if (typeof b === 'string') bouts.push(b);
+  }
+  if (att.file && typeof att.file.content === 'string') bouts.push(att.file.content);
+  return bouts.join('\n\n');
+}
+
+module.exports = {
+  lireSession, lireContexte, assembler, etatVide, avaler, cheminSousAgents,
+};
