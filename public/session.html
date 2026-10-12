@@ -95,6 +95,25 @@
     font: 12px/1.5 ui-monospace, Menlo, monospace;
     white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto;
   }
+  /* La jauge du cache : rouge quand tout est relu au prix fort, vert quand presque tout
+     vient du cache. Le curseur se place sur la part réellement servie par le cache. */
+  .jauge { margin: .5rem 0 .2rem; }
+  .jauge .piste-jauge {
+    position: relative; height: 10px; border-radius: 5px;
+    background: linear-gradient(to right, #f7768e 0%, #e0af68 55%, #9ece6a 85%, #73d393 100%);
+  }
+  .jauge .curseur {
+    position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px;
+    background: var(--texte); box-shadow: 0 0 0 1.5px var(--fond-carte);
+    transform: translateX(-50%);
+  }
+  .jauge .graduations {
+    display: flex; justify-content: space-between; margin-top: .2rem;
+    font-size: .68rem; color: var(--texte-faible);
+  }
+  .jauge .valeur { font-size: .82rem; margin-bottom: .1rem; }
+  .jauge .valeur b { font-size: 1rem; }
+
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
   }
@@ -1318,6 +1337,50 @@ function carteContexte(a) {
   ouvrirPanneau('contexte', a.nom, morceaux);
 }
 
+/**
+ * La jauge de cache : la part des jetons d'entrée qui vient du cache plutôt que d'être
+ * payée au prix fort. C'est le chiffre qui compte le plus dans une longue session — tout
+ * le contexte est renvoyé à chaque appel, et sans cache il serait refacturé chaque fois.
+ */
+function jaugeCache(part, legende) {
+  const bloc = document.createElement('div');
+  bloc.className = 'jauge';
+  const valeur = document.createElement('div');
+  valeur.className = 'valeur';
+  const fort = document.createElement('b');
+  fort.textContent = (part * 100).toFixed(1).replace('.', ',') + ' %';
+  fort.style.color = part > 0.9 ? '#9ece6a' : part > 0.6 ? '#e0af68' : '#f7768e';
+  valeur.append(fort, document.createTextNode('  ' + legende));
+  const piste = document.createElement('div');
+  piste.className = 'piste-jauge';
+  const curseur = document.createElement('div');
+  curseur.className = 'curseur';
+  curseur.style.left = (Math.max(0, Math.min(1, part)) * 100).toFixed(1) + '%';
+  piste.append(curseur);
+  const grad = document.createElement('div');
+  grad.className = 'graduations';
+  for (const [v, l] of [[0, 'tout au prix fort'], [50, '50 %'], [100, 'tout en cache']]) {
+    const s = document.createElement('span');
+    s.textContent = l;
+    grad.append(s);
+  }
+  bloc.append(valeur, piste, grad);
+  return bloc;
+}
+
+/** Les jetons d'entrée d'un appel ou d'un ensemble d'appels, détaillés. */
+function detaillerEntree(dl, j, nombre) {
+  const entree = (j.entree || 0) + (j.cacheLu || 0) + (j.cacheEcrit || 0);
+  ligne(dl, 'Entrée, en tout', nombre(entree) + ' jetons');
+  ligne(dl, '— lus du cache', nombre(j.cacheLu)
+    + (entree ? '   (' + Math.round(((j.cacheLu || 0) / entree) * 100) + ' %)' : ''));
+  ligne(dl, '— écrits au cache', nombre(j.cacheEcrit)
+    + (entree ? '   (' + Math.round(((j.cacheEcrit || 0) / entree) * 100) + ' %)' : ''));
+  ligne(dl, '— payés au prix fort', nombre(j.entree)
+    + (entree ? '   (' + Math.round(((j.entree || 0) / entree) * 100) + ' %)' : ''));
+  return entree ? (j.cacheLu || 0) / entree : 0;
+}
+
 /** Carte d'un modèle : ce qu'on a mesuré de ses appels, et le détail de l'un d'eux. */
 function carteModele(agent, modele, visee) {
   const reqs = agent.requetesModele.filter((r) => r.modele === modele);
@@ -1328,6 +1391,7 @@ function carteModele(agent, modele, visee) {
   const nombre = (n) => (n || 0).toLocaleString('fr-FR');
   const dl = document.createElement('dl');
   const morceauxEnTete = [];
+  let partCet = null;
   if (visee) {
     const j = visee.jetons || {};
     ligne(dl, 'Cet appel', heure(visee.appel));
@@ -1336,11 +1400,9 @@ function carteModele(agent, modele, visee) {
     ligne(dl, 'Durée de réponse', visee.reponseMs
       ? duree(visee.reponseMs)
       : 'non mesurable — réponse d’un seul bloc');
-    ligne(dl, 'Jetons d’entrée', nombre(j.entree)
-      + (j.cacheLu ? '  ·  ' + nombre(j.cacheLu) + ' lus du cache' : '')
-      + (j.cacheEcrit ? '  ·  ' + nombre(j.cacheEcrit) + ' écrits au cache' : ''));
-    ligne(dl, 'Jetons de sortie', nombre(j.sortie)
-      + (j.reflexion ? '  ·  dont ' + nombre(j.reflexion) + ' de réflexion' : ''));
+    partCet = detaillerEntree(dl, j, nombre);
+    ligne(dl, 'Sortie', nombre(j.sortie) + ' jetons'
+      + (j.reflexion ? '   dont ' + nombre(j.reflexion) + ' de réflexion' : ''));
     ligne(dl, 'Blocs écrits', visee.blocs
       + (visee.reflechi ? ', dont un de réflexion' : ''));
     ligne(dl, 'Outils appelés', visee.outils.length ? visee.outils.join(', ') : 'aucun');
@@ -1368,11 +1430,9 @@ function carteModele(agent, modele, visee) {
     cacheEcrit: n.cacheEcrit + (r.jetons?.cacheEcrit || 0),
     reflexion: n.reflexion + (r.jetons?.reflexion || 0),
   }), { entree: 0, sortie: 0, cacheLu: 0, cacheEcrit: 0, reflexion: 0 });
-  ligne(dl, 'Jetons d’entrée, en tout', nombre(total.entree)
-    + '  ·  ' + nombre(total.cacheLu) + ' lus du cache'
-    + '  ·  ' + nombre(total.cacheEcrit) + ' écrits');
-  ligne(dl, 'Jetons de sortie, en tout', nombre(total.sortie)
-    + (total.reflexion ? '  ·  dont ' + nombre(total.reflexion) + ' de réflexion' : ''));
+  const partTotale = detaillerEntree(dl, total, nombre);
+  ligne(dl, 'Sortie, en tout', nombre(total.sortie) + ' jetons'
+    + (total.reflexion ? '   dont ' + nombre(total.reflexion) + ' de réflexion' : ''));
 
   const p = document.createElement('p');
   p.className = 'avert';
@@ -1382,7 +1442,23 @@ function carteModele(agent, modele, visee) {
     + 'réponse » est l’instant où le premier bloc a été écrit, pas celui du premier jeton : '
     + 'un bloc de réflexion long repousse donc ce début. Et une réponse d’un seul bloc n’a '
     + 'pas de durée mesurable.';
-  ouvrirPanneau('modèle', modele.replace(/^claude-/, ''), [dl, ...morceauxEnTete, p]);
+  const explication = document.createElement('p');
+  explication.className = 'avert';
+  explication.style.fontStyle = 'normal';
+  explication.style.color = 'var(--texte-faible)';
+  explication.textContent = 'Tout le contexte est renvoyé au modèle à chaque appel. Les '
+    + 'jetons « lus du cache » ne sont pas retraités : c’est eux qui rendent une longue '
+    + 'session tenable. Les jetons « écrits au cache » sont ce qui vient d’être ajouté et '
+    + 'qu’on paie une fois pour pouvoir le relire ensuite. Ceux « payés au prix fort » '
+    + 'n’ont pas été mis en cache du tout. Plus la part lue du cache est haute, mieux la '
+    + 'session est servie.';
+
+  const jauges = [];
+  if (partCet !== null) jauges.push(jaugeCache(partCet, 'de cet appel vient du cache'));
+  jauges.push(jaugeCache(partTotale, 'de tous les appels de ce modèle viennent du cache'));
+
+  ouvrirPanneau('modèle', modele.replace(/^claude-/, ''),
+    [dl, ...jauges, explication, ...morceauxEnTete, p]);
 }
 
 /** Carte de l'attente : le détail d'une période, et le compte de toutes. */

@@ -297,9 +297,25 @@ Mesuré sur la session Litanie, 2001 appels à `claude-opus-5` : attente avant r
 
 Cliquer un appel ouvre sa carte : **ce qui l'a déclenché** — une requête d'Yves, le
 résultat d'un outil avec sa commande, la fin d'une tâche d'arrière-plan, le réveil d'une
-boucle — ses **jetons d'entrée et de sortie** avec le détail du cache lu et écrit et des
-jetons de réflexion, les outils qu'il a appelés, et **ce que le modèle a dit**. La carte
-donne aussi les totaux du modèle sur toute la session.
+boucle — les outils qu'il a appelés, et **ce que le modèle a dit**. La carte donne aussi
+les totaux du modèle sur toute la session.
+
+### Le cache
+
+C'est le chiffre qui compte le plus dans une longue session, et il a droit à son propre
+détail. Tout le contexte est renvoyé au modèle **à chaque appel** : sans cache, il serait
+retraité chaque fois. L'entrée se décompose donc en trois :
+
+| | |
+|---|---|
+| **lus du cache** | déjà vus, non retraités — c'est eux qui rendent une longue session tenable |
+| **écrits au cache** | ce qui vient d'être ajouté, payé une fois pour être relu ensuite |
+| **payés au prix fort** | ce qui n'a pas été mis en cache du tout |
+
+Une **jauge rouge → vert** porte la part réellement servie par le cache, pour l'appel
+regardé et pour l'ensemble des appels du modèle. Sur la session Litanie : **98,4 %** sur
+973 831 462 jetons d'entrée au total. L'appel le moins bien servi est à 0 % — c'est le tout
+premier de la session, quand rien n'est encore en cache — et la médiane est à 99,7 %.
 
 **Ce qu'on mesure et ce qu'on ne mesure pas**, dit aussi sur la carte. L'« appel » est le
 dernier événement écrit avant la réponse : une requête d'Yves, un résultat d'outil, ou le
