@@ -234,6 +234,35 @@ une bonne nouvelle — il suffit de surveiller un seul répertoire par session.
 parent. Il est **absent** à la profondeur 1, où le parent est l'agent racine de la session.
 La règle de rattachement est donc : `parentAgentId` s'il est là, l'agent racine sinon.
 
+### Et il part toujours en arrière-plan
+
+Mesuré le 13 octobre 2026 sur le kit `exemples/cuisine`, où un chef de partie lance deux
+commis. Le résultat que le parent reçoit n'est pas celui d'un agent synchrone :
+
+```json
+{"type":"text","text":"Async agent launched successfully. (This tool result is internal metadata …"}
+```
+
+**Un agent lancé depuis un sous-agent est asynchrone d'office**, sans que personne n'ait
+demandé `run_in_background`. Trois conséquences, toutes mesurées sur la même session :
+
+1. **Le parent ne l'attend pas.** Le `tool_result` revient en **92 ms** ; le chef de partie
+   a rendu au bout de 28 s pendant que ses commis travaillaient encore 59 s et 119 s.
+2. **La forme du marqueur change.** Le cas de §5 bis portait `status: "async_launched"`
+   dans un objet ; ici c'est un simple texte, et il ne vit **que** dans le bloc
+   `tool_result` — `toolUseResult` est absent des transcripts de sous-agents (§3). Lire la
+   première forme seulement faisait conclure « terminé en 92 ms », et la ligne du temps
+   montrait des agents de profondeur 2 en éclats invisibles.
+3. **Personne ne voit sa fin.** La `<task-notification>` qui clôt un agent d'arrière-plan
+   part vers son parent — lequel a déjà fermé son transcript. Sur la session mesurée,
+   seule la racine en contient, et pour le chef de partie, pas pour ses commis. La seule
+   fin connaissable d'un agent de profondeur 2 est donc **le dernier enregistrement de son
+   propre transcript**, et c'est à ce titre qu'on l'affiche en « fin inconnue » : on sait
+   jusqu'où il a travaillé, on ne voit pas qu'il s'est arrêté.
+
+Un orchestrateur qui ignore ce point croit son étage terminé alors qu'il commence : dans
+le kit, le chef de partie attend ses fichiers par une boucle `until` avant de conclure.
+
 ## 5 quater. Un agent interrompu, et un agent tué
 
 Deux morts très différentes, mesurées séparément. C'est la seconde qui est dangereuse.

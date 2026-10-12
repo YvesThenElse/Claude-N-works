@@ -500,8 +500,19 @@ function conclure({ appelParent, notification, interrompu, sessionVivante, derni
     // « User rejected tool use » : une interruption vue du côté du parent.
     return { etat: 'interrompu', fin: appelParent.fin };
   }
-  if (estObjet && resultat.status === 'async_launched') {
-    // Agent d'arrière-plan : le tool_result marque le lancement, pas la fin.
+  // Deux formes de lancement en arrière-plan, et il faut les deux :
+  //   - `status: "async_launched"` quand on a demandé `run_in_background: true` ;
+  //   - un simple texte « Async agent launched successfully » quand un sous-agent en
+  //     lance un autre — à partir de la profondeur 2, c'est toujours asynchrone, sans
+  //     que personne ne l'ait demandé. Mesuré : le parent rend 92 ms après l'appel
+  //     pendant que l'enfant travaille encore une minute et demie.
+  // Le texte vit dans le bloc tool_result, pas dans toolUseResult, qui est absent des
+  // transcripts de sous-agents : c'est justement là que le cas se produit.
+  const lanceEnFond = (estObjet && resultat.status === 'async_launched')
+    || /^Async agent launched successfully/.test(
+      texteResultat(resultat ?? appelParent?.resultatBloc).trim());
+  if (lanceEnFond) {
+    // Le tool_result marque le lancement, pas la fin.
     if (notification) return { etat: 'terminé', fin: notification.instant };
     return sessionVivante
       ? { etat: 'en cours', fin: null }
