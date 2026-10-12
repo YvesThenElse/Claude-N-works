@@ -147,6 +147,25 @@
   }
   .ctx-filtres button[aria-pressed="false"] { opacity: .4; }
 
+  /* La recherche dans un bloc de texte. */
+  .recherche { display: flex; gap: .4rem; align-items: center; margin: .45rem 0 .1rem; }
+  .recherche input {
+    flex: 1; min-width: 6rem; background: var(--fond); color: var(--texte);
+    border: 1px solid var(--trait); border-radius: 6px; padding: .2rem .5rem;
+    font: inherit; font-size: .8rem;
+  }
+  .recherche input:focus { outline: none; border-color: var(--accent); }
+  .recherche button {
+    background: var(--fond); border: 1px solid var(--trait); color: var(--texte);
+    border-radius: 6px; padding: .15rem .5rem; font: inherit; font-size: .78rem;
+    cursor: pointer;
+  }
+  .recherche button:hover:not(:disabled) { border-color: var(--accent); }
+  .recherche button:disabled { opacity: .35; cursor: default; }
+  .recherche .compte { font-size: .75rem; color: var(--texte-faible); min-width: 6rem; }
+  mark { background: #e0af6855; color: var(--texte); border-radius: 2px; padding: 0 1px; }
+  mark.vise { background: var(--requete); color: #11131a; }
+
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
   }
@@ -313,6 +332,7 @@ const elListeVoies = document.getElementById('listeVoies');
 // Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
 // qu'on vient voir.
 const VOIES_ANNEXES = [
+  { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
@@ -320,7 +340,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  outils: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
 };
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
@@ -516,6 +536,9 @@ function construireVoies() {
   const voies = [];
   for (const a of deroule.agents) {
     voies.push({ genre: 'agent', agent: a });
+    if (voiesVisibles.outils && (a.outils || []).length) {
+      voies.push({ genre: 'outils', agent: a });
+    }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a });
     }
@@ -542,17 +565,23 @@ function construireVoies() {
 // dans la voie qu'on survole, ce qui n'est pas la même question.
 const LEGENDE_VOIE = {
   agent: [
-    'Couleur de la barre — l’état de l’agent :',
+    'La barre dit l’état de l’agent, du début à la fin :',
     '   bleu plein   il travaille encore (bord droit ouvert, en pointillés)',
     '   gris         il a terminé',
     '   rose         il a été interrompu',
     '   orange       fin inconnue : aucun marqueur, et la session ne tourne plus',
     '',
-    'Marques sur la barre — les appels d’outils :',
+    'Les appels d’outils ont leur propre voie, juste dessous.',
+  ].join('\n'),
+  outils: [
+    'Chaque appel d’outil, à son instant :',
+    '   trait fin    l’instant de départ',
+    '   bande        la durée, quand elle est mesurable',
+    '',
+    'La couleur dit la nature de l’appel :',
     '   vert         un appel ordinaire',
     '   violet       un appel d’agent, qui lance un sous-agent',
     '   rose         un appel en échec',
-    'Le trait fin donne l’instant de départ, la bande dessous la durée.',
   ].join('\n'),
   contexte: [
     'La taille du contexte au fil du temps.',
@@ -651,6 +680,19 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
       d.addEventListener('click', () => carteContexte(a));
+    } else if (v.genre === 'outils') {
+      const parNom = {};
+      for (const o of a.outils) parNom[o.nom] = (parNom[o.nom] || 0) + 1;
+      const tri = Object.entries(parNom).sort((x, y) => y[1] - x[1]);
+      d.title = a.outils.length + ' appels d’outils\n'
+        + tri.map(([n, c]) => '   ' + n + ' × ' + c).join('\n')
+        + '\n\n' + LEGENDE_VOIE.outils;
+      tiret.textContent = '│ '.repeat(a.profondeur) + '⚒ ';
+      puce.style.background = 'var(--outil)';
+      etiq.textContent = 'outils';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = a.outils.length + ' app.';
+      d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     } else if (v.genre === 'contenu') {
       const derniere = a.requetesModele[a.requetesModele.length - 1];
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
@@ -920,6 +962,10 @@ function dessinerPiste() {
       svg.append(dessinerVoieContenu(v.agent, centre, axe, visible));
       return;
     }
+    if (v.genre === 'outils') {
+      svg.append(dessinerVoieOutils(v.agent, centre, axe, visible));
+      return;
+    }
     if (v.genre === 'modele') {
       svg.append(dessinerVoieModele(v.agent, v.modele, centre, axe, visible));
       return;
@@ -932,10 +978,7 @@ function dessinerPiste() {
     const a = v.agent;
     // La voie se partage en deux : la barre de l'agent au-dessus, la bande de durée des
     // appels d'outils en dessous. L'ensemble reste centré sur la voie.
-    const y = centre - (HAUTEUR_BARRE + HAUTEUR_DUREE) / 2;
-    const yDuree = y + HAUTEUR_BARRE;
-    const hautPrise = y - 3;
-    const hauteurPrise = HAUTEUR_BARRE + HAUTEUR_DUREE + 6;
+    const y = centre - HAUTEUR_BARRE / 2;
     const x0 = a.debut === null ? 0 : axe.x(a.debut);
     const finEffective = a.fin ?? d.fin;
     const x1 = Math.max(x0 + 2, axe.x(finEffective));
@@ -955,44 +998,6 @@ function dessinerPiste() {
       + '\ndurée ' + duree(a.dureeMs)
       + (a.modele ? '\nmodèle ' + a.modele : '')
       + '\n' + a.outils.length + " appel(s) d'outil")));
-
-    // Les appels d'outils : tous, un par un, à leur instant — §5 du cahier des charges.
-    // La durée est une bande discrète posée sous la barre, l'instant de départ un trait
-    // net : sans quoi un appel long, comme un appel d'agent, masquerait l'agent lui-même.
-    for (const o of a.outils) {
-      if (o.debut === null) continue;
-      const ox = axe.x(o.debut);
-      const largeur = o.fin !== null ? Math.max(1.5, axe.x(o.fin) - ox) : 1.5;
-      if (!visible(ox, ox + largeur)) continue;
-      const estAgent = o.nom === 'Agent' || o.nom === 'Task';
-      const couleur = o.ok === false ? 'var(--outil-echec)'
-        : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
-      if (largeur > 2) {
-        g.append(el('rect', {
-          x: ox, y: yDuree, width: largeur, height: HAUTEUR_DUREE, rx: 1.5,
-          fill: couleur, opacity: '.6',
-        }));
-      }
-      g.append(el('rect', {
-        x: ox, y: hautPrise, width: 1.8, height: hauteurPrise, fill: couleur,
-      }));
-      const titre = el('rect', {
-        x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
-        height: hauteurPrise, fill: 'transparent',
-      });
-      titre.append(el('title', {}, document.createTextNode(
-        o.nom + (o.ok === false ? '  — ÉCHEC' : '')
-        + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
-        + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));
-      titre.style.cursor = 'pointer';
-      titre.addEventListener('click', (e) => {
-        e.stopPropagation();
-        vise = a.id; dessiner();
-        const b = o.boucle && (a.boucles || []).find((x) => x.id === o.boucle);
-        if (b) carteBoucle(b, a, o.rang); else carteOutil(o, a);
-      });
-      g.append(titre);
-    }
 
     g.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     svg.append(g);
@@ -1019,6 +1024,88 @@ function ligne(dl, cle, valeur, mono) {
 }
 
 /**
+ * Une barre de recherche au-dessus d'un bloc de texte. Elle surligne toutes les
+ * occurrences, les compte, et permet de sauter de l'une à l'autre — un résultat d'outil
+ * fait couramment plusieurs milliers de caractères, et y chercher à l'œil est pénible.
+ */
+function barreRecherche(pre, texte) {
+  const barre = document.createElement('div');
+  barre.className = 'recherche';
+  const champ = document.createElement('input');
+  champ.type = 'search';
+  champ.placeholder = 'chercher dans ce texte…';
+  champ.spellcheck = false;
+  const precedent = document.createElement('button');
+  precedent.textContent = '↑';
+  precedent.title = 'occurrence précédente';
+  const suivant = document.createElement('button');
+  suivant.textContent = '↓';
+  suivant.title = 'occurrence suivante  (Entrée)';
+  const compte = document.createElement('span');
+  compte.className = 'compte';
+  barre.append(champ, precedent, suivant, compte);
+
+  let marques = [];
+  let rang = -1;
+
+  const viser = (n) => {
+    if (!marques.length) return;
+    rang = (n + marques.length) % marques.length;
+    marques.forEach((m, i) => m.classList.toggle('vise', i === rang));
+    marques[rang].scrollIntoView({ block: 'center' });
+    compte.textContent = (rang + 1) + ' sur ' + marques.length;
+  };
+
+  const chercher = () => {
+    const terme = champ.value;
+    marques = [];
+    rang = -1;
+    if (!terme) {
+      pre.textContent = texte;
+      compte.textContent = '';
+      precedent.disabled = true;
+      suivant.disabled = true;
+      return;
+    }
+    // On reconstruit le contenu en nœuds plutôt qu'en HTML : le texte peut contenir
+    // n'importe quoi, et l'échapper à la main est une source d'ennuis.
+    const bas = texte.toLowerCase();
+    const cible = terme.toLowerCase();
+    const bouts = [];
+    let i = 0;
+    for (;;) {
+      const j = bas.indexOf(cible, i);
+      if (j < 0) { bouts.push(document.createTextNode(texte.slice(i))); break; }
+      if (j > i) bouts.push(document.createTextNode(texte.slice(i, j)));
+      const m = document.createElement('mark');
+      m.textContent = texte.slice(j, j + terme.length);
+      bouts.push(m);
+      marques.push(m);
+      i = j + terme.length;
+    }
+    pre.replaceChildren(...bouts);
+    compte.textContent = marques.length
+      ? marques.length + (marques.length > 1 ? ' trouvées' : ' trouvée')
+      : 'rien trouvé';
+    precedent.disabled = marques.length === 0;
+    suivant.disabled = marques.length === 0;
+    if (marques.length) viser(0);
+  };
+
+  champ.addEventListener('input', chercher);
+  champ.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    viser(rang + (e.shiftKey ? -1 : 1));
+  });
+  precedent.addEventListener('click', () => viser(rang - 1));
+  suivant.addEventListener('click', () => viser(rang + 1));
+  precedent.disabled = true;
+  suivant.disabled = true;
+  return barre;
+}
+
+/**
  * Un bloc dépliable. Ouvert par défaut : ce qu'un agent a reçu et rendu, ou ce qu'un outil
  * a pris et renvoyé, est le contenu principal de la carte — le replier imposait un clic
  * pour voir l'essentiel. La hauteur reste bornée, chaque bloc ayant son propre ascenseur.
@@ -1032,7 +1119,8 @@ function blocReplie(titre, contenu, ouvert = true) {
   s.textContent = titre + '  (' + contenu.length + ' caractères)';
   const pre = document.createElement('pre');
   pre.textContent = contenu;
-  d.append(s, pre);
+  // En deçà de quelques centaines de caractères, l'œil suffit et la barre encombre.
+  d.append(s, ...(contenu.length > 400 ? [barreRecherche(pre, contenu)] : []), pre);
   return d;
 }
 
@@ -1581,9 +1669,18 @@ async function montrerContenuContexte(agent, requete, hote) {
   const actifs = new Set(Object.keys(NOM_GENRE));
   const liste = document.createElement('div');
   liste.className = 'ctx-liste';
+  let terme = '';
 
   const dessinerListe = () => {
-    liste.replaceChildren(...data.elements.filter((e) => actifs.has(e.genre)).map((e) => {
+    const bas = terme.toLowerCase();
+    const retenus = data.elements.filter((e) => actifs.has(e.genre)
+      && (!bas || (e.texte || '').toLowerCase().includes(bas)
+        || (e.titre || '').toLowerCase().includes(bas)));
+    compteur.textContent = terme
+      ? retenus.length + ' élément(s) contiennent « ' + terme + ' » sur '
+        + data.elements.length
+      : '';
+    liste.replaceChildren(...retenus.map((e) => {
       const d = document.createElement('details');
       d.className = 'ctx-element';
       const s = document.createElement('summary');
@@ -1602,15 +1699,40 @@ async function montrerContenuContexte(agent, requete, hote) {
         ? 'contenu non conservé'
         : (e.texte || '').length.toLocaleString('fr-FR') + ' car.';
       s.append(m, quoi, quand, taille);
-      const pre = document.createElement('pre');
-      pre.textContent = e.vide
+      const texte = e.vide
         ? '(le transcript ne conserve pas le contenu des blocs de réflexion — seule leur '
           + 'signature est gardée)'
         : (e.texte || '');
-      d.append(s, pre);
+      const pre = document.createElement('pre');
+      pre.textContent = texte;
+      d.append(s, ...(texte.length > 400 ? [barreRecherche(pre, texte)] : []), pre);
+      // Un élément trouvé par la recherche s'ouvre tout seul : on vient le lire.
+      if (terme && !e.vide) {
+        d.open = true;
+        const b = d.querySelector('.recherche input');
+        if (b) { b.value = terme; b.dispatchEvent(new Event('input')); }
+      }
       return d;
     }));
   };
+
+  // La recherche sur tout le contexte : elle réduit la liste aux éléments qui contiennent
+  // le terme, et les ouvre déjà surlignés.
+  const barreCtx = document.createElement('div');
+  barreCtx.className = 'recherche';
+  const champCtx = document.createElement('input');
+  champCtx.type = 'search';
+  champCtx.placeholder = 'chercher dans tout le contexte…';
+  champCtx.spellcheck = false;
+  const compteur = document.createElement('span');
+  compteur.className = 'compte';
+  compteur.style.minWidth = '14rem';
+  barreCtx.append(champCtx, compteur);
+  let minuteur = null;
+  champCtx.addEventListener('input', () => {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(() => { terme = champCtx.value.trim(); dessinerListe(); }, 160);
+  });
 
   const filtres = document.createElement('div');
   filtres.className = 'ctx-filtres';
@@ -1640,7 +1762,7 @@ async function montrerContenuContexte(agent, requete, hote) {
     + (data.compactages ? '  —  reconstruit depuis le dernier des ' + data.compactages
       + ' compactage(s) qui précèdent' : '');
 
-  hote.replaceChildren(entete, filtres, liste);
+  hote.replaceChildren(entete, barreCtx, filtres, liste);
   dessinerListe();
 }
 
@@ -1983,6 +2105,53 @@ const NOM_ATTENTE = {
 };
 
 /**
+ * La voie des outils. Elle était auparavant posée sur la barre de l'agent, qu'elle
+ * recouvrait : un appel long — un appel d'agent, une question à l'utilisateur — masquait
+ * l'agent lui-même, et le bord de la barre en devenait illisible.
+ */
+function dessinerVoieOutils(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const yDuree = centre + 2;
+  const hautPrise = centre - 11;
+  const hauteurPrise = 24;
+  for (const o of agent.outils) {
+    if (o.debut === null) continue;
+    const ox = axe.x(o.debut);
+    const largeur = o.fin !== null ? Math.max(1.5, axe.x(o.fin) - ox) : 1.5;
+    if (!visible(ox, ox + largeur)) continue;
+    const estAgent = o.nom === 'Agent' || o.nom === 'Task';
+    const couleur = o.ok === false ? 'var(--outil-echec)'
+      : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
+    if (largeur > 2) {
+      g.append(el('rect', {
+        x: ox, y: yDuree, width: largeur, height: HAUTEUR_DUREE, rx: 1.5,
+        fill: couleur, opacity: '.6',
+      }));
+    }
+    g.append(el('rect', {
+      x: ox, y: hautPrise, width: 1.8, height: hauteurPrise, fill: couleur,
+    }));
+    const prise = el('rect', {
+      x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
+      height: hauteurPrise, fill: 'transparent',
+    });
+    prise.append(el('title', {}, document.createTextNode(
+      o.nom + (o.ok === false ? '  — ÉCHEC' : '')
+      + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
+      + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));
+    prise.style.cursor = 'pointer';
+    prise.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vise = agent.id; dessiner();
+      const b = o.boucle && (agent.boucles || []).find((x) => x.id === o.boucle);
+      if (b) carteBoucle(b, agent, o.rang); else carteOutil(o, agent);
+    });
+    g.append(prise);
+  }
+  return g;
+}
+
+/**
  * La voie d'attente : les moments où le système ne travaille pas mais patiente. Une
  * attente sans fin — la session tourne encore et personne ne répond — reste ouverte à
  * droite, en pointillés, comme une barre d'agent en cours.
@@ -2249,6 +2418,7 @@ function remplirMenuVoies() {
   for (const a of deroule.agents) {
     if ((a.contexte || []).length > 1) presentes.contexte = (presentes.contexte || 0) + 1;
     if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
+    if ((a.outils || []).length) presentes.outils = (presentes.outils || 0) + 1;
     if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
     presentes.modele = (presentes.modele || 0) + modelesDe(a).length;

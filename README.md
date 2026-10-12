@@ -86,11 +86,19 @@ d'un agent commence quand son parent l'a lancé ; terminée, elle se grise ; enc
 elle reste en pointillés, ouverte à droite. Les quatre états mesurés sont distingués :
 en cours, terminé, interrompu, fin inconnue.
 
-Tous les appels d'outils sont là, un par un, à leur instant : un trait net au départ, une
-bande de couleur pour la durée, posée sous la barre de l'agent. Un appel d'agent et un
-appel en échec ont leur couleur. La zone de prise fait au moins 10 × 31 pixels, même pour
-un appel qui n'a duré qu'un instant — contre 6 × 25 auparavant, où viser demandait de la
-patience. Les
+Les appels d'outils ont **leur propre voie**, juste sous celle de l'agent. Ils étaient
+auparavant posés sur la barre de l'agent, qu'ils recouvraient : un appel long — un appel
+d'agent, une question à l'utilisateur — masquait l'agent lui-même et rendait le bord de sa
+barre illisible. Chacun y figure à son instant : un trait net au départ, une bande de
+couleur pour la durée. Un appel d'agent et un appel en échec ont leur couleur.
+
+### Chercher dans un texte
+
+Tout bloc de texte de plus de quatre cents caractères porte une barre de recherche :
+surlignage de toutes les occurrences, compte, et saut de l'une à l'autre par les flèches ou
+par Entrée. La lecture du contexte en a une qui porte sur **tout le contexte à la fois** :
+elle réduit la liste aux éléments contenant le terme et les ouvre déjà surlignés — par
+exemple 55 éléments sur 428 pour un mot donné. Les
 requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
 repères verticaux.
 
