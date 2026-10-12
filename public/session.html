@@ -12,6 +12,7 @@
     --en-cours: #7aa2f7; --termine: #4a5170; --interrompu: #f7768e; --inconnu: #e0af68;
     --outil: #9ece6a; --outil-echec: #f7768e; --outil-agent: #bb9af7;
     --requete: #e0af68;
+    --boucle: #2ac3de;
   }
   * { box-sizing: border-box; }
   body {
@@ -143,6 +144,7 @@
     <span><i class="puce" style="background:var(--outil)"></i>outil</span>
     <span><i class="puce" style="background:var(--outil-agent)"></i>appel d'agent</span>
     <span><i class="puce" style="background:var(--requete)"></i>requête</span>
+    <span><i class="puce" style="background:var(--boucle);border-radius:50%"></i>boucle</span>
   </div>
 </div>
 
@@ -294,25 +296,54 @@ function el(nom, attrs, ...enfants) {
   return n;
 }
 
+/**
+ * Les voies de la piste : une par agent, et sous chaque agent qui en mène, une voie à part
+ * pour ses boucles. Une boucle n'est pas un agent — elle n'a ni modèle ni outils — mais
+ * elle occupe du temps, et c'est à ce titre qu'elle mérite sa propre ligne.
+ */
+function construireVoies() {
+  const voies = [];
+  for (const a of deroule.agents) {
+    voies.push({ genre: 'agent', agent: a });
+    if ((a.boucles || []).length) voies.push({ genre: 'boucles', agent: a });
+  }
+  return voies;
+}
+
 function dessinerArbre() {
-  elArbre.replaceChildren(...deroule.agents.map((a) => {
+  elArbre.replaceChildren(...construireVoies().map((v) => {
+    const a = v.agent;
     const d = document.createElement('div');
-    d.className = 'noeud' + (a.id === vise ? ' vise' : '');
-    d.title = a.nom;
+    d.className = 'noeud' + (a.id === vise && v.genre === 'agent' ? ' vise' : '');
     const tiret = document.createElement('span');
     tiret.className = 'tiret';
-    tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
     const puce = document.createElement('i');
     puce.className = 'puce';
-    puce.style.background = couleurEtat(a.etat);
     const etiq = document.createElement('span');
     etiq.className = 'etiq';
-    etiq.textContent = a.nom;
     const etat = document.createElement('span');
     etat.className = 'etat';
-    etat.textContent = a.outils.length + ' out.';
+
+    if (v.genre === 'agent') {
+      d.title = a.nom;
+      tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
+      puce.style.background = couleurEtat(a.etat);
+      etiq.textContent = a.nom;
+      etat.textContent = a.outils.length + ' out.';
+      d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
+    } else {
+      const n = a.boucles.length;
+      const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
+      d.title = n + ' boucle(s), ' + its + ' itération(s)';
+      tiret.textContent = '│ '.repeat(a.profondeur) + '↻ ';
+      puce.style.background = 'var(--boucle)';
+      puce.style.borderRadius = '50%';
+      etiq.textContent = n > 1 ? n + ' boucles' : 'une boucle';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = its + ' it.';
+      d.addEventListener('click', () => carteBoucle(a.boucles[0], a, 0));
+    }
     d.append(tiret, puce, etiq, etat);
-    d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     return d;
   }));
 }
@@ -341,7 +372,8 @@ function dessinerPiste() {
     ? axe.replies + ' temps mort' + (axe.replies > 1 ? 's' : '') + ' replié'
       + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
     : '';
-  const hauteur = MARGE_HAUT + d.agents.length * HAUTEUR_VOIE + 20;
+  const voies = construireVoies();
+  const hauteur = MARGE_HAUT + voies.length * HAUTEUR_VOIE + 20;
   const svg = el('svg', { width: Math.ceil(axe.largeur) + 2, height: hauteur });
 
   // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
@@ -378,8 +410,10 @@ function dessinerPiste() {
     svg.append(g);
   }
 
-  d.agents.forEach((a, i) => {
+  voies.forEach((v, i) => {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
+    if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
+    const a = v.agent;
     const y = centre - HAUTEUR_BARRE / 2;
     const x0 = a.debut === null ? 0 : axe.x(a.debut);
     const finEffective = a.fin ?? d.fin;
@@ -669,6 +703,50 @@ function listerBoucles() {
 
 function carteRequete(r) {
   ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
+}
+
+/**
+ * Une boucle se dessine comme un rail, et non comme une barre d'agent : un trait fin bordé
+ * de deux montants, avec une encoche par itération — pleine si quelque chose a été
+ * produit, creuse si rien n'a changé. Les boucles d'un même agent ne se chevauchent jamais,
+ * un arrêt fermant toujours la précédente.
+ */
+function dessinerVoieBoucles(agent, centre, axe) {
+  const g = el('g', {});
+  for (const b of agent.boucles) {
+    const x0 = axe.x(b.debut);
+    const x1 = Math.max(x0 + 3, axe.x(b.fin ?? deroule.fin));
+    g.append(el('line', {
+      x1: x0, y1: centre, x2: x1, y2: centre,
+      stroke: 'var(--boucle)', 'stroke-width': 1.4, opacity: '.75',
+      ...(b.etat === 'en cours' ? { 'stroke-dasharray': '4 3' } : {}),
+    }));
+    for (const x of [x0, x1]) {
+      g.append(el('line', {
+        x1: x, y1: centre - 6, x2: x, y2: centre + 6,
+        stroke: 'var(--boucle)', 'stroke-width': 1.4,
+      }));
+    }
+    for (const it of b.iterations) {
+      const xi = axe.x(it.instant);
+      g.append(el('rect', {
+        x: xi - 1.4, y: centre - 4.5, width: 2.8, height: 9, rx: 1,
+        fill: it.noop ? 'var(--fond)' : 'var(--boucle)',
+        stroke: 'var(--boucle)', 'stroke-width': it.noop ? 1 : 0,
+      }));
+    }
+    const prise = el('rect', {
+      x: x0 - 2, y: centre - 9, width: (x1 - x0) + 4, height: 18, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      (b.consigne || 'boucle').replace(/^\/loop\s*/, '').slice(0, 90)
+      + '\n' + b.iterations.length + ' itération(s), ' + b.sansEffet + ' sans effet'
+      + '\n' + b.etat + ' · ' + duree((b.fin ?? Date.now()) - b.debut))));
+    prise.addEventListener('click', () => carteBoucle(b, agent, 0));
+    g.append(prise);
+  }
+  return g;
 }
 
 function dessiner() {

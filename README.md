@@ -77,6 +77,12 @@ suite à la fin — le signe d'une boucle qui tourne à vide.
 Sur la session Litanie : dix boucles, 173 itérations, retrouvées sans en perdre ni en
 compter deux fois.
 
+Les boucles ont aussi leur voie sur la ligne du temps, sous l'agent qui les mène. Une
+boucle n'étant pas un agent, elle s'y dessine comme un rail et non comme une barre : un
+trait borné par deux montants, une encoche par itération, pleine ou creuse selon qu'elle a
+produit quelque chose. D'un coup d'œil sur Litanie, on voit que la session est faite de
+boucles presque de bout en bout.
+
 **Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
 L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée de la session

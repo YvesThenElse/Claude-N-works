@@ -220,6 +220,14 @@ session — un quatre-centième de sa durée, et jamais moins d'une minute — e
 est visible et compté**, la barre d'outils annonçant leur nombre et la durée totale élidée.
 Rien n'est masqué en silence. Le repli se désactive d'une case à cocher.
 
+**Les boucles sur la ligne du temps** — *demandé après le lot 6*. Une boucle n'est pas un
+agent : elle n'a ni modèle, ni outils, ni sous-agents. Mais elle occupe du temps, et à ce
+titre elle prend sa propre voie, sous celle de l'agent qui la mène. Elle s'y dessine comme
+un **rail** et non comme une barre : un trait fin borné par deux montants, avec une encoche
+par itération — pleine si quelque chose a été produit, creuse si rien n'a changé. Les
+boucles d'un même agent ne se chevauchent jamais, un arrêt fermant toujours la précédente,
+donc une seule voie suffit.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 
