@@ -642,6 +642,9 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     });
   }
 
+  // La courbe du nombre de fichiers, une fois les appels nettoyés.
+  for (const a of agents) a.courbeFichiers = construireCourbeFichiers(a);
+
   // Les échecs et ce qui les suit. Mesuré sur les 297 échecs du corpus : 78 % sont suivis
   // d'un appel du même outil, mais presque jamais à l'identique — cinq cas seulement.
   // L'agent corrige et relance ; c'est ce geste-là qu'il faut rendre visible.
@@ -1000,6 +1003,66 @@ function nettoyerRequetes(requetes) {
     });
 }
 
+/**
+ * Les chemins qu'une commande supprime, quand on peut le dire sans risque.
+ *
+ * On ne devine pas : un `rm` sur un motif, une variable ou une substitution est ignoré,
+ * parce qu'on ne saurait pas ce qu'il efface réellement. Mieux vaut une courbe qui rate
+ * des suppressions qu'une courbe qui en invente.
+ */
+function cheminsSupprimes(commande) {
+  if (typeof commande !== 'string' || !/\brm\b/.test(commande)) return [];
+  const sortis = [];
+  for (const bout of commande.split(/[\n;]|&&|\|\|/)) {
+    const m = /^\s*(?:sudo\s+)?rm\s+(.+)$/.exec(bout);
+    if (!m) continue;
+    for (const brut of m[1].split(/\s+/)) {
+      const arg = brut.replace(/^["']|["']$/g, '');
+      if (!arg || arg.startsWith('-')) continue;
+      // Tout ce qui pourrait désigner autre chose que ce qu'on lit est écarté.
+      if (/[$*?`<>{}\[\]]/.test(arg)) return [];
+      sortis.push(arg);
+    }
+  }
+  return sortis;
+}
+
+/**
+ * La courbe du nombre de fichiers que l'agent a fait exister : elle monte à chaque fichier
+ * écrit pour la première fois, et descend quand il en supprime un qu'il avait écrit.
+ *
+ * Elle ne prétend pas compter les fichiers du projet — seulement ceux dont le transcript
+ * permet d'affirmer qu'ils sont passés entre les mains de l'agent.
+ */
+function construireCourbeFichiers(agent) {
+  const vivants = new Set();
+  const points = [];
+  let ignorees = 0;
+  const appels = agent.outils
+    .filter((o) => o.debut !== null)
+    .sort((x, y) => x.debut - y.debut);
+
+  for (const o of appels) {
+    let change = false;
+    if (o.fichier && (o.fichier.genre === 'écrit' || o.fichier.genre === 'modifié')) {
+      if (!vivants.has(o.fichier.chemin)) { vivants.add(o.fichier.chemin); change = true; }
+    } else if (o.nom === 'Bash') {
+      const cibles = cheminsSupprimes(o.entreeBrute);
+      if (/\brm\b/.test(o.entreeBrute || '') && !cibles.length) ignorees += 1;
+      for (const c of cibles) {
+        for (const v of vivants) {
+          if (v === c || v.endsWith('/' + c.replace(/^\.\//, ''))) {
+            vivants.delete(v);
+            change = true;
+          }
+        }
+      }
+    }
+    if (change) points.push({ instant: o.debut, nombre: vivants.size });
+  }
+  return { points, ignorees, finale: vivants.size };
+}
+
 /** La borne de fin à prendre pour un agent dont la fin n'est pas connue. */
 function bornesFin(agent, racine) {
   return agent.fin ?? racine.dernier ?? agent.debut;
@@ -1053,6 +1116,8 @@ function nettoyerAppel(a) {
     // Un appel de skill porte son nom à part : il mérite sa propre carte (§6.2).
     skill: a.nom === 'Skill' ? (a.entree?.skill || null) : null,
     fichier: toucheFichier(a.nom, a.entree),
+    // La commande telle quelle, pour pouvoir y repérer les suppressions.
+    entreeBrute: a.nom === 'Bash' ? (a.entree?.command || '') : '',
   };
 }
 

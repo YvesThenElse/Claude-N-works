@@ -790,7 +790,16 @@ const LEGENDE_VOIE = {
     'coûté, jamais ce qu’elle disait.',
   ].join('\n'),
   fichiers: [
-    'Ce que l’agent fait aux fichiers, autour d’une ligne de base :',
+    'En fond, la courbe du nombre de fichiers que l’agent a fait exister :',
+    'elle monte à chaque fichier écrit pour la première fois, et descend',
+    'quand il en supprime un qu’il avait écrit. C’est un escalier, pas une',
+    'courbe lissée : le compte change par bonds.',
+    '',
+    'Elle ne compte pas les fichiers du projet — seulement ceux dont le',
+    'transcript permet d’affirmer qu’ils sont passés entre ses mains. Une',
+    'suppression par motif ou par variable n’est jamais devinée.',
+    '',
+    'Au premier plan, ce qu’il fait aux fichiers, autour d’une ligne de base :',
     '   vers le haut, vert   des lignes ajoutées',
     '   vers le bas, rose    des lignes retirées',
     '   trait sur la ligne   un fichier simplement lu',
@@ -936,6 +945,10 @@ function dessinerArbre() {
       icone.style.color = '#9ece6a';
       puce.style.background = 'linear-gradient(to bottom, #9ece6a, #f7768e)';
       etiq.textContent = 'fichiers';
+      if (a.courbeFichiers) {
+        d.title = d.title.replace('\n\n', '\nà la fin, ' + a.courbeFichiers.finale
+          + ' fichiers qu’il avait écrits existent encore\n\n');
+      }
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = distincts + ' fich.';
       surLigne(() => carteFichiers(a));
@@ -1980,6 +1993,19 @@ function carteFichiers(agent) {
     + ecrits + ' écritures, ' + modifs + ' modifications)');
   ligne(dl, 'Lignes ajoutées', '+' + nombre(plus));
   ligne(dl, 'Lignes retirées', '−' + nombre(moins));
+  if (agent.courbeFichiers) {
+    const c = agent.courbeFichiers;
+    const pic = Math.max(0, ...c.points.map((q) => q.nombre));
+    let descentes = 0;
+    for (let i = 1; i < c.points.length; i += 1) {
+      if (c.points[i].nombre < c.points[i - 1].nombre) descentes += 1;
+    }
+    ligne(dl, 'Fichiers qu’il a fait exister', c.finale + (pic > c.finale ? '   (pic à ' + pic + ')' : ''));
+    ligne(dl, 'Suppressions comptées', String(descentes));
+    ligne(dl, 'Suppressions non attribuées', c.ignorees
+      ? c.ignorees + '   (motif ou variable : on ne devine pas ce qu’elles effacent)'
+      : null);
+  }
 
   const morceaux = [dl];
 
@@ -2749,10 +2775,56 @@ function dessinerVoieFichiers(agent, centre, axe, visible) {
   const ops = agent.outils.filter((o) => o.fichier && o.debut !== null);
   if (!ops.length) return g;
   const pic = Math.max(1, ...ops.map((o) => Math.max(o.fichier.plus, o.fichier.moins)));
-  const demi = 11;
+  // La voie se partage : le diff occupe le haut autour de sa ligne de base, la courbe du
+  // nombre de fichiers occupe une bande au ras du bas. Les deux mesurent des choses
+  // différentes, les mélanger sur la même amplitude les rendait illisibles toutes les deux.
+  const base = centre - 4;
+  const demi = 8;
+  const basCourbe = centre + 13;
+  const hauteurCourbe = 11;
+
+  // En fond, la courbe du nombre de fichiers que l'agent a fait exister : elle monte à
+  // chaque fichier écrit pour la première fois, descend quand il en supprime un qu'il
+  // avait écrit. Un escalier et non une courbe lissée — le compte change par bonds, et
+  // lisser laisserait croire à une progression continue.
+  const courbe = agent.courbeFichiers;
+  if (courbe && courbe.points.length > 1) {
+    const plafond = Math.max(1, ...courbe.points.map((q) => q.nombre));
+    const bas = basCourbe;
+    const y = (n) => bas - (n / plafond) * hauteurCourbe;
+    const fin = axe.x(agent.fin ?? deroule.fin);
+    const marches = [];
+    let precedent = null;
+    for (const q of courbe.points) {
+      const x = axe.x(q.instant);
+      if (precedent !== null) marches.push(`${x.toFixed(1)},${y(precedent).toFixed(1)}`);
+      marches.push(`${x.toFixed(1)},${y(q.nombre).toFixed(1)}`);
+      precedent = q.nombre;
+    }
+    marches.push(`${fin.toFixed(1)},${y(precedent).toFixed(1)}`);
+    const depart = axe.x(courbe.points[0].instant);
+    // Pas de remplissage : l'aire se disputerait l'espace avec les barres du diff, qui
+    // partent de la même ligne de base. Un trait franc se distingue d'elles sans effort.
+    g.append(el('polyline', {
+      points: marches.join(' '), fill: 'none',
+      stroke: '#ffd479', 'stroke-width': 1.6, opacity: '.9',
+      'stroke-linejoin': 'round',
+    }));
+    // Le compte courant, répété à gauche de la fenêtre pour rester lisible où qu'on soit.
+    for (const ancre of [depart, fin]) {
+      const et = el('text', {
+        x: ancre === depart ? depart + 4 : fin - 4,
+        y: y(ancre === depart ? courbe.points[0].nombre : precedent) - 2,
+        'text-anchor': ancre === depart ? 'start' : 'end',
+        fill: '#ffd479', 'font-size': '9', opacity: '.95',
+      });
+      et.textContent = (ancre === depart ? courbe.points[0].nombre : precedent) + ' fich.';
+      g.append(et);
+    }
+  }
 
   g.append(el('line', {
-    x1: axe.x(agent.debut), y1: centre, x2: axe.x(agent.fin ?? deroule.fin), y2: centre,
+    x1: axe.x(agent.debut), y1: base, x2: axe.x(agent.fin ?? deroule.fin), y2: base,
     stroke: 'var(--texte-faible)', 'stroke-width': 1, opacity: '.3',
   }));
 
@@ -2762,27 +2834,27 @@ function dessinerVoieFichiers(agent, centre, axe, visible) {
     const f = o.fichier;
     if (f.genre === 'lu') {
       g.append(el('rect', {
-        x: x - 1, y: centre - 2.5, width: 2, height: 5, rx: 1,
+        x: x - 1, y: base - 2.5, width: 2, height: 5, rx: 1,
         fill: 'var(--texte-faible)', opacity: '.8',
       }));
     } else {
       if (f.plus > 0) {
         const h = Math.max(2, Math.sqrt(f.plus / pic) * demi);
         g.append(el('rect', {
-          x: x - 1.3, y: centre - h, width: 2.6, height: h, rx: 1,
+          x: x - 1.3, y: base - h, width: 2.6, height: h, rx: 1,
           fill: 'var(--outil)', opacity: '.9',
         }));
       }
       if (f.moins > 0) {
         const h = Math.max(2, Math.sqrt(f.moins / pic) * demi);
         g.append(el('rect', {
-          x: x - 1.3, y: centre, width: 2.6, height: h, rx: 1,
+          x: x - 1.3, y: base, width: 2.6, height: h, rx: 1,
           fill: 'var(--outil-echec)', opacity: '.9',
         }));
       }
     }
     const prise = el('rect', {
-      x: x - 4, y: centre - demi - 3, width: 8, height: demi * 2 + 6, fill: 'transparent',
+      x: x - 4, y: base - demi - 3, width: 8, height: demi * 2 + 6, fill: 'transparent',
     });
     prise.style.cursor = 'pointer';
     const court = f.chemin.split('/').slice(-2).join('/');

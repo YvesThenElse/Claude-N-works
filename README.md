@@ -374,6 +374,22 @@ Sur la session `454ef787` : **162 fichiers distincts**, 179 opérations — 98 l
 80 écritures, 1 modification — pour **+12 065 / −2 lignes**. La carte liste les fichiers
 les plus repris, ce qui montre où le travail a buté.
 
+**La courbe du nombre de fichiers.** En bas de la même voie court un escalier : le nombre
+de fichiers que l'agent a fait exister. Il monte à chaque fichier écrit pour la première
+fois, et descend quand l'agent en supprime un qu'il avait écrit. Un escalier et non une
+courbe lissée — le compte change par bonds, et lisser laisserait croire à une progression
+continue.
+
+Le diff et la courbe occupent deux bandes distinctes de la voie : mélangés sur la même
+amplitude, ils se rendaient illisibles l'un l'autre.
+
+**Elle ne devine jamais.** Une suppression par motif, par variable ou par substitution est
+ignorée, parce qu'on ne saurait pas ce qu'elle efface réellement — la carte compte ces
+suppressions non attribuées à part. Mieux vaut une courbe qui en rate que d'en inventer.
+Mesuré sur l'ensemble des transcrits : 23 agents ont une courbe, **3 la voient descendre**,
+et 131 suppressions restent non attribuées. Sur la session `454ef787`, la courbe va de 1 à
+**78 fichiers**.
+
 **Sur le « diff git ».** Le transcript n'en contient aucun. Mais il contient mieux : ce que
 l'agent a *demandé*. Un `Edit` porte l'ancien et le nouveau texte, donc le compte est
 exact. Un `Write` ne porte que le nouveau contenu : ses lignes comptent en positif, et ce
