@@ -114,6 +114,32 @@ async function* lignesDe(chemin) {
 // --------------------------------------------------- dépouillement d'un seul transcript
 
 /**
+ * Ce qu'une pièce jointe ajoute **réellement** au contexte.
+ *
+ * Compter l'enregistrement entier serait un mensonge : un `hook_success` pèse 3 226
+ * caractères en moyenne et douze millions au total sur la session Litanie, presque
+ * uniquement parce qu'il recopie la commande du hook — qui n'est jamais envoyée au
+ * modèle. On ne retient donc que les champs dont on sait qu'ils sont injectés.
+ */
+function tailleInjectee(att) {
+  if (!att || typeof att !== 'object') return 0;
+  let n = 0;
+  if (typeof att.text === 'string') n += att.text.length;
+  if (typeof att.content === 'string') n += att.content.length;
+  if (Array.isArray(att.skills)) {
+    for (const s of att.skills) if (typeof s.content === 'string') n += s.content.length;
+  }
+  if (Array.isArray(att.systemPrompt)) {
+    for (const s of att.systemPrompt) if (typeof s === 'string') n += s.length;
+  }
+  if (Array.isArray(att.addedBlocks)) {
+    for (const b of att.addedBlocks) if (typeof b === 'string') n += b.length;
+  }
+  if (att.file && typeof att.file.content === 'string') n += att.file.content.length;
+  return n;
+}
+
+/**
  * Ce qui a déclenché un appel au modèle : la nature du dernier enregistrement qui le
  * précède. C'est la seule « entrée » que le transcript donne — le prompt complet envoyé à
  * l'API n'y figure pas.
@@ -163,6 +189,10 @@ function etatVide() {
     // Les instants où l'agent prend la parole. Sans eux, le temps qu'il passe à réfléchir
     // entre deux appels d'outils ressemblerait à de l'attente, alors qu'il travaille.
     paroles: [],
+    // De quoi le contexte est fait, à l'instant où il est envoyé. On tient les totaux au
+    // fil de la lecture et on en prend un instantané à chaque appel : reconstruire tout
+    // l'historique pour chacun des deux mille appels coûterait un carré.
+    composition: { humain: 0, modele: 0, outilEntree: 0, outilSortie: 0, systeme: 0, n: 0 },
     // Un appel au modèle, vu depuis le transcript : l'instant du dernier événement qui le
     // précède, celui du premier bloc de réponse écrit, et celui du dernier.
     requetesModele: [],
@@ -202,10 +232,17 @@ function avaler(etat, ligne) {
   if (ligne.type === 'system') {
     if (ligne.subtype === 'compact_boundary') {
       etat.compactages.push({ instant: t });
+      // Un compactage remet le contexte à zéro : la composition repart du résumé.
+      etat.composition = { humain: 0, modele: 0, outilEntree: 0, outilSortie: 0, systeme: 0, n: 0 };
     } else if (ligne.subtype === 'scheduled_task_fire') {
       etat.reveils.push({ instant: t, texte: String(ligne.content || '').slice(0, 200) });
     }
     return;
+  }
+
+  if (ligne.type === 'attachment') {
+    const taille = tailleInjectee(ligne.attachment);
+    if (taille > 0) { etat.composition.systeme += taille; etat.composition.n += 1; }
   }
 
   if (ligne.type === 'attachment' && ligne.attachment?.type === 'invoked_skills') {
@@ -239,6 +276,16 @@ function avaler(etat, ligne) {
     if (ligne.message && ligne.message.model) etat.modele = ligne.message.model;
     if (ligne.effort) etat.effort = ligne.effort;
     if (t !== null) etat.paroles.push(t);
+    // Ce que le modèle vient d'ajouter au contexte : ses paroles, sa réflexion, et les
+    // appels d'outils qu'il écrit.
+    for (const bloc of ligne.message?.content || []) {
+      if (bloc.type === 'text') etat.composition.modele += (bloc.text || '').length;
+      else if (bloc.type === 'thinking') etat.composition.modele += (bloc.thinking || '').length;
+      else if (bloc.type === 'tool_use') {
+        etat.composition.outilEntree += JSON.stringify(bloc.input || {}).length;
+      }
+    }
+    etat.composition.n += 1;
     const rid = ligne.requestId;
     if (rid && t !== null && ligne.message?.model) {
       let r = etat.requetesVues_.get(rid);
@@ -253,6 +300,7 @@ function avaler(etat, ligne) {
           blocs: 0,
           dit: '',
           outils: [],
+          composition: { ...etat.composition },
         };
         etat.requetesVues_.set(rid, r);
         etat.requetesModele.push(r);
@@ -306,13 +354,24 @@ function avaler(etat, ligne) {
   // Une vraie requête d'Yves, et elle seule : §5 bis également.
   if (ligne.origin && ligne.origin.kind === 'human') {
     etat.requetes.push({ instant: t, texte: tronquer(texte) });
+    etat.composition.humain += texte.length;
+    etat.composition.n += 1;
     return;
   }
 
   if (texte.startsWith('[Request interrupted by user')) etat.interrompu = true;
 
-  if (!Array.isArray(contenu)) return;
+  if (!Array.isArray(contenu)) {
+    if (texte) { etat.composition.systeme += texte.length; etat.composition.n += 1; }
+    return;
+  }
   for (const bloc of contenu) {
+    if (bloc.type === 'tool_result') {
+      etat.composition.outilSortie += typeof bloc.content === 'string'
+        ? bloc.content.length
+        : JSON.stringify(bloc.content || '').length;
+      etat.composition.n += 1;
+    }
     if (bloc.type !== 'tool_result') continue;
     const appel = etat.appels.get(bloc.tool_use_id);
     if (!appel) continue;
@@ -835,6 +894,7 @@ function nettoyerRequetes(requetes) {
         latenceMs: Math.max(0, r.debut - r.appel),
         reponseMs: Math.max(0, r.fin - r.debut),
         reflechi: Boolean(r.reflechi),
+        composition: r.composition,
         outils: r.outils,
         dit: tronquer(r.dit, LIMITE_REQUETE),
         ditTronque: r.dit.length > LIMITE_REQUETE,

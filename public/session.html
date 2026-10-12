@@ -278,12 +278,25 @@ const elListeVoies = document.getElementById('listeVoies');
 // Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
 // qu'on vient voir.
 const VOIES_ANNEXES = [
-  { cle: 'contexte', nom: 'contexte', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
+  { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
+  { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
   { cle: 'boucles', nom: 'boucles', teinte: 'var(--boucle)' },
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
-const voiesVisibles = { contexte: true, attente: true, boucles: true, modele: true };
+const voiesVisibles = {
+  contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+};
+
+// De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
+const PARTS_CONTENU = [
+  { cle: 'systeme', nom: 'invite système, rappels, skills', teinte: '#565f89' },
+  { cle: 'outilSortie', nom: 'résultats d’outils', teinte: '#9ece6a' },
+  { cle: 'outilEntree', nom: 'appels d’outils', teinte: '#7aa2f7' },
+  { cle: 'modele', nom: 'paroles du modèle', teinte: '#d6a4ff' },
+  { cle: 'humain', nom: 'requêtes d’Yves', teinte: '#e0af68' },
+];
+const totalComposition = (c) => PARTS_CONTENU.reduce((n, p) => n + (c?.[p.cle] || 0), 0);
 
 // Une teinte par modèle. Volontairement distincte des couleurs déjà employées ailleurs :
 // la voie d'un modèle ne doit pas se confondre avec un état d'agent ou une attente.
@@ -471,6 +484,9 @@ function construireVoies() {
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a });
     }
+    if (voiesVisibles.contenu && (a.requetesModele || []).length > 1) {
+      voies.push({ genre: 'contenu', agent: a });
+    }
     if (voiesVisibles.attente && (a.attentes || []).length) {
       voies.push({ genre: 'attente', agent: a });
     }
@@ -536,6 +552,21 @@ const LEGENDE_VOIE = {
     'Une réponse d’un seul bloc n’a pas de durée mesurable : seul un trait',
     'reste. C’était le cas de 45 % des appels de la session Litanie.',
   ].join('\n'),
+  contenu: [
+    'De quoi le contexte était fait à chaque appel, en parts empilées :',
+    '   gris    invite système, rappels, skills chargés',
+    '   vert    résultats d’outils',
+    '   bleu    appels d’outils',
+    '   violet  paroles et réflexion du modèle',
+    '   ambre   requêtes d’Yves',
+    '',
+    'La hauteur est toujours pleine : ce sont des parts, pas des tailles.',
+    'La voie « Taille CTX » au-dessus donne la taille, celle-ci la recette.',
+    '',
+    'Le transcript ne rend compte que d’une partie du contexte : l’invite',
+    'système complète, les définitions d’outils et la mémoire n’y figurent',
+    'pas. La carte dit, appel par appel, quelle part il explique.',
+  ].join('\n'),
   boucles: [
     'Chaque boucle est un rail, du début à l’arrêt :',
     '   montant plein   le début, et la fin',
@@ -581,10 +612,20 @@ function dessinerArbre() {
       puce.style.background = ref.fenetreConnue
         ? 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)'
         : 'var(--termine)';
-      etiq.textContent = 'contexte';
+      etiq.textContent = 'Taille CTX';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
       d.addEventListener('click', () => carteContexte(a));
+    } else if (v.genre === 'contenu') {
+      const derniere = a.requetesModele[a.requetesModele.length - 1];
+      d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
+        + LEGENDE_VOIE.contenu;
+      tiret.textContent = '│ '.repeat(a.profondeur) + '▤ ';
+      puce.style.background = 'linear-gradient(to right, #7aa2f7, #9ece6a)';
+      etiq.textContent = 'Contenu CTX';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = Math.round(totalComposition(derniere?.composition) / 1000) + ' k car.';
+      d.addEventListener('click', () => carteContenu(a, derniere));
     } else if (v.genre === 'modele') {
       const reqs = a.requetesModele.filter((r) => r.modele === v.modele);
       const lat = reqs.reduce((n, r) => n + r.latenceMs, 0) / Math.max(1, reqs.length);
@@ -838,6 +879,10 @@ function dessinerPiste() {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
     if (v.genre === 'contexte') {
       svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      return;
+    }
+    if (v.genre === 'contenu') {
+      svg.append(dessinerVoieContenu(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
@@ -1338,11 +1383,11 @@ function carteContexte(a) {
 }
 
 /**
- * La jauge de cache : la part des jetons d'entrée qui vient du cache plutôt que d'être
- * payée au prix fort. C'est le chiffre qui compte le plus dans une longue session — tout
- * le contexte est renvoyé à chaque appel, et sans cache il serait refacturé chaque fois.
+ * Une jauge de part, du rouge au vert. Les bornes se nomment, parce que la même jauge sert
+ * à deux choses qui n'ont rien à voir : la part servie par le cache, et la part du
+ * contexte que le transcript permet de nommer.
  */
-function jaugeCache(part, legende) {
+function jaugeCache(part, legende, bornes = ['tout au prix fort', '50 %', 'tout en cache']) {
   const bloc = document.createElement('div');
   bloc.className = 'jauge';
   const valeur = document.createElement('div');
@@ -1359,7 +1404,7 @@ function jaugeCache(part, legende) {
   piste.append(curseur);
   const grad = document.createElement('div');
   grad.className = 'graduations';
-  for (const [v, l] of [[0, 'tout au prix fort'], [50, '50 %'], [100, 'tout en cache']]) {
+  for (const l of bornes) {
     const s = document.createElement('span');
     s.textContent = l;
     grad.append(s);
@@ -1459,6 +1504,47 @@ function carteModele(agent, modele, visee) {
 
   ouvrirPanneau('modèle', modele.replace(/^claude-/, ''),
     [dl, ...jauges, explication, ...morceauxEnTete, p]);
+}
+
+/** Carte du contenu du contexte à un appel donné. */
+function carteContenu(agent, requete) {
+  const c = requete?.composition || {};
+  const total = totalComposition(c);
+  const nombre = (n) => (n || 0).toLocaleString('fr-FR');
+
+  const dl = document.createElement('dl');
+  ligne(dl, 'À l’appel de', requete ? heure(requete.appel) : null);
+  ligne(dl, 'Éléments', String(c.n || 0));
+  ligne(dl, 'Caractères attribués', nombre(total));
+  for (const part of PARTS_CONTENU.slice().reverse()) {
+    ligne(dl, '— ' + part.nom, nombre(c[part.cle])
+      + (total ? '   (' + Math.round(((c[part.cle] || 0) / total) * 100) + ' %)' : ''));
+  }
+
+  const morceaux = [dl];
+
+  // Ce que le transcript n'explique pas. Un jeton vaut environ quatre caractères de texte
+  // ordinaire ; le rapport mesuré dit donc quelle part du contexte on sait nommer.
+  const jetons = requete
+    ? (requete.jetons.entree + requete.jetons.cacheLu + requete.jetons.cacheEcrit)
+    : 0;
+  if (jetons > 0 && total > 0) {
+    const estimation = total / 4;
+    const part = Math.max(0, Math.min(1, estimation / jetons));
+    ligne(dl, 'Contexte mesuré', nombre(jetons) + ' jetons');
+    morceaux.push(jaugeCache(part, 'du contexte est nommé par le transcript',
+      ['rien d’identifiable', '50 %', 'tout nommé']));
+    const p = document.createElement('p');
+    p.className = 'avert';
+    p.textContent = 'Le reste — l’invite système complète, les définitions d’outils, la '
+      + 'mémoire du projet — ne figure pas dans le transcript et ne peut donc pas être '
+      + 'détaillé ici. L’estimation compte quatre caractères par jeton ; sur cette session '
+      + 'le rapport mesuré est de 1,37 caractère attribué par jeton de contexte, soit '
+      + 'environ un tiers.';
+    morceaux.push(p);
+  }
+
+  ouvrirPanneau('contenu du contexte', agent.nom, morceaux);
 }
 
 /** Carte de l'attente : le détail d'une période, et le compte de toutes. */
@@ -1788,6 +1874,57 @@ function dessinerVoieAttente(agent, centre, axe, visible) {
 }
 
 /**
+ * La voie « Contenu CTX » : à chaque appel, de quoi le contexte était fait, en parts
+ * empilées sur toute la hauteur. Ce sont bien des **parts** et non des tailles — la voie
+ * du dessus donne déjà la taille, et superposer les deux rendrait les petites parts
+ * illisibles quand le contexte est presque vide.
+ */
+function dessinerVoieContenu(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const reqs = agent.requetesModele;
+  const haut = centre - 13;
+  const bas = centre + 13;
+
+  // Une bande par part, construite comme une aire empilée : on suit le même chemin pour
+  // le bord haut et le bord bas de chaque couche.
+  const points = reqs.map((r) => ({ x: axe.x(r.appel), c: r.composition || {}, r }));
+  if (points.length < 2) return g;
+
+  let basCumule = points.map(() => bas);
+  for (const part of PARTS_CONTENU) {
+    const hautCouche = points.map((p, i) => {
+      const total = totalComposition(p.c) || 1;
+      return basCumule[i] - ((p.c[part.cle] || 0) / total) * (bas - haut);
+    });
+    const avant = points.map((p, i) => `${p.x.toFixed(1)},${basCumule[i].toFixed(1)}`);
+    const apres = points.map((p, i) => `${p.x.toFixed(1)},${hautCouche[i].toFixed(1)}`).reverse();
+    g.append(el('polygon', {
+      points: avant.concat(apres).join(' '),
+      fill: part.teinte, opacity: '.8',
+    }));
+    basCumule = hautCouche;
+  }
+
+  // Une prise par appel, pour pouvoir en ouvrir la recette.
+  const pas = Math.max(1, Math.floor(points.length / 300));
+  for (let i = 0; i < points.length; i += pas) {
+    const p = points[i];
+    if (!visible(p.x - 3, p.x + 3)) continue;
+    const prise = el('rect', { x: p.x - 3, y: haut, width: 6, height: bas - haut, fill: 'transparent' });
+    prise.style.cursor = 'pointer';
+    const total = totalComposition(p.c) || 1;
+    prise.append(el('title', {}, document.createTextNode(
+      'contexte de cet appel — ' + total.toLocaleString('fr-FR') + ' caractères attribués\n'
+      + heure(p.r.appel) + '\n'
+      + PARTS_CONTENU.slice().reverse().map((q) =>
+        '   ' + Math.round(((p.c[q.cle] || 0) / total) * 100) + ' %  ' + q.nom).join('\n'))));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteContenu(agent, p.r); });
+    g.append(prise);
+  }
+  return g;
+}
+
+/**
  * Une boucle se dessine comme un rail, et non comme une barre d'agent : un trait fin bordé
  * de deux montants, avec une encoche par itération — pleine si quelque chose a été
  * produit, creuse si rien n'a changé. Les boucles d'un même agent ne se chevauchent jamais,
@@ -1958,6 +2095,7 @@ function remplirMenuVoies() {
   for (const a of deroule.agents) {
     if ((a.contexte || []).length > 1) presentes.contexte = (presentes.contexte || 0) + 1;
     if ((a.attentes || []).length) presentes.attente = (presentes.attente || 0) + 1;
+    if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
     presentes.modele = (presentes.modele || 0) + modelesDe(a).length;
   }

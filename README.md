@@ -202,6 +202,24 @@ et la nature des marques d'outils ; pour le contexte, ce que le dégradé mesure
 ne mesure rien ; pour l'attente, les trois formes ; pour les boucles, les montants et les
 encoches.
 
+### Le contenu du contexte
+
+Sous « Taille CTX », la voie **« Contenu CTX »** montre, à chaque appel au modèle, de quoi
+le contexte était fait — en parts empilées sur toute la hauteur, puisque la taille est déjà
+donnée par la voie du dessus : invite système et rappels, résultats d'outils, appels
+d'outils, paroles du modèle, requêtes d'Yves. Cliquer un appel en donne la recette chiffrée.
+
+**Ce que cette voie ne peut pas montrer, et le dit.** Le transcript ne contient pas
+l'invite système complète, les définitions d'outils ni la mémoire du projet. Mesuré sur la
+session Litanie : **1,37 caractère attribué par jeton de contexte**, là où du texte
+ordinaire en compte environ quatre — le transcript ne nomme donc qu'**un tiers environ** du
+contexte. La carte porte une jauge qui donne cette part, appel par appel.
+
+Un piège évité en chemin : compter les pièces jointes en entier donnait 85 % de « système »,
+parce qu'un enregistrement `hook_success` recopie la commande du hook — douze millions de
+caractères sur cette seule session, qui ne sont jamais envoyés au modèle. Seuls les champs
+réellement injectés sont comptés.
+
 ### Le contexte, les compactages et les pannes
 
 La taille du contexte a sa propre voie, en aire remplie d'un dégradé vertical du vert au
