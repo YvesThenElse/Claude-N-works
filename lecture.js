@@ -542,6 +542,10 @@ function construireBoucles(appels, idAgent, reveils = [], departsPossibles = [])
   const boucles = [];
   let courante = null;
   let skillEnAttente = null;
+  // Une boucle ne peut pas commencer avant que la précédente se soit arrêtée. Sans cette
+  // borne, la remontée ci-dessous faisait démarrer une boucle vingt heures avant la fin
+  // de celle d'avant — mesuré sur la session Litanie.
+  let finPrecedente = null;
 
   // Une boucle ouverte sans appel de skill n'a pas d'instant de naissance évident : son
   // premier réveil arrive après coup. On remonte alors au dernier point de départ connu
@@ -550,7 +554,8 @@ function construireBoucles(appels, idAgent, reveils = [], departsPossibles = [])
   // trappe.
   const remonter = (instant) => {
     const avant = departsPossibles.filter((d) => d !== null && d <= instant);
-    return avant.length ? Math.max(...avant) : instant;
+    const choisi = avant.length ? Math.max(...avant) : instant;
+    return finPrecedente === null ? choisi : Math.max(choisi, finPrecedente);
   };
 
   const ouvrir = (depart) => {
@@ -594,6 +599,7 @@ function construireBoucles(appels, idAgent, reveils = [], departsPossibles = [])
     if (e.stop === true) {
       courante.fin = a.debut;
       courante.etat = 'arrêtée';
+      finPrecedente = a.debut;
       courante = null;
       continue;
     }

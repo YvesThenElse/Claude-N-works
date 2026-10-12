@@ -249,8 +249,23 @@ itération : 300 s demandés, 272 s subis.
 
 Les boucles ont aussi leur voie sur la ligne du temps, sous l'agent qui les mène. Une
 boucle n'étant pas un agent, elle s'y dessine comme un rail et non comme une barre : un
-trait borné par deux montants, une encoche par itération, pleine ou creuse selon qu'elle a
-produit quelque chose. D'un coup d'œil sur Litanie, on voit que la session est faite de
+trait borné par deux **montants pleins à empattement**, qui se lisent comme un début et une
+fin et ne se confondent pas avec les encoches d'itération. Chaque encoche est pleine ou
+creuse selon que le tour a produit quelque chose.
+
+Deux boucles ne se recouvrent jamais à l'écran : celle qui arrive se pose sur le rang
+suivant. Se *toucher* n'est pas se recouvrir — une boucle commence souvent à l'instant
+exact où la précédente s'arrête, et cela ne fait pas descendre d'un rang.
+
+La liste déroulante en haut choisit une boucle : sa carte s'ouvre et **sa plage est mise en
+évidence sur toute la hauteur** de la ligne du temps, avec son nombre d'itérations et sa
+durée. Elle remplace la rangée de boutons, qui prenait une ligne entière et ne disait rien
+du contenu des boucles.
+
+Choisir ensuite une case dans la bande d'itérations **encadre ce tour précis** sur la ligne
+du temps, en pointillés — sa fenêtre allant de la fin du tour précédent à son propre
+réveil. Si le tour n'est pas dans la vue, la ligne du temps s'y transporte ; s'il y est
+déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur Litanie, on voit que la session est faite de
 boucles presque de bout en bout.
 
 **Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,

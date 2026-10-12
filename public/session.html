@@ -136,6 +136,12 @@
     font-family: inherit;
   }
   .boutons-boucles button:hover { border-color: var(--accent); color: var(--accent); }
+  #choixBoucle {
+    background: var(--fond-carte); color: var(--texte); border: 1px solid var(--trait);
+    border-radius: 6px; padding: .15rem .4rem; font: inherit; font-size: .78rem;
+    max-width: 24rem;
+  }
+  #choixBoucle:hover { border-color: var(--boucle); }
   .puces-outils { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0 0; }
   .puces-outils span {
     background: var(--fond); border: 1px solid var(--trait); border-radius: 999px;
@@ -159,7 +165,10 @@
   <label><input type="checkbox" id="replier" checked> replier les temps morts</label>
   <label><input type="checkbox" id="voiesContexte" checked> voies de contexte</label>
   <span id="replis"></span>
-  <span id="boucles" style="display:flex;gap:.4rem;align-items:center"></span>
+  <label id="boucles" style="display:none;gap:.45rem;align-items:center">
+    <span id="bouclesTitre"></span>
+    <select id="choixBoucle"></select>
+  </label>
   <div class="legende">
     <span><i class="puce" style="background:var(--en-cours)"></i>en cours</span>
     <span><i class="puce" style="background:var(--termine)"></i>terminé</span>
@@ -219,6 +228,10 @@ const elVivante = document.getElementById('vivante');
 const elContexte = document.getElementById('voiesContexte');
 const elReplis = document.getElementById('replis');
 const elBoucles = document.getElementById('boucles');
+const elBouclesTitre = document.getElementById('bouclesTitre');
+const elChoixBoucle = document.getElementById('choixBoucle');
+let boucleVisee = null;      // la boucle mise en évidence sur la ligne du temps
+let iterationVisee = null;   // et, dans cette boucle, le tour choisi : {boucle, rang}
 
 function duree(ms) {
   if (ms === null || ms === undefined) return '—';
@@ -508,6 +521,57 @@ function dessinerPiste() {
   defs.append(degrade);
   svg.append(defs);
 
+  // La boucle choisie dans la liste : une plage mise en évidence sur toute la hauteur,
+  // dessinée en fond pour ne rien recouvrir.
+  if (boucleVisee) {
+    const choix = trouverBoucle(boucleVisee);
+    if (choix) {
+      const bx0 = axe.x(choix.b.debut);
+      const bx1 = Math.max(bx0 + 3, axe.x(choix.b.fin ?? d.fin));
+      svg.append(el('rect', {
+        x: bx0, y: REGLE_BAS, width: bx1 - bx0, height: hauteur - REGLE_BAS,
+        fill: 'var(--boucle)', opacity: '.1',
+      }));
+      for (const bx of [bx0, bx1]) {
+        svg.append(el('line', {
+          x1: bx, y1: REGLE_BAS, x2: bx, y2: hauteur,
+          stroke: 'var(--boucle)', 'stroke-width': 1.5, opacity: '.75',
+        }));
+      }
+      const et = el('text', {
+        x: bx0 + 4, y: REGLE_BAS + 11, fill: 'var(--boucle)', 'font-size': '9.5',
+      });
+      et.textContent = 'boucle choisie · ' + choix.b.iterations.length + ' it. · '
+        + duree((choix.b.fin ?? d.fin) - choix.b.debut);
+      svg.append(et);
+
+      // Le tour choisi dans la carte : sa fenêtre va de la fin du tour précédent à son
+      // propre réveil. On l'encadre plus franchement que la boucle entière.
+      if (iterationVisee && iterationVisee.boucle === choix.b.id) {
+        const it = choix.b.iterations[iterationVisee.rang];
+        if (it) {
+          const ix0 = axe.x(it.depuis ?? it.instant);
+          const ix1 = Math.max(ix0 + 2, axe.x(it.jusqua ?? it.instant));
+          svg.append(el('rect', {
+            x: ix0, y: REGLE_BAS, width: ix1 - ix0, height: hauteur - REGLE_BAS,
+            fill: 'var(--accent)', opacity: '.16',
+          }));
+          svg.append(el('rect', {
+            x: ix0, y: REGLE_BAS, width: ix1 - ix0, height: hauteur - REGLE_BAS,
+            fill: 'none', stroke: 'var(--accent)', 'stroke-width': 1.5,
+            'stroke-dasharray': '5 3',
+          }));
+          const eti = el('text', {
+            x: ix0 + 4, y: REGLE_BAS + 22, fill: 'var(--accent)', 'font-size': '9.5',
+          });
+          eti.textContent = 'itération ' + (iterationVisee.rang + 1) + ' sur '
+            + choix.b.iterations.length + ' · ' + duree(ix1 === ix0 ? 0 : (it.jusqua - it.depuis));
+          svg.append(eti);
+        }
+      }
+    }
+  }
+
   svg.append(dessinerRegle(axe, pxParMs, hauteur, vue));
 
   // Les temps morts repliés, en bande claire sur le fond sombre : une bande sombre s'y
@@ -726,6 +790,7 @@ function blocReplie(titre, contenu, ouvert = true) {
 }
 
 function ouvrirPanneau(genre, titre, elements) {
+  if (genre !== 'boucle') iterationVisee = null;
   elPanneau.replaceChildren();
   const fermer = document.createElement('button');
   fermer.className = 'fermer';
@@ -739,9 +804,30 @@ function ouvrirPanneau(genre, titre, elements) {
   elPanneau.scrollTop = 0;
 }
 
+/**
+ * Amène une plage de temps dans la fenêtre si elle n'y est pas déjà : encadrer un tour
+ * qu'on ne voit pas ne sert à rien. On ne bouge pas si la plage est déjà visible, pour ne
+ * pas faire sauter l'écran sous les doigts.
+ */
+function amenerEnVue(t0, t1) {
+  if (!axeCourant) return;
+  const x0 = axeCourant.x(t0);
+  const x1 = axeCourant.x(t1);
+  const gauche = elPiste.scrollLeft;
+  const droite = gauche + elPiste.clientWidth;
+  if (x0 >= gauche && x1 <= droite) return;
+  elPiste.scrollLeft = Math.max(0, (x0 + x1) / 2 - elPiste.clientWidth / 2);
+}
+
 function fermerPanneau() {
   elPanneau.classList.remove('ouvert');
   elPanneau.replaceChildren();
+  iterationVisee = null;
+  if (boucleVisee !== null) {
+    boucleVisee = null;
+    if (elChoixBoucle) elChoixBoucle.value = '';
+    if (deroule) dessinerPiste();
+  }
 }
 
 /** Carte d'agent — §6.1. Chaque champ absent est omis, jamais inventé. */
@@ -935,6 +1021,9 @@ function carteBoucle(b, agent, rangVise) {
   function montrer(rang) {
     const it = b.iterations[rang];
     [...bande.children].forEach((c, i) => c.classList.toggle('vise', i === rang));
+    iterationVisee = { boucle: b.id, rang };
+    amenerEnVue(it.depuis ?? it.instant, it.jusqua ?? it.instant);
+    dessinerPiste();
     detail.replaceChildren();
     const titre = document.createElement('div');
     titre.innerHTML = '';
@@ -1007,6 +1096,13 @@ function carteBoucle(b, agent, rangVise) {
 
   morceaux.push(titreBande, bande, legende, detail,
     blocReplie('consigne de la boucle', b.consigne));
+
+  // La boucle ouverte se signale aussi sur la ligne du temps.
+  if (boucleVisee !== b.id) {
+    boucleVisee = b.id;
+    if (elChoixBoucle) elChoixBoucle.value = b.id;
+    dessinerPiste();
+  }
   ouvrirPanneau('boucle', b.consigne
     ? b.consigne.replace(/^\/loop\s*/, '').slice(0, 70)
     : 'boucle sans consigne retrouvée', morceaux);
@@ -1023,20 +1119,29 @@ function trouverBoucle(id) {
 function listerBoucles() {
   const toutes = [];
   for (const a of deroule.agents) for (const b of a.boucles || []) toutes.push([b, a]);
-  if (!toutes.length) { elBoucles.replaceChildren(); return; }
-  const titre = document.createElement('span');
-  titre.textContent = toutes.length + (toutes.length > 1 ? ' boucles' : ' boucle') + ' :';
-  const boutons = document.createElement('span');
-  boutons.className = 'boutons-boucles';
-  toutes.forEach(([b, a], i) => {
-    const bt = document.createElement('button');
-    bt.textContent = '#' + (i + 1) + ' · ' + b.iterations.length + ' it.';
-    bt.title = (b.consigne || '').slice(0, 160);
-    bt.addEventListener('click', () => carteBoucle(b, a, 0));
-    boutons.append(bt);
+  if (!toutes.length) { elBoucles.style.display = 'none'; return; }
+  elBoucles.style.display = 'flex';
+  elBouclesTitre.textContent = toutes.length + (toutes.length > 1 ? ' boucles' : ' boucle');
+
+  const vide = document.createElement('option');
+  vide.value = '';
+  vide.textContent = '— en choisir une —';
+  const options = toutes.map(([b], i) => {
+    const o = document.createElement('option');
+    o.value = b.id;
+    const consigne = (b.consigne || '').replace(/^\/loop\s*/, '').slice(0, 52);
+    o.textContent = '#' + (i + 1) + ' · ' + b.iterations.length + ' it. · ' + consigne;
+    return o;
   });
-  elBoucles.replaceChildren(titre, boutons);
+  elChoixBoucle.replaceChildren(vide, ...options);
+  elChoixBoucle.value = boucleVisee || '';
 }
+
+elChoixBoucle.addEventListener('change', () => {
+  const choix = trouverBoucle(elChoixBoucle.value);
+  if (!choix) { boucleVisee = null; dessinerPiste(); fermerPanneau(); return; }
+  carteBoucle(choix.b, choix.agent, 0);
+});
 
 /** Carte de la voie de contexte : ce que la courbe montre, et ce qu'elle ne sait pas. */
 function carteContexte(a) {
@@ -1353,30 +1458,69 @@ function dessinerVoieAttente(agent, centre, axe, visible) {
  */
 function dessinerVoieBoucles(agent, centre, axe) {
   const g = el('g', {});
+
+  // Deux boucles ne doivent jamais se recouvrir : celle qui arrive se pose sur le rang
+  // suivant. Le modèle interdit déjà qu'une boucle commence avant la fin de la précédente,
+  // mais l'affichage ne doit pas en dépendre — deux extrémités à quelques pixels l'une de
+  // l'autre se chevauchent visuellement sans se chevaucher dans le temps.
+  const posees = [];
+  const rangs = new Map();
+  for (const b of [...agent.boucles].sort((x, y) => x.debut - y.debut)) {
+    const x0 = axe.x(b.debut);
+    const x1 = Math.max(x0 + 3, axe.x(b.fin ?? deroule.fin));
+    // Se toucher n'est pas se recouvrir : une boucle commence souvent à l'instant exact
+    // où la précédente s'arrête, et cela ne justifie pas de descendre d'un rang.
+    let rang = 0;
+    while (posees[rang] !== undefined && x0 + 0.5 < posees[rang]) rang += 1;
+    posees[rang] = x1;
+    rangs.set(b, rang);
+  }
+  const nbRangs = posees.length;
+  const ecart = nbRangs > 1 ? Math.min(12, 26 / nbRangs) : 0;
+
   for (const b of agent.boucles) {
+    const rang = rangs.get(b) || 0;
+    const cy = centre + (rang - (nbRangs - 1) / 2) * ecart;
+    const demi = nbRangs > 1 ? Math.max(3.5, ecart / 2 - 1) : 8;
     const x0 = axe.x(b.debut);
     const x1 = Math.max(x0 + 3, axe.x(b.fin ?? deroule.fin));
     g.append(el('line', {
-      x1: x0, y1: centre, x2: x1, y2: centre,
+      x1: x0, y1: cy, x2: x1, y2: cy,
       stroke: 'var(--boucle)', 'stroke-width': 1.4, opacity: '.75',
       ...(b.etat === 'en cours' ? { 'stroke-dasharray': '4 3' } : {}),
     }));
-    for (const x of [x0, x1]) {
-      g.append(el('line', {
-        x1: x, y1: centre - 6, x2: x, y2: centre + 6,
-        stroke: 'var(--boucle)', 'stroke-width': 1.4,
+
+    // Les extrémités : des montants pleins, bien plus francs qu'un simple trait, avec un
+    // empattement qui les fait lire comme un début et une fin et non comme une itération.
+    const borne = (x, ouverte) => {
+      g.append(el('rect', {
+        x: x - 1.5, y: cy - demi, width: 3, height: demi * 2, rx: 1,
+        fill: 'var(--boucle)', opacity: ouverte ? '.45' : '1',
       }));
-    }
+      const bras = ouverte ? 0 : 4;
+      if (!bras) return;
+      for (const yy of [cy - demi, cy + demi - 1.5]) {
+        g.append(el('rect', {
+          x: x < (x0 + x1) / 2 ? x - 1.5 : x - 1.5 - bras + 3,
+          y: yy, width: bras, height: 1.5, fill: 'var(--boucle)',
+        }));
+      }
+    };
+    borne(x0, false);
+    borne(x1, b.etat === 'en cours');
+
     for (const it of b.iterations) {
       const xi = axe.x(it.instant);
       g.append(el('rect', {
-        x: xi - 1.4, y: centre - 4.5, width: 2.8, height: 9, rx: 1,
+        x: xi - 1.4, y: cy - Math.min(4.5, demi - 1), width: 2.8,
+        height: Math.min(9, (demi - 1) * 2), rx: 1,
         fill: it.noop ? 'var(--fond)' : 'var(--boucle)',
         stroke: 'var(--boucle)', 'stroke-width': it.noop ? 1 : 0,
       }));
     }
     const prise = el('rect', {
-      x: x0 - 2, y: centre - 9, width: (x1 - x0) + 4, height: 18, fill: 'transparent',
+      x: x0 - 2, y: cy - demi - 2, width: (x1 - x0) + 4, height: demi * 2 + 4,
+      fill: 'transparent',
     });
     prise.style.cursor = 'pointer';
     prise.append(el('title', {}, document.createTextNode(
