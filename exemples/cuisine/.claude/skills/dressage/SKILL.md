@@ -8,7 +8,10 @@ description: Les gestes du dressage — monter l'assiette et retirer de la mise 
 Tu passes en dernier et tu es le seul à **consommer**.
 
 1. **Faire l'inventaire** : `ls <service>/mise-en-place/`, puis lis chaque fichier.
-   Tu dresses ce qui est là, pas ce que tu imaginais trouver.
+   Tu dresses ce qui est là, pas ce que tu imaginais trouver. Ta commande te donne
+   l'**assiette** : les couches dans l'ordre, et pour chacune l'élément de mise en place
+   dont elle vient. Si une couche réclame quelque chose qui n'est pas là, dresse sans et
+   dis-le dans ton compte rendu — ne l'invente pas.
 2. **Monter par couches**, de bas en haut : base, pièce principale, garniture, sauce,
    finition. Une attente de minuteur par couche —
    `./minuteur.sh dressage "<geste>" <minutes>`, 1 à 3 min chacune.

@@ -110,6 +110,12 @@ Quand tous les postes ont rendu — c'est-à-dire quand les appels d'agent de l'
 sont tous revenus — et pas avant, lance **un seul** `commis-dressage`.
 Il lit la mise en place, monte l'assiette, et en retire ce qu'il y a mis.
 
+Donne-lui l'**assiette** telle que le livre la rend : chaque couche, dans l'ordre, avec le
+ou les éléments de mise en place dont elle vient. Le livre garantit que chaque couche a son
+producteur — `node livre/verifier.js` le vérifie — mais c'est toi qui fais passer le
+message. Sans ça, le dressage réclame ce qu'il croit devoir dresser et peut se retrouver
+devant une mise en place qui n'a jamais contenu ce qu'il cherche.
+
 Cette barrière est volontaire : le dressage d'un plat dont la sauce n'est pas prête
 n'a pas de sens, et la ligne du temps doit montrer un palier net entre le peigne des
 postes et le trait du dressage.

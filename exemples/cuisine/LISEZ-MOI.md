@@ -117,6 +117,14 @@ sort la recette, puis chaque commis qui demande ses repères — et c'est exacte
 veut donner à voir d'un serveur MCP, un service que plusieurs agents consultent chacun pour
 sa part.
 
+Chaque recette porte une **assiette** : les couches du dressage dans l'ordre, et pour
+chacune le ou les éléments de mise en place dont elle vient. `node livre/verifier.js`
+vérifie que tout ce qui se dresse a bien un poste qui le produit, qu'aucun élément n'est
+déposé deux fois et qu'aucun poste ne dépasse 40 minutes — un poste trop long écrase tous
+les autres sur la ligne du temps. C'est la seule cohérence qu'on peut vérifier
+mécaniquement, et c'est celle qui comptait : le premier risotto réclamait au dressage des
+copeaux de parmesan que personne n'avait taillés, et le commis a dressé sans, en le disant.
+
 Cinq recettes au livre : ratatouille, blanquette de veau, velouté de potiron, risotto aux
 champignons, tarte aux pommes. **Demander autre chose est le cas normal** — `chercher` rend
 une liste vide, le dit franchement, et le chef compose la fiche lui-même. Ajouter une

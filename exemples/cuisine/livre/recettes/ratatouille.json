@@ -1,7 +1,10 @@
 {
   "id": "ratatouille",
   "nom": "Ratatouille",
-  "synonymes": ["ratatouille niçoise", "légumes du soleil"],
+  "synonymes": [
+    "ratatouille niçoise",
+    "légumes du soleil"
+  ],
   "resume": "Chaque légume saisi à part, réunis en compotée. Quatre postes, rien ne s'attend avant la compotée.",
   "postes": [
     {
@@ -9,47 +12,139 @@
       "agent": "commis-taillage",
       "pourquoi": "Cinq légumes, un geste par légume : c'est le poste le plus fourni, donc celui qui se confie à un chef de partie.",
       "gestes": [
-        { "geste": "éplucher et tailler l'aubergine en paysanne", "minutes": 6 },
-        { "geste": "tailler la courgette en paysanne", "minutes": 5 },
-        { "geste": "épépiner et tailler le poivron rouge", "minutes": 5 },
-        { "geste": "émincer l'oignon", "minutes": 3 },
-        { "geste": "monder et concasser les tomates", "minutes": 5 }
+        {
+          "geste": "éplucher et tailler l'aubergine en paysanne",
+          "minutes": 6
+        },
+        {
+          "geste": "tailler la courgette en paysanne",
+          "minutes": 5
+        },
+        {
+          "geste": "épépiner et tailler le poivron rouge",
+          "minutes": 5
+        },
+        {
+          "geste": "émincer l'oignon",
+          "minutes": 3
+        },
+        {
+          "geste": "monder et concasser les tomates",
+          "minutes": 5
+        }
       ],
-      "depose": ["aubergine", "courgette", "poivron-rouge", "oignon", "tomate"]
+      "depose": [
+        "aubergine",
+        "courgette",
+        "poivron-rouge",
+        "oignon",
+        "tomate"
+      ]
     },
     {
       "poste": "cuisson",
       "agent": "commis-cuisson",
       "gestes": [
-        { "geste": "monter la cocotte en température", "minutes": 3 },
-        { "geste": "saisir aubergine puis courgette séparément", "minutes": 8 },
-        { "geste": "compoter à couvert", "minutes": 20 },
-        { "geste": "laisser reposer hors du feu", "minutes": 5 }
+        {
+          "geste": "monter la cocotte en température",
+          "minutes": 3
+        },
+        {
+          "geste": "saisir aubergine puis courgette séparément",
+          "minutes": 8
+        },
+        {
+          "geste": "compoter à couvert",
+          "minutes": 20
+        },
+        {
+          "geste": "laisser reposer hors du feu",
+          "minutes": 5
+        }
       ],
-      "depose": ["compotee"]
+      "depose": [
+        "compotee"
+      ]
     },
     {
       "poste": "sauce",
       "agent": "commis-saucier",
       "gestes": [
-        { "geste": "suer oignon et ail, mouiller au fond de légumes", "minutes": 6 },
-        { "geste": "réduire de moitié", "minutes": 12 },
-        { "geste": "goûter et rectifier", "minutes": 3 },
-        { "geste": "passer au chinois", "minutes": 3 }
+        {
+          "geste": "suer oignon et ail, mouiller au fond de légumes",
+          "minutes": 6
+        },
+        {
+          "geste": "réduire de moitié",
+          "minutes": 12
+        },
+        {
+          "geste": "goûter et rectifier",
+          "minutes": 3
+        },
+        {
+          "geste": "passer au chinois",
+          "minutes": 3
+        }
       ],
-      "depose": ["sauce"]
+      "depose": [
+        "sauce"
+      ]
     },
     {
       "poste": "garde-manger",
       "agent": "chef-de-partie",
       "gestes": [
-        { "geste": "éplucher et hacher l'ail", "minutes": 4 },
-        { "geste": "effeuiller le thym", "minutes": 3 },
-        { "geste": "laver et ciseler le basilic", "minutes": 4 },
-        { "geste": "monter un pistou de finition", "minutes": 8 }
+        {
+          "geste": "éplucher et hacher l'ail",
+          "minutes": 4
+        },
+        {
+          "geste": "effeuiller le thym",
+          "minutes": 3
+        },
+        {
+          "geste": "laver et ciseler le basilic",
+          "minutes": 4
+        },
+        {
+          "geste": "monter un pistou de finition",
+          "minutes": 8
+        }
       ],
-      "depose": ["ail", "thym", "basilic", "pistou"]
+      "depose": [
+        "ail",
+        "thym",
+        "basilic",
+        "pistou"
+      ]
     }
   ],
-  "dressage": "Compotée au centre, légumes encore distincts, cordon de sauce, pistou en pointe, basilic au dernier moment."
+  "dressage": "Compotée au centre, légumes encore distincts, cordon de sauce, pistou en pointe, basilic au dernier moment.",
+  "assiette": [
+    {
+      "couche": "compotée au centre, légumes encore distincts",
+      "depuis": [
+        "compotee"
+      ]
+    },
+    {
+      "couche": "cordon de sauce",
+      "depuis": [
+        "sauce"
+      ]
+    },
+    {
+      "couche": "pistou en pointe",
+      "depuis": [
+        "pistou"
+      ]
+    },
+    {
+      "couche": "basilic au dernier moment",
+      "depuis": [
+        "basilic"
+      ]
+    }
+  ]
 }
