@@ -330,7 +330,10 @@ source.
 - aucune base de données, aucun état sur disque ;
 - aucune dépendance au réseau ; l'application ne parle à aucun service distant ;
 - **lecture seule** sur `~/.claude` — l'application ne doit jamais y écrire ;
-- écoute sur la boucle locale seulement.
+- écoute sur la boucle locale par défaut ; l'ouverture au tailnet se demande
+  explicitement, par la variable `HOTES`, et n'écoute jamais sur `0.0.0.0` — ce qui
+  exposerait aussi le réseau local. Exposer un transcript, c'est exposer tout ce que
+  l'agent a lu, écrit et dit : cela ne doit pas pouvoir arriver par accident.
 
 **Décidé par Yves au lot 1 : Node, sans aucune dépendance.** Node est déjà sur la machine
 puisque Claude Code tourne dessus (v22.22.2 vérifiée), le même langage des deux côtés évite

@@ -13,12 +13,23 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
+const { execFileSync } = require('node:child_process');
 
 const RACINE_CLAUDE = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude');
 const DOSSIER_SESSIONS = path.join(RACINE_CLAUDE, 'sessions');
 const DOSSIER_PROJETS = path.join(RACINE_CLAUDE, 'projects');
 const PORT = Number(process.env.PORT || 7420);
-const HOTE = '127.0.0.1';
+
+// Sur quelles adresses écouter. Par défaut la boucle locale seule : exposer les
+// transcripts d'une session, c'est exposer tout ce que l'agent a lu, écrit et dit, et ça
+// ne doit jamais arriver par accident. `HOTES` prend une liste séparée par des virgules,
+// et le mot `tailscale` s'y résout en l'adresse du tailnet de cette machine — ainsi on
+// n'écrit pas en dur une adresse qui peut changer, et on n'écoute pas sur 0.0.0.0, ce qui
+// exposerait aussi le réseau local.
+const HOTES = String(process.env.HOTES || '127.0.0.1')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean);
 
 // Un relevé périodique en plus de la surveillance du dossier : la mort d'un processus ne
 // produit aucun événement de fichier, elle ne se voit qu'en le testant. Le délai de
@@ -185,8 +196,8 @@ function signaler(err) {
 
 const PAGE = path.join(__dirname, 'public', 'index.html');
 
-const serveur = http.createServer((requete, reponse) => {
-  const url = new URL(requete.url, `http://${HOTE}:${PORT}`);
+function traiter(requete, reponse) {
+  const url = new URL(requete.url, `http://127.0.0.1:${PORT}`);
 
   if (url.pathname === '/' || url.pathname === '/index.html') {
     fs.readFile(PAGE, (err, contenu) => {
@@ -294,7 +305,7 @@ const serveur = http.createServer((requete, reponse) => {
 
   reponse.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
   reponse.end('rien ici\n');
-});
+}
 
 // Le suivi est incrémental : chaque passage ne lit que ce qui s'est ajouté, donc on peut
 // le faire souvent sans que la taille du transcript entre en ligne de compte.
@@ -361,11 +372,55 @@ async function suivreSession(id, requete, reponse) {
   requete.on('close', () => { fini = true; clearInterval(horloge); });
 }
 
-serveur.listen(PORT, HOTE, () => {
-  process.stdout.write(`Claude N Works — http://${HOTE}:${PORT}\n`);
-  process.stdout.write(`  sessions  : ${DOSSIER_SESSIONS}\n`);
-  process.stdout.write(`  transcrits: ${DOSSIER_PROJETS}\n`);
-});
+/**
+ * Les adresses de cette machine sur le tailnet, IPv4 et IPv6.
+ *
+ * Les deux sont nécessaires : MagicDNS résout le nom court de la machine vers son adresse
+ * IPv6, donc n'écouter qu'en IPv4 rendrait `http://claude-server:7420` injoignable depuis
+ * les autres appareils, alors que l'adresse numérique, elle, marcherait.
+ */
+function adressesTailscale() {
+  try {
+    const sortie = execFileSync('tailscale', ['ip'], { encoding: 'utf8', timeout: 4000 });
+    return sortie.split('\n').map((l) => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+const serveurs = [];
+const adresses = [];
+const demandees = [];
+for (const demande of HOTES) {
+  if (demande !== 'tailscale') { demandees.push(demande); continue; }
+  const trouvees = adressesTailscale();
+  if (!trouvees.length) {
+    signaler(new Error('Tailscale ne donne aucune adresse : cette écoute est abandonnée'));
+    continue;
+  }
+  demandees.push(...trouvees);
+}
+
+for (const hote of demandees) {
+  if (adresses.includes(hote)) continue;
+  adresses.push(hote);
+  const s = http.createServer(traiter);
+  s.on('error', (err) => signaler(new Error(`écoute impossible sur ${hote} : ${err.code}`)));
+  s.listen(PORT, hote, () => {
+    // Une adresse IPv6 se note entre crochets dans une URL.
+    const lisible = hote.includes(':') ? `[${hote}]` : hote;
+    process.stdout.write(`Claude N Works — http://${lisible}:${PORT}\n`);
+  });
+  serveurs.push(s);
+}
+
+if (!serveurs.length) {
+  process.stderr.write('Aucune adresse d’écoute utilisable. Rien à faire.\n');
+  process.exit(1);
+}
+
+process.stdout.write(`  sessions  : ${DOSSIER_SESSIONS}\n`);
+process.stdout.write(`  transcrits: ${DOSSIER_PROJETS}\n`);
 
 // Surveillance du dossier pour réagir tout de suite, et relevé périodique pour voir les
 // processus qui meurent sans toucher à leur fichier.
@@ -376,4 +431,7 @@ try {
 }
 setInterval(() => { diffuser().catch(signaler); }, PERIODE_RELEVE_MS).unref();
 
-process.on('SIGINT', () => { serveur.close(); process.exit(0); });
+process.on('SIGINT', () => {
+  for (const s of serveurs) s.close();
+  process.exit(0);
+});

@@ -17,9 +17,41 @@ Puis <http://127.0.0.1:7420>. Node 22 ou plus, aucune dépendance à installer.
 
 | Variable | Défaut | Rôle |
 |---|---|---|
-| `PORT` | `7420` | port d'écoute, sur la boucle locale seulement |
+| `PORT` | `7420` | port d'écoute |
+| `HOTES` | `127.0.0.1` | adresses d'écoute, séparées par des virgules ; le mot `tailscale` s'y résout en les adresses du tailnet |
 | `PERIODE_RELEVE_MS` | `500` | période du relevé ; borne le délai de détection d'une session morte |
 | `CLAUDE_HOME` | `~/.claude` | où lire — sert surtout à éprouver le programme sur un faux dossier |
+
+### Y accéder depuis le tailnet
+
+```sh
+HOTES=127.0.0.1,tailscale node serveur.js
+```
+
+L'application reste joignable en local **et** devient joignable depuis les autres appareils
+du tailnet, à `http://<nom-de-la-machine>:7420`.
+
+Le mot `tailscale` se résout à l'exécution en **toutes** les adresses que `tailscale ip`
+rend, IPv4 et IPv6. Les deux sont nécessaires : MagicDNS résout le nom court d'une machine
+vers son adresse IPv6, donc n'écouter qu'en IPv4 rendrait `http://claude-server:7420`
+injoignable alors que l'adresse numérique, elle, marcherait. Résoudre à l'exécution évite
+aussi d'écrire en dur une adresse qui peut changer.
+
+**Ce qui n'est délibérément pas fait : écouter sur `0.0.0.0`.** Cela exposerait aussi le
+réseau local. Le serveur n'ouvre que les adresses nommées, ce qui se vérifie :
+
+```
+LISTEN  127.0.0.1:7420
+LISTEN  100.121.56.59:7420                 ← tailnet, IPv4
+LISTEN  [fd7a:115c:a1e0::272f:383c]:7420   ← tailnet, IPv6
+```
+
+et l'adresse du réseau local refuse la connexion (`Could not connect to server`).
+
+**Ce que ça expose, en clair.** Toute personne ayant accès au tailnet peut lire
+l'intégralité des transcripts : les prompts, les réponses, les commandes, le contenu des
+fichiers lus et écrits. C'est pour cela que le défaut reste la boucle locale et que
+l'ouverture doit être demandée explicitement.
 
 Le programme **ne fait que lire**. Il n'écrit jamais dans `~/.claude`.
 
