@@ -91,7 +91,8 @@ bande discrète pour la durée. Un appel d'agent et un appel en échec ont leur 
 requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
 repères verticaux.
 
-Cliquer un agent, un appel d'outil ou une requête ouvre sa carte. Celle d'un agent donne
+Cliquer un agent, un appel d'outil, une boucle, une requête ou une voie de contexte ouvre
+sa carte — dans l'arbre comme dans la piste. Celle d'un agent donne
 son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, son effort, ses
 jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
@@ -152,8 +153,13 @@ Et le contrôle qui compte : dix appels pris sur toute la durée des onze jours 
 dessinés quand on défile jusqu'à eux. Le découpage ne cache rien.
 
 Un glissé de plus de quatre pixels n'ouvre pas de carte — sans quoi tout déplacement qui
-part d'une barre en ouvrirait une. En deçà, c'est un clic et il agit normalement. Vérifié
-sur quatre essais : le clic ouvre à chaque fois, le glissé jamais.
+part d'une barre en ouvrirait une. En deçà, c'est un clic et il agit normalement.
+
+Le glissé suit le pointeur par des écouteurs posés sur la fenêtre, et **non** par
+`setPointerCapture`. La capture paraissait l'outil fait pour ça — elle garde le glissé
+vivant quand le curseur sort du cadre — mais elle redirige aussi le clic qui suit vers
+l'élément capturant : la cible devenait `<div class="piste">` au lieu de la barre, et plus
+aucune carte ne s'ouvrait.
 
 ### La règle du temps
 

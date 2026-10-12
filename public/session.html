@@ -418,6 +418,7 @@ function dessinerArbre() {
       etiq.textContent = 'contexte';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
+      d.addEventListener('click', () => carteContexte(a));
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
@@ -988,6 +989,37 @@ function listerBoucles() {
   elBoucles.replaceChildren(titre, boutons);
 }
 
+/** Carte de la voie de contexte : ce que la courbe montre, et ce qu'elle ne sait pas. */
+function carteContexte(a) {
+  const ref = refContexte();
+  const points = a.contexte || [];
+  const sien = Math.max(...points.map((c) => c.jetons), 0);
+  const dernier = points.length ? points[points.length - 1].jetons : null;
+  const dl = document.createElement('dl');
+  ligne(dl, 'Agent', a.nom);
+  ligne(dl, 'Pic atteint', sien.toLocaleString('fr-FR') + ' jetons');
+  ligne(dl, 'À la fin', dernier !== null ? dernier.toLocaleString('fr-FR') + ' jetons' : null);
+  ligne(dl, 'Relevés', String(points.length));
+  ligne(dl, 'Compactages', String((a.compactages || []).length));
+  ligne(dl, 'Référence de la couleur',
+    ref.fenetreConnue
+      ? ref.pic.toLocaleString('fr-FR') + ' jetons — la fenêtre, connue par le compactage '
+        + 'qu’elle a déclenché'
+      : 'aucune — cette session n’a jamais compacté');
+
+  const morceaux = [dl];
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = ref.fenetreConnue
+    ? 'La courbe est peinte d’un dégradé vert → rouge : plus elle monte, plus la fenêtre '
+      + 'est pleine. Elle retombe d’un coup à chaque compactage.'
+    : 'La couleur reste neutre : sans compactage, on ignore la taille réelle de la '
+      + 'fenêtre, et un pic de ' + sien.toLocaleString('fr-FR') + ' jetons ne veut pas '
+      + 'dire qu’elle est pleine. L’échelle est seulement relative.';
+  morceaux.push(p);
+  ouvrirPanneau('contexte', a.nom, morceaux);
+}
+
 function carteRequete(r) {
   ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
 }
@@ -1163,6 +1195,8 @@ function dessinerVoieContexte(agent, centre, axe, ref) {
     const c = points[i];
     const px = axe.x(c.instant);
     const prise = el('rect', { x: px - 3, y: haut, width: 6, height: bas - haut, fill: 'transparent' });
+    prise.style.cursor = 'pointer';
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteContexte(agent); });
     prise.append(el('title', {}, document.createTextNode(
       c.jetons.toLocaleString('fr-FR') + ' jetons de contexte  ('
       + Math.round((c.jetons / pic) * 100)
@@ -1341,8 +1375,36 @@ elPiste.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 // Glisser avec le bouton gauche déplace la ligne du temps.
+//
+// On suit le pointeur par des écouteurs posés sur la fenêtre, et **non** par
+// `setPointerCapture`. La capture paraissait le bon outil — elle garde le glissé vivant
+// quand le curseur sort du cadre — mais elle redirige aussi le clic qui suit vers
+// l'élément capturant : la cible devenait `<div class="piste">` au lieu de la barre, et
+// plus aucune carte ne s'ouvrait. Mesuré, pas supposé.
 let glisse = null;
 let vientDeGlisser = false;
+
+function pendantGlisse(e) {
+  if (!glisse) return;
+  const dx = e.clientX - glisse.departX;
+  const dy = e.clientY - glisse.departY;
+  glisse.parcouru = Math.max(glisse.parcouru, Math.abs(dx), Math.abs(dy));
+  if (glisse.parcouru < SEUIL_GLISSE) return;
+  elPiste.style.cursor = 'grabbing';
+  elPiste.scrollLeft = glisse.defilX - dx;
+  elPiste.scrollTop = glisse.defilY - dy;
+}
+
+function finGlisse() {
+  if (!glisse) return;
+  // Un déplacement franc ne doit pas se comporter aussi comme un clic sur une barre.
+  vientDeGlisser = glisse.parcouru >= SEUIL_GLISSE;
+  glisse = null;
+  elPiste.style.cursor = '';
+  removeEventListener('pointermove', pendantGlisse);
+  removeEventListener('pointerup', finGlisse);
+  removeEventListener('pointercancel', finGlisse);
+}
 
 elPiste.addEventListener('pointerdown', (e) => {
   if (e.button !== 0) return;
@@ -1354,37 +1416,10 @@ elPiste.addEventListener('pointerdown', (e) => {
     parcouru: 0,
   };
   vientDeGlisser = false;
-  // La capture du pointeur est un confort — elle garde le glissé vivant quand le curseur
-  // sort du cadre. Si le navigateur la refuse, le glissé doit marcher quand même.
-  try { elPiste.setPointerCapture(e.pointerId); } catch { /* tant pis */ }
+  addEventListener('pointermove', pendantGlisse);
+  addEventListener('pointerup', finGlisse);
+  addEventListener('pointercancel', finGlisse);
 });
-
-elPiste.addEventListener('pointermove', (e) => {
-  if (!glisse) return;
-  const dx = e.clientX - glisse.departX;
-  const dy = e.clientY - glisse.departY;
-  glisse.parcouru = Math.max(glisse.parcouru, Math.abs(dx), Math.abs(dy));
-  if (glisse.parcouru < SEUIL_GLISSE) return;
-  elPiste.style.cursor = 'grabbing';
-  elPiste.scrollLeft = glisse.defilX - dx;
-  elPiste.scrollTop = glisse.defilY - dy;
-});
-
-function finGlisse(e) {
-  if (!glisse) return;
-  // Un déplacement franc ne doit pas se comporter aussi comme un clic sur une barre.
-  vientDeGlisser = glisse.parcouru >= SEUIL_GLISSE;
-  glisse = null;
-  elPiste.style.cursor = '';
-  try {
-    if (e && e.pointerId !== undefined && elPiste.hasPointerCapture(e.pointerId)) {
-      elPiste.releasePointerCapture(e.pointerId);
-    }
-  } catch { /* le pointeur a déjà disparu */ }
-}
-
-elPiste.addEventListener('pointerup', finGlisse);
-elPiste.addEventListener('pointercancel', finGlisse);
 
 // En phase de capture, donc avant que les barres et les marques ne voient le clic.
 elPiste.addEventListener('click', (e) => {
