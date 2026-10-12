@@ -371,6 +371,16 @@ engloberait tout le sommeil. Le « début de réponse » est l'instant où le pr
 **45 % des appels n'ont pas de durée de réponse mesurable** — leur réponse tenait en un
 seul bloc, donc début et fin se confondent.
 
+### Ranger les voies
+
+Deux flèches en tête de chaque ligne échangent la voie avec sa voisine, vers le haut ou
+vers le bas. Cela sert à **rapprocher deux voies qu'on veut comparer** — mettre les appels
+au modèle juste sous les appels d'outils, par exemple, pour voir ce qui déclenche quoi.
+
+Tant qu'on n'y touche pas, l'ordre naturel s'applique, et une voie qui apparaît en cours de
+route — un sous-agent qui vient de naître — se place d'elle-même au bon endroit. Dès qu'on
+a rangé, les nouvelles voies se posent à la fin plutôt que de bousculer ce qui est en place.
+
 ### Choisir les voies affichées
 
 Un menu « voies » liste les voies annexes — contexte, attente, boucles — avec une case par

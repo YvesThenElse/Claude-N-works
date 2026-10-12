@@ -49,6 +49,18 @@
   }
   .noeud:hover, .noeud.vise { background: var(--fond-carte); }
   .noeud .tiret { color: var(--trait); font-family: monospace; }
+  /* Les flèches de rangement, en tête de ligne. Discrètes tant qu'on ne survole pas. */
+  .noeud .rangement { display: flex; flex-direction: column; flex: none; }
+  /* Chaque flèche doit rester visable : à sept pixels de haut, on la rate une fois sur
+     deux. Deux boutons de quatorze tiennent dans la hauteur d'une ligne. */
+  .noeud .rangement button {
+    background: none; border: 0; color: var(--texte-faible); cursor: pointer;
+    height: 14px; line-height: 14px; font-size: .68rem; padding: 0 3px; opacity: .3;
+    font-family: inherit; display: flex; align-items: center; justify-content: center;
+  }
+  .noeud:hover .rangement button { opacity: .75; }
+  .noeud .rangement button:hover:not(:disabled) { color: var(--accent); opacity: 1; }
+  .noeud .rangement button:disabled { visibility: hidden; }
   .noeud .etiq { overflow: hidden; text-overflow: ellipsis; }
   .noeud .etat { margin-left: auto; font-size: .72rem; color: var(--texte-faible); }
 
@@ -315,6 +327,11 @@ const PART_VIDE = 400;      // ni un trou de moins d'un quatre-centième de la s
 let deroule = null;
 let vise = null;
 let axeCourant = null;
+// L'ordre des voies, quand Yves l'a changé. Tant qu'il n'y touche pas, c'est l'ordre
+// naturel qui s'applique — et les voies d'un agent qui apparaît en cours de route se
+// placent d'elles-mêmes au bon endroit.
+let ordreVoies = [];
+let ordrePersonnalise = false;
 let rendu = null;   // ce qui a été dessiné, pour savoir quand il faut recommencer
 
 const elTitre = document.getElementById('titre');
@@ -532,6 +549,47 @@ function refContexte() {
   return { pic, fenetreConnue: compacte };
 }
 
+/** La clé d'une voie, stable d'un rafraîchissement à l'autre. */
+function cleVoie(v) {
+  return v.agent.id + '|' + v.genre + (v.modele ? '|' + v.modele : '');
+}
+
+/**
+ * Applique l'ordre choisi par Yves, s'il en a choisi un. Une voie qu'il n'a jamais vue —
+ * un sous-agent qui vient de naître — se range à la fin plutôt que de bousculer ce qu'il
+ * a mis en place.
+ */
+function rangerVoies(voies) {
+  if (!ordrePersonnalise) return voies;
+  const parCle = new Map(voies.map((v) => [cleVoie(v), v]));
+  const rangees = [];
+  for (const cle of ordreVoies) {
+    const v = parCle.get(cle);
+    if (v) { rangees.push(v); parCle.delete(cle); }
+  }
+  for (const v of parCle.values()) rangees.push(v);
+  ordreVoies = rangees.map(cleVoie);
+  return rangees;
+}
+
+/** Échange une voie avec sa voisine, vers le haut ou vers le bas. */
+function deplacerVoie(voies, i, pas) {
+  const j = i + pas;
+  if (j < 0 || j >= voies.length) return;
+  if (!ordrePersonnalise) {
+    ordreVoies = voies.map(cleVoie);
+    ordrePersonnalise = true;
+  }
+  const a = cleVoie(voies[i]);
+  const b = cleVoie(voies[j]);
+  const ia = ordreVoies.indexOf(a);
+  const ib = ordreVoies.indexOf(b);
+  if (ia < 0 || ib < 0) return;
+  ordreVoies[ia] = b;
+  ordreVoies[ib] = a;
+  dessiner();
+}
+
 function construireVoies() {
   const voies = [];
   for (const a of deroule.agents) {
@@ -557,7 +615,7 @@ function construireVoies() {
       for (const m of modelesDe(a)) voies.push({ genre: 'modele', agent: a, modele: m });
     }
   }
-  return voies;
+  return rangerVoies(voies);
 }
 
 // La légende de chaque voie, donnée au survol de sa ligne dans l'arbre. Les couleurs de
@@ -643,10 +701,33 @@ const LEGENDE_VOIE = {
 };
 
 function dessinerArbre() {
-  elArbre.replaceChildren(...construireVoies().map((v) => {
+  const voies = construireVoies();
+  elArbre.replaceChildren(...voies.map((v, i) => {
     const a = v.agent;
     const d = document.createElement('div');
     d.className = 'noeud' + (a.id === vise && v.genre === 'agent' ? ' vise' : '');
+
+    // Le clic d'une flèche ne doit jamais ouvrir la carte de la ligne. `stopPropagation`
+    // depuis le bouton ne suffit pas : le redessin détruit le bouton pendant que
+    // l'événement se propage, et le gestionnaire de la ligne finit par le voir. On filtre
+    // donc dans ce gestionnaire, sur l'origine du clic.
+    const surLigne = (quoi) => d.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.rangement')) return;
+      quoi();
+    });
+
+    // Deux flèches pour rapprocher deux voies qu'on veut comparer.
+    const rangement = document.createElement('span');
+    rangement.className = 'rangement';
+    for (const [pas, signe, quoi] of [[-1, '▲', 'monter'], [1, '▼', 'descendre']]) {
+      const b = document.createElement('button');
+      b.textContent = signe;
+      b.title = quoi + ' cette ligne';
+      b.disabled = pas < 0 ? i === 0 : i === voies.length - 1;
+      b.addEventListener('click', (e) => { e.stopPropagation(); deplacerVoie(voies, i, pas); });
+      rangement.append(b);
+    }
+
     const tiret = document.createElement('span');
     tiret.className = 'tiret';
     const puce = document.createElement('i');
@@ -662,7 +743,7 @@ function dessinerArbre() {
       puce.style.background = couleurEtat(a.etat);
       etiq.textContent = a.nom;
       etat.textContent = a.outils.length + ' out.';
-      d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
+      surLigne(() => { vise = a.id; dessiner(); carteAgent(a); });
     } else if (v.genre === 'contexte') {
       const sien = Math.max(...a.contexte.map((c) => c.jetons));
       const ref = refContexte();
@@ -679,7 +760,7 @@ function dessinerArbre() {
       etiq.textContent = 'Taille CTX';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(sien / 1000) + ' k';
-      d.addEventListener('click', () => carteContexte(a));
+      surLigne(() => carteContexte(a));
     } else if (v.genre === 'outils') {
       const parNom = {};
       for (const o of a.outils) parNom[o.nom] = (parNom[o.nom] || 0) + 1;
@@ -692,7 +773,7 @@ function dessinerArbre() {
       etiq.textContent = 'outils';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = a.outils.length + ' app.';
-      d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
+      surLigne(() => { vise = a.id; dessiner(); carteAgent(a); });
     } else if (v.genre === 'contenu') {
       const derniere = a.requetesModele[a.requetesModele.length - 1];
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
@@ -702,7 +783,7 @@ function dessinerArbre() {
       etiq.textContent = 'Contenu CTX';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(totalComposition(derniere?.composition) / 1000) + ' k car.';
-      d.addEventListener('click', () => carteContenu(a, derniere));
+      surLigne(() => carteContenu(a, derniere));
     } else if (v.genre === 'modele') {
       const reqs = a.requetesModele.filter((r) => r.modele === v.modele);
       const lat = reqs.reduce((n, r) => n + r.latenceMs, 0) / Math.max(1, reqs.length);
@@ -716,7 +797,7 @@ function dessinerArbre() {
       etiq.textContent = v.modele.replace(/^claude-/, '');
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = reqs.length + ' app.';
-      d.addEventListener('click', () => carteModele(a, v.modele));
+      surLigne(() => carteModele(a, v.modele));
     } else if (v.genre === 'attente') {
       const total = a.attentes.reduce((n, x) => n + (x.dureeMs || 0), 0);
       const questions = a.attentes.filter((x) => x.genre === 'question').length;
@@ -728,7 +809,7 @@ function dessinerArbre() {
       etiq.textContent = 'attente';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = duree(total);
-      d.addEventListener('click', () => carteAttentes(a));
+      surLigne(() => carteAttentes(a));
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
@@ -739,9 +820,9 @@ function dessinerArbre() {
       etiq.textContent = n > 1 ? n + ' boucles' : 'une boucle';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = its + ' it.';
-      d.addEventListener('click', () => carteBoucle(a.boucles[0], a, 0));
+      surLigne(() => carteBoucle(a.boucles[0], a, 0));
     }
-    d.append(tiret, puce, etiq, etat);
+    d.append(rangement, tiret, puce, etiq, etat);
     return d;
   }));
 }
