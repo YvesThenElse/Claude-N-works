@@ -362,6 +362,23 @@ contient, et la part de sa durée passée dans les outils et chez le modèle. Ex
 un tour de 10 minutes, 27 appels `Bash`, 28 requêtes au modèle — 20 % du temps dans les
 outils, 51 % chez le modèle.
 
+### Les fichiers
+
+Une voie où chaque opération sur un fichier se lit de part et d'autre d'une ligne de base :
+**vers le haut en vert les lignes ajoutées, vers le bas en rose celles retirées**, et un
+simple trait sur la ligne pour un fichier seulement lu. Les hauteurs suivent la racine du
+nombre de lignes, sans quoi un fichier de mille lignes réduirait une correction de trois
+lignes à rien.
+
+Sur la session `454ef787` : **162 fichiers distincts**, 179 opérations — 98 lectures,
+80 écritures, 1 modification — pour **+12 065 / −2 lignes**. La carte liste les fichiers
+les plus repris, ce qui montre où le travail a buté.
+
+**Sur le « diff git ».** Le transcript n'en contient aucun. Mais il contient mieux : ce que
+l'agent a *demandé*. Un `Edit` porte l'ancien et le nouveau texte, donc le compte est
+exact. Un `Write` ne porte que le nouveau contenu : ses lignes comptent en positif, et ce
+qu'il a remplacé reste inconnu — la carte le dit.
+
 ### La réflexion
 
 Une barre par appel où le modèle a réfléchi avant de répondre, de hauteur proportionnelle

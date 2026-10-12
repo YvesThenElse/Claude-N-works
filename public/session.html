@@ -379,6 +379,7 @@ const VOIES_ANNEXES = [
   { cle: 'tours', nom: 'tours', teinte: '#7aa2f7' },
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'reflexion', nom: 'réflexion', teinte: '#c4a7ff' },
+  { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, #9ece6a, #f7768e)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
@@ -386,7 +387,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
 };
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
@@ -675,6 +676,9 @@ function construireVoies() {
         && (a.requetesModele || []).some((r) => r.jetons.reflexion > 0)) {
       voies.push({ genre: 'reflexion', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.fichiers && (a.outils || []).some((o) => o.fichier)) {
+      voies.push({ genre: 'fichiers', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a, prof: a.profondeur + 1 });
     }
@@ -780,6 +784,19 @@ const LEGENDE_VOIE = {
     'Le contenu de la réflexion n’est pas conservé par le transcript —',
     'seule sa signature l’est. On sait qu’elle a eu lieu et combien elle a',
     'coûté, jamais ce qu’elle disait.',
+  ].join('\n'),
+  fichiers: [
+    'Ce que l’agent fait aux fichiers, autour d’une ligne de base :',
+    '   vers le haut, vert   des lignes ajoutées',
+    '   vers le bas, rose    des lignes retirées',
+    '   trait sur la ligne   un fichier simplement lu',
+    '',
+    'Le compte est exact pour un Edit, qui porte l’ancien et le nouveau',
+    'texte. Un Write ne porte que le nouveau contenu : on sait ce qui est',
+    'écrit, jamais ce qui est remplacé — il ne compte donc qu’en positif.',
+    '',
+    'Le transcript ne contient aucun diff git. Ce qui est montré ici est',
+    'ce que l’agent a demandé, ce qui est plus proche de la source.',
   ].join('\n'),
   contenu: [
     'De quoi le contexte était fait à chaque appel, en parts empilées :',
@@ -891,6 +908,21 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(total / 1000) + ' k jet.';
       surLigne(() => carteReflexion(a));
+    } else if (v.genre === 'fichiers') {
+      const ops = a.outils.filter((o) => o.fichier);
+      const distincts = new Set(ops.map((o) => o.fichier.chemin)).size;
+      const plus = ops.reduce((n, o) => n + o.fichier.plus, 0);
+      const moins = ops.reduce((n, o) => n + o.fichier.moins, 0);
+      d.title = distincts + ' fichiers touchés, ' + ops.length + ' opérations'
+        + '\n+' + plus.toLocaleString('fr-FR') + ' / −' + moins.toLocaleString('fr-FR')
+        + ' lignes\n\n' + LEGENDE_VOIE.fichiers;
+      icone.textContent = '⊟';
+      icone.style.color = '#9ece6a';
+      puce.style.background = 'linear-gradient(to bottom, #9ece6a, #f7768e)';
+      etiq.textContent = 'fichiers';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = distincts + ' fich.';
+      surLigne(() => carteFichiers(a));
     } else if (v.genre === 'contexte') {
       const sien = Math.max(...a.contexte.map((c) => c.jetons));
       const ref = refContexte();
@@ -1230,6 +1262,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'reflexion') {
       svg.append(dessinerVoieReflexion(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'fichiers') {
+      svg.append(dessinerVoieFichiers(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
@@ -1817,6 +1853,84 @@ function detaillerEntree(dl, j, nombre) {
   ligne(dl, '— payés au prix fort', nombre(j.entree)
     + (entree ? '   (' + Math.round(((j.entree || 0) / entree) * 100) + ' %)' : ''));
   return entree ? (j.cacheLu || 0) / entree : 0;
+}
+
+/** Carte des fichiers : lesquels ont été touchés, combien de fois, et de combien. */
+function carteFichiers(agent) {
+  const ops = agent.outils.filter((o) => o.fichier);
+  const parFichier = new Map();
+  for (const o of ops) {
+    const f = o.fichier;
+    if (!parFichier.has(f.chemin)) {
+      parFichier.set(f.chemin, { lu: 0, ecrit: 0, modifie: 0, plus: 0, moins: 0 });
+    }
+    const e = parFichier.get(f.chemin);
+    if (f.genre === 'lu') e.lu += 1;
+    else if (f.genre === 'écrit') e.ecrit += 1;
+    else e.modifie += 1;
+    e.plus += f.plus;
+    e.moins += f.moins;
+  }
+  const nombre = (n) => (n || 0).toLocaleString('fr-FR');
+  const plus = ops.reduce((n, o) => n + o.fichier.plus, 0);
+  const moins = ops.reduce((n, o) => n + o.fichier.moins, 0);
+  const ecrits = ops.filter((o) => o.fichier.genre === 'écrit').length;
+  const modifs = ops.filter((o) => o.fichier.genre === 'modifié').length;
+
+  const dl = document.createElement('dl');
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Fichiers distincts', String(parFichier.size));
+  ligne(dl, 'Opérations', ops.length + '   (' + (ops.length - ecrits - modifs) + ' lectures, '
+    + ecrits + ' écritures, ' + modifs + ' modifications)');
+  ligne(dl, 'Lignes ajoutées', '+' + nombre(plus));
+  ligne(dl, 'Lignes retirées', '−' + nombre(moins));
+
+  const morceaux = [dl];
+
+  // Les fichiers les plus repris : c'est là que le travail a été le plus difficile.
+  const tri = [...parFichier.entries()]
+    .sort((a, b) => (b[1].ecrit + b[1].modifie + b[1].lu) - (a[1].ecrit + a[1].modifie + a[1].lu));
+  const liste = document.createElement('div');
+  liste.className = 'ctx-liste';
+  for (const [chemin, e] of tri.slice(0, 40)) {
+    const d = document.createElement('div');
+    d.className = 'ctx-element';
+    const s = document.createElement('div');
+    s.style.cssText = 'display:flex;gap:.5rem;align-items:baseline;padding:.3rem .1rem;font-size:.78rem';
+    const nom = document.createElement('span');
+    nom.textContent = chemin.replace(/^.*\/(?=[^/]*\/[^/]*$)/, '');
+    nom.title = chemin;
+    nom.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    const compte = document.createElement('span');
+    compte.style.cssText = 'margin-left:auto;color:var(--texte-faible);font-size:.74rem;white-space:nowrap';
+    const bouts = [];
+    if (e.lu) bouts.push(e.lu + ' lu');
+    if (e.ecrit) bouts.push(e.ecrit + ' écrit');
+    if (e.modifie) bouts.push(e.modifie + ' modifié');
+    if (e.plus) bouts.push('+' + e.plus);
+    if (e.moins) bouts.push('−' + e.moins);
+    compte.textContent = bouts.join(' · ');
+    s.append(nom, compte);
+    d.append(s);
+    liste.append(d);
+  }
+  morceaux.push(liste);
+  if (tri.length > 40) {
+    const reste = document.createElement('p');
+    reste.className = 'avert';
+    reste.textContent = (tri.length - 40) + ' autres fichiers ne sont pas listés ici.';
+    morceaux.push(reste);
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Le compte est exact pour un Edit, qui porte l’ancien et le nouveau '
+    + 'texte. Un Write ne porte que le nouveau contenu : ses lignes comptent en positif, '
+    + 'et ce qu’il a remplacé reste inconnu. Le transcript ne contient aucun diff git — '
+    + 'ce qui est montré est ce que l’agent a demandé, ce qui est plus proche de la source.';
+  morceaux.push(p);
+
+  ouvrirPanneau('fichiers', agent.nom, morceaux);
 }
 
 /** Carte de la réflexion : quand le modèle réfléchit, et combien. */
@@ -2440,7 +2554,8 @@ function dessinerVoieModele(agent, modele, centre, axe, visible) {
     }));
 
     const prise = el('rect', {
-      x: xa - 3, y: centre - 10, width: (xf - xa) + 6, height: 20, fill: 'transparent',
+      x: Math.min(xa, xd) - 3, y: centre - 10,
+      width: Math.max(6, xf - Math.min(xa, xd) + 6), height: 20, fill: 'transparent',
     });
     prise.style.cursor = 'pointer';
     prise.append(el('title', {}, document.createTextNode(
@@ -2467,6 +2582,67 @@ const NOM_ATTENTE = {
   sommeil: 'une boucle qui dort entre deux tours',
   inoccupée: 'le tour est fini, personne n’a repris la main',
 };
+
+/**
+ * La voie des fichiers : un diff de part et d'autre d'une ligne de base, le vert vers le
+ * haut pour ce qui est ajouté, le rose vers le bas pour ce qui est retiré. Les hauteurs
+ * suivent la racine du nombre de lignes — un fichier de mille lignes ne doit pas réduire
+ * une correction de trois lignes à rien.
+ */
+function dessinerVoieFichiers(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const ops = agent.outils.filter((o) => o.fichier && o.debut !== null);
+  if (!ops.length) return g;
+  const pic = Math.max(1, ...ops.map((o) => Math.max(o.fichier.plus, o.fichier.moins)));
+  const demi = 11;
+
+  g.append(el('line', {
+    x1: axe.x(agent.debut), y1: centre, x2: axe.x(agent.fin ?? deroule.fin), y2: centre,
+    stroke: 'var(--texte-faible)', 'stroke-width': 1, opacity: '.3',
+  }));
+
+  for (const o of ops) {
+    const x = axe.x(o.debut);
+    if (!visible(x - 3, x + 3)) continue;
+    const f = o.fichier;
+    if (f.genre === 'lu') {
+      g.append(el('rect', {
+        x: x - 1, y: centre - 2.5, width: 2, height: 5, rx: 1,
+        fill: 'var(--texte-faible)', opacity: '.8',
+      }));
+    } else {
+      if (f.plus > 0) {
+        const h = Math.max(2, Math.sqrt(f.plus / pic) * demi);
+        g.append(el('rect', {
+          x: x - 1.3, y: centre - h, width: 2.6, height: h, rx: 1,
+          fill: 'var(--outil)', opacity: '.9',
+        }));
+      }
+      if (f.moins > 0) {
+        const h = Math.max(2, Math.sqrt(f.moins / pic) * demi);
+        g.append(el('rect', {
+          x: x - 1.3, y: centre, width: 2.6, height: h, rx: 1,
+          fill: 'var(--outil-echec)', opacity: '.9',
+        }));
+      }
+    }
+    const prise = el('rect', {
+      x: x - 4, y: centre - demi - 3, width: 8, height: demi * 2 + 6, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    const court = f.chemin.split('/').slice(-2).join('/');
+    prise.append(el('title', {}, document.createTextNode(
+      f.genre + ' — ' + court
+      + '\n' + heure(o.debut)
+      + (f.genre === 'lu' ? '' : '\n+' + f.plus + ' / −' + f.moins + ' lignes')
+      + (f.remplace ? '\n(un Write : on ignore ce qui a été remplacé)' : '')
+      + (f.partout ? '\n(remplacement partout dans le fichier)' : '')
+      + '\n\n' + f.chemin)));
+    prise.addEventListener('click', (e) => { e.stopPropagation(); carteOutil(o, agent); });
+    g.append(prise);
+  }
+  return g;
+}
 
 /**
  * La voie de réflexion. Une barre par appel où le modèle a réfléchi, de hauteur
@@ -2917,6 +3093,9 @@ function remplirMenuVoies() {
     if ((a.outils || []).length) presentes.outils = (presentes.outils || 0) + 1;
     if ((a.requetesModele || []).some((r) => r.jetons.reflexion > 0)) {
       presentes.reflexion = (presentes.reflexion || 0) + 1;
+    }
+    if ((a.outils || []).some((o) => o.fichier)) {
+      presentes.fichiers = (presentes.fichiers || 0) + 1;
     }
     if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;

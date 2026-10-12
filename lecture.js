@@ -913,15 +913,19 @@ function nettoyerRequetes(requetes) {
     .filter((r) => r.modele && r.modele !== '<synthetic>' && r.appel !== null)
     .map((r) => {
       const u = r.usage || {};
+      // Les enregistrements ne sont pas strictement ordonnés par horodatage : une pièce
+      // jointe peut porter un instant postérieur à la réponse qu'elle précède. Un appel
+      // ne peut pas suivre sa propre réponse, on le ramène donc à son début.
+      const appel = Math.min(r.appel, r.debut);
       return {
         modele: r.modele,
-        appel: r.appel,
+        appel,
         declencheur: r.declencheur,
         debut: r.debut,
         fin: r.fin,
         blocs: r.blocs,
         arret: r.arret || null,
-        latenceMs: Math.max(0, r.debut - r.appel),
+        latenceMs: Math.max(0, r.debut - appel),
         reponseMs: Math.max(0, r.fin - r.debut),
         reflechi: Boolean(r.reflechi),
         composition: r.composition,
@@ -944,6 +948,33 @@ function bornesFin(agent, racine) {
   return agent.fin ?? racine.dernier ?? agent.debut;
 }
 
+/**
+ * Ce qu'un appel fait à un fichier. Le transcript ne contient aucun diff git, mais il
+ * contient mieux : ce que l'agent a demandé. `Edit` porte l'ancien et le nouveau texte,
+ * donc le compte de lignes est exact. `Write` ne porte que le nouveau contenu : on sait
+ * ce qui est écrit, jamais ce qui est remplacé.
+ */
+function toucheFichier(nom, entree) {
+  if (!entree || typeof entree !== 'object') return null;
+  const chemin = entree.file_path || entree.notebook_path;
+  if (!chemin) return null;
+  const lignes = (s) => (typeof s === 'string' && s.length ? s.split('\n').length : 0);
+  if (nom === 'Read') return { chemin, genre: 'lu', plus: 0, moins: 0 };
+  if (nom === 'Write') {
+    return { chemin, genre: 'écrit', plus: lignes(entree.content), moins: 0, remplace: true };
+  }
+  if (nom === 'Edit' || nom === 'NotebookEdit') {
+    return {
+      chemin,
+      genre: 'modifié',
+      plus: lignes(entree.new_string ?? entree.new_source),
+      moins: lignes(entree.old_string ?? entree.old_source),
+      partout: Boolean(entree.replace_all),
+    };
+  }
+  return null;
+}
+
 function nettoyerAppel(a) {
   const entree = texteEntree(a.nom, a.entree);
   const sortie = a.resultat !== undefined && a.resultat !== null
@@ -964,6 +995,7 @@ function nettoyerAppel(a) {
     tronque: entree.length > LIMITE_APPEL || sortie.length > LIMITE_APPEL,
     // Un appel de skill porte son nom à part : il mérite sa propre carte (§6.2).
     skill: a.nom === 'Skill' ? (a.entree?.skill || null) : null,
+    fichier: toucheFichier(a.nom, a.entree),
   };
 }
 
