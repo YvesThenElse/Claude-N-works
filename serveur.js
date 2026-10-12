@@ -7,6 +7,7 @@
 'use strict';
 
 const http = require('node:http');
+const { lireSession } = require('./lecture.js');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -207,6 +208,54 @@ const serveur = http.createServer((requete, reponse) => {
       signaler(err);
       reponse.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
       reponse.end(JSON.stringify({ erreur: String(err) }));
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/session') {
+    const id = url.searchParams.get('id');
+    if (!id || !/^[A-Za-z0-9-]{1,64}$/.test(id)) {
+      reponse.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+      reponse.end(JSON.stringify({ erreur: 'identifiant de session absent ou mal formé' }));
+      return;
+    }
+    lireSessions()
+      .then(async (etat) => {
+        const vivante = etat.sessions.find((s) => s.sessionId === id);
+        // Une session absente de la liste n'est pas une erreur : elle est simplement
+        // terminée, et son transcript reste lisible en entier.
+        const transcript = vivante
+          ? vivante.transcript
+          : await trouverTranscript(id, null);
+        if (!transcript) {
+          reponse.writeHead(404, { 'content-type': 'application/json; charset=utf-8' });
+          reponse.end(JSON.stringify({ erreur: 'transcript introuvable pour ' + id }));
+          return;
+        }
+        const deroule = await lireSession(transcript, {
+          sessionVivante: Boolean(vivante),
+          nomSession: vivante ? vivante.nom : null,
+        });
+        reponse.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+        reponse.end(JSON.stringify({ ...deroule, session: vivante || { sessionId: id } }));
+      })
+      .catch((err) => {
+        signaler(err);
+        reponse.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+        reponse.end(JSON.stringify({ erreur: String(err) }));
+      });
+    return;
+  }
+
+  if (url.pathname === '/session.html') {
+    fs.readFile(path.join(__dirname, 'public', 'session.html'), (err, contenu) => {
+      if (err) {
+        reponse.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        reponse.end('page de session introuvable\n');
+        return;
+      }
+      reponse.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      reponse.end(contenu);
     });
     return;
   }

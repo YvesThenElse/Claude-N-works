@@ -29,7 +29,7 @@ Le programme **ne fait que lire**. Il n'écrit jamais dans `~/.claude`.
 |---|---|
 | 1 — connaître le terrain | fait : R1 et R2 levés, format consigné, langage arrêté |
 | 2 — l'écran des sessions | fait |
-| 3 — la ligne du temps | à faire |
+| 3 — la ligne du temps | fait |
 | 4 — les cartes | à faire |
 | 5 — le temps réel | à faire |
 | 6 — la carte de boucle | à faire |
@@ -46,6 +46,25 @@ ouverte, et le nombre de sous-agents déjà sur disque. La sélection affiche so
 complète, le chemin de son transcript, et sa version de Claude Code.
 
 La liste se tient à jour toute seule, par flux d'événements, sans rechargement.
+
+### Ce que fait la ligne du temps
+
+Une voie par agent, l'agent racine en haut, chaque sous-agent sous son parent. La barre
+d'un agent commence quand son parent l'a lancé ; terminée, elle se grise ; encore en cours,
+elle reste en pointillés, ouverte à droite. Les quatre états mesurés sont distingués :
+en cours, terminé, interrompu, fin inconnue.
+
+Tous les appels d'outils sont là, un par un, à leur instant : un trait net au départ, une
+bande discrète pour la durée. Un appel d'agent et un appel en échec ont leur couleur. Les
+requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
+repères verticaux.
+
+**Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
+dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
+L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée de la session
+(un quatre-centième, jamais moins d'une minute). Chaque repli est **annoncé et compté** —
+« 23 temps morts repliés, 7,0 j élidée » — et la case à cocher le désactive. Rien n'est
+masqué en silence.
 
 ### Mesures
 
@@ -67,6 +86,9 @@ du temps.
 Les délais se mesurent sur le **flux d'événements**, pas sur `/api/sessions` : cette
 route relit à chaud à chaque appel et reflète donc toujours la vérité instantanément, ce
 qui ne mesure rien du chemin que suit réellement le navigateur.
+
+Lecture d'un transcript de **37 Mo et 17 790 lignes** : **610 ms**, 24 Mo de mémoire,
+1710 appels d'outil et 73 requêtes reconstitués.
 
 Éprouvé aussi, sur un faux `~/.claude` monté pour l'occasion : processus mort, JSON
 invalide, objet sans `sessionId`, fichier `.key` — ignorés, trois comptés comme tels, le

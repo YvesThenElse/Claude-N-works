@@ -79,6 +79,11 @@
     margin: 1.1rem 0 0; padding-top: .9rem; border-top: 1px solid var(--trait);
     color: var(--texte-faible); font-size: .83rem; font-style: italic;
   }
+  .detail .bouton {
+    display: inline-block; color: var(--accent); text-decoration: none;
+    font-style: normal; font-size: .88rem; font-weight: 500;
+  }
+  .detail .bouton:hover { text-decoration: underline; }
   .vide { color: var(--texte-faible); padding: 2rem 0; }
   .alerte { color: var(--occupe); font-size: .83rem; margin-top: 1rem; }
 </style>
@@ -221,9 +226,15 @@ function dessinerDetail() {
   titre.textContent = s.nom;
   const suite = document.createElement('p');
   suite.className = 'suite';
-  suite.textContent = s.transcript
-    ? "La ligne du temps des agents de cette session arrive au lot 3 : pour l'instant, cet écran se contente de l'identifier."
-    : "Le transcript de cette session n'a pas été trouvé sur disque — la ligne du temps ne pourra rien montrer.";
+  if (s.transcript) {
+    const lien = document.createElement('a');
+    lien.className = 'bouton';
+    lien.href = '/session.html?id=' + encodeURIComponent(s.sessionId);
+    lien.textContent = 'Voir la ligne du temps de ses agents →';
+    suite.append(lien);
+  } else {
+    suite.textContent = "Le transcript de cette session n'a pas été trouvé sur disque — la ligne du temps ne pourra rien montrer.";
+  }
   bloc.append(titre, dl, suite);
   elDetail.replaceChildren(bloc);
 }

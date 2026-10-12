@@ -209,6 +209,14 @@ sur la voie de son agent, nom visible quand la place le permet, détail au survo
 voir la densité réelle du travail, y compris les 1436 appels `Bash` d'une session comme
 Litanie. Un appel en échec se distingue d'un appel réussi.
 
+**Le repli des temps morts** — *ajouté au lot 3, et non demandé*. Mesuré : la session
+Litanie s'étale sur **264 heures** pour 1710 appels, dont sept jours sans la moindre
+activité. À l'échelle linéaire, tout le travail se tasse en traits invisibles. L'axe replie
+donc les périodes sans aucun événement, à deux conditions : le seuil est proportionnel à la
+session — un quatre-centième de sa durée, et jamais moins d'une minute — et **chaque repli
+est visible et compté**, la barre d'outils annonçant leur nombre et la durée totale élidée.
+Rien n'est masqué en silence. Le repli se désactive d'une case à cocher.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 
@@ -357,10 +365,11 @@ absent doit se traduire par un champ omis à l'écran, jamais par une erreur.
 R1 et R2 levés sur pièce, format consigné dans `OBSERVATIONS-FORMAT.md`. Reste à arrêter le
 langage et la bibliothèque (§8).
 
-**Lot 2 — les sessions.** Écran 1 complet, rafraîchi.
+**Lot 2 — les sessions. Fait le 12 octobre 2026.** Écran 1 complet, rafraîchi.
 
-**Lot 3 — la ligne du temps.** Écran 2 sur une session terminée, lue en entier : voies,
-grisage des agents terminés, repères des requêtes, marques d'outils, arbre.
+**Lot 3 — la ligne du temps. Fait le 12 octobre 2026.** Écran 2 sur une session figée, lue
+en entier : voies, grisage des agents terminés, repères des requêtes, marques d'outils,
+arbre, plus le repli des temps morts rendu nécessaire par la mesure.
 
 **Lot 4 — les cartes.** Agent, outil, skill.
 

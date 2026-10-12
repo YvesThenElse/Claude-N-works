@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude N Works — ligne du temps</title>
+<style>
+  :root {
+    --fond: #11131a; --fond-carte: #1a1d27; --trait: #2b3040;
+    --texte: #e4e6ee; --texte-faible: #8d93a8;
+    --accent: #7aa2f7;
+    --en-cours: #7aa2f7; --termine: #4a5170; --interrompu: #f7768e; --inconnu: #e0af68;
+    --outil: #9ece6a; --outil-echec: #f7768e; --outil-agent: #bb9af7;
+    --requete: #e0af68;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fond); color: var(--texte);
+    font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  header { padding: 1.2rem 1.5rem .9rem; border-bottom: 1px solid var(--trait); }
+  header a { color: var(--texte-faible); text-decoration: none; font-size: .82rem; }
+  header a:hover { color: var(--accent); }
+  h1 { font-size: 1.15rem; margin: .4rem 0 .35rem; font-weight: 600; }
+  .resume { color: var(--texte-faible); font-size: .83rem; }
+  .resume b { color: var(--texte); font-weight: 600; }
+
+  .reglages {
+    display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap;
+    padding: .7rem 1.5rem; border-bottom: 1px solid var(--trait);
+    font-size: .8rem; color: var(--texte-faible);
+  }
+  .reglages label { display: flex; gap: .45rem; align-items: center; }
+  input[type=range] { width: 11rem; accent-color: var(--accent); }
+  .legende { display: flex; gap: .9rem; flex-wrap: wrap; margin-left: auto; }
+  .legende span { display: flex; gap: .3rem; align-items: center; }
+  .puce { width: .7rem; height: .7rem; border-radius: 2px; display: inline-block; }
+
+  .cadre { display: grid; grid-template-columns: 19rem 1fr; height: calc(100vh - 11rem); }
+  .arbre { border-right: 1px solid var(--trait); overflow: hidden; padding-top: 2.1rem; }
+  .noeud {
+    height: 2.2rem; display: flex; align-items: center; gap: .4rem;
+    padding: 0 .7rem; cursor: pointer; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; font-size: .82rem;
+  }
+  .noeud:hover, .noeud.vise { background: var(--fond-carte); }
+  .noeud .tiret { color: var(--trait); font-family: monospace; }
+  .noeud .etiq { overflow: hidden; text-overflow: ellipsis; }
+  .noeud .etat { margin-left: auto; font-size: .72rem; color: var(--texte-faible); }
+
+  .piste { overflow: auto; position: relative; }
+  svg { display: block; }
+  .vise-barre { outline: 1px solid var(--accent); }
+  .message { padding: 3rem 1.5rem; color: var(--texte-faible); }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">← toutes les sessions</a>
+  <h1 id="titre">…</h1>
+  <div class="resume" id="resume"></div>
+</header>
+
+<div class="reglages">
+  <label>échelle
+    <input type="range" id="zoom" min="0" max="100" value="0">
+    <span id="zoomTexte"></span>
+  </label>
+  <label><input type="checkbox" id="replier" checked> replier les temps morts</label>
+  <span id="replis"></span>
+  <div class="legende">
+    <span><i class="puce" style="background:var(--en-cours)"></i>en cours</span>
+    <span><i class="puce" style="background:var(--termine)"></i>terminé</span>
+    <span><i class="puce" style="background:var(--interrompu)"></i>interrompu</span>
+    <span><i class="puce" style="background:var(--inconnu)"></i>fin inconnue</span>
+    <span><i class="puce" style="background:var(--outil)"></i>outil</span>
+    <span><i class="puce" style="background:var(--outil-agent)"></i>appel d'agent</span>
+    <span><i class="puce" style="background:var(--requete)"></i>requête</span>
+  </div>
+</div>
+
+<div class="cadre">
+  <div class="arbre" id="arbre"></div>
+  <div class="piste" id="piste"><p class="message">Lecture du transcript…</p></div>
+</div>
+
+<script>
+'use strict';
+
+const SVGNS = 'http://www.w3.org/2000/svg';
+const HAUTEUR_VOIE = 35.2;   // doit valoir la hauteur d'un nœud de l'arbre (2.2rem)
+const MARGE_HAUT = 33.6;    // doit valoir le padding-top de l'arbre (2.1rem)
+const HAUTEUR_BARRE = 16;
+const LARGEUR_VIDE = 22;     // largeur donnée à un temps mort replié
+const SEUIL_VIDE_MIN_MS = 60000; // on ne replie jamais un trou de moins d'une minute
+const PART_VIDE = 400;      // ni un trou de moins d'un quatre-centième de la session
+
+let deroule = null;
+let vise = null;
+
+const elTitre = document.getElementById('titre');
+const elResume = document.getElementById('resume');
+const elArbre = document.getElementById('arbre');
+const elPiste = document.getElementById('piste');
+const elZoom = document.getElementById('zoom');
+const elZoomTexte = document.getElementById('zoomTexte');
+const elReplier = document.getElementById('replier');
+const elReplis = document.getElementById('replis');
+
+function duree(ms) {
+  if (ms === null || ms === undefined) return '—';
+  if (ms < 1000) return ms + ' ms';
+  const s = ms / 1000;
+  if (s < 90) return s.toFixed(1) + ' s';
+  const m = s / 60;
+  if (m < 90) return m.toFixed(0) + ' min';
+  const h = m / 60;
+  if (h < 48) return h.toFixed(1) + ' h';
+  return (h / 24).toFixed(1) + ' j';
+}
+const heure = (ms) => new Date(ms).toLocaleString('fr-FR');
+
+/**
+ * L'axe du temps. Une session peut s'étaler sur onze jours tout en ne travaillant que par
+ * courtes bouffées : à l'échelle linéaire, tout se tasse en traits invisibles. On découpe
+ * donc le temps en segments actifs, à l'échelle, séparés par des temps morts repliés à
+ * largeur fixe — et marqués comme tels, pour que rien ne disparaisse en silence.
+ */
+function seuilVide(debut, fin) {
+  // Replier un trou d'une minute a du sens sur une session d'un quart d'heure, aucun sur
+  // une session de onze jours : le seuil suit la durée totale.
+  return Math.max(SEUIL_VIDE_MIN_MS, (fin - debut) / PART_VIDE);
+}
+
+function construireAxe(instants, debut, fin, pxParMs, replier) {
+  if (!replier) {
+    const total = Math.max(1, (fin - debut) * pxParMs);
+    return {
+      largeur: total,
+      segments: [{ t0: debut, t1: fin, x0: 0, x1: total, vide: false }],
+      x: (t) => (t - debut) * pxParMs,
+      replies: 0,
+      elide: 0,
+    };
+  }
+  const seuil = seuilVide(debut, fin);
+  const tries = [...new Set(instants)].sort((a, b) => a - b);
+  const segments = [];
+  let x = 0;
+  let t0 = debut;
+  let precedent = debut;
+  let replies = 0;
+  let elide = 0;
+  for (const t of tries) {
+    if (t - precedent > seuil) {
+      replies += 1;
+      elide += t - precedent;
+      const largeur = (precedent - t0) * pxParMs;
+      segments.push({ t0, t1: precedent, x0: x, x1: x + largeur, vide: false });
+      x += largeur;
+      segments.push({ t0: precedent, t1: t, x0: x, x1: x + LARGEUR_VIDE, vide: true });
+      x += LARGEUR_VIDE;
+      t0 = t;
+    }
+    precedent = Math.max(precedent, t);
+  }
+  const largeur = Math.max(1, (Math.max(precedent, fin) - t0) * pxParMs);
+  segments.push({ t0, t1: Math.max(precedent, fin), x0: x, x1: x + largeur, vide: false });
+  x += largeur;
+
+  function projeter(t) {
+    for (const s of segments) {
+      if (t <= s.t1) {
+        if (t < s.t0) return s.x0;
+        if (s.vide) return s.x0 + LARGEUR_VIDE / 2;
+        const p = s.t1 === s.t0 ? 0 : (t - s.t0) / (s.t1 - s.t0);
+        return s.x0 + p * (s.x1 - s.x0);
+      }
+    }
+    return x;
+  }
+  return { largeur: x, segments, x: projeter, replies, elide };
+}
+
+/** Le temps réellement occupé, trous repliés exclus : sert à calculer l'échelle juste. */
+function tempsActif(instants, debut, fin) {
+  const seuil = seuilVide(debut, fin);
+  const tries = [...new Set(instants)].sort((a, b) => a - b);
+  let actif = fin - debut;
+  let n = 0;
+  let precedent = debut;
+  for (const t of tries) {
+    if (t - precedent > seuil) { actif -= t - precedent; n += 1; }
+    precedent = Math.max(precedent, t);
+  }
+  return { actif: Math.max(1, actif), n };
+}
+
+function tousLesInstants(d) {
+  const ts = [];
+  for (const a of d.agents) {
+    if (a.debut !== null) ts.push(a.debut);
+    if (a.fin !== null) ts.push(a.fin);
+    for (const o of a.outils) {
+      if (o.debut !== null) ts.push(o.debut);
+      if (o.fin !== null) ts.push(o.fin);
+    }
+  }
+  for (const r of d.requetes) if (r.instant !== null) ts.push(r.instant);
+  return ts;
+}
+
+function couleurEtat(etat) {
+  return etat === 'en cours' ? 'var(--en-cours)'
+    : etat === 'interrompu' ? 'var(--interrompu)'
+    : etat === 'fin inconnue' ? 'var(--inconnu)'
+    : 'var(--termine)';
+}
+
+function el(nom, attrs, ...enfants) {
+  const n = document.createElementNS(SVGNS, nom);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  for (const e of enfants) n.append(e);
+  return n;
+}
+
+function dessinerArbre() {
+  elArbre.replaceChildren(...deroule.agents.map((a) => {
+    const d = document.createElement('div');
+    d.className = 'noeud' + (a.id === vise ? ' vise' : '');
+    d.title = a.nom;
+    const tiret = document.createElement('span');
+    tiret.className = 'tiret';
+    tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
+    const puce = document.createElement('i');
+    puce.className = 'puce';
+    puce.style.background = couleurEtat(a.etat);
+    const etiq = document.createElement('span');
+    etiq.className = 'etiq';
+    etiq.textContent = a.nom;
+    const etat = document.createElement('span');
+    etat.className = 'etat';
+    etat.textContent = a.outils.length + ' out.';
+    d.append(tiret, puce, etiq, etat);
+    d.addEventListener('click', () => { vise = (vise === a.id ? null : a.id); dessiner(); });
+    return d;
+  }));
+}
+
+function dessinerPiste() {
+  const d = deroule;
+  const instants = tousLesInstants(d);
+  const span = Math.max(1, d.fin - d.debut);
+  // L'échelle la plus large fait tenir toute la session dans la largeur réellement
+  // disponible — et non dans une largeur supposée, qui déborderait. Les bandes de temps
+  // mort occupent une place fixe : il faut la retrancher avant de calculer l'échelle.
+  const dispo = Math.max(320, elPiste.clientWidth - 24);
+  const { actif, n } = elReplier.checked
+    ? tempsActif(instants, d.debut, d.fin)
+    : { actif: span, n: 0 };
+  const min = Math.max(dispo - n * LARGEUR_VIDE, dispo * 0.25) / actif;
+  const max = Math.max(min * 2, 1 / 1000);
+  const p = Number(elZoom.value) / 100;
+  const pxParMs = min * Math.pow(max / min, p);
+  elZoomTexte.textContent = pxParMs * 1000 >= 1
+    ? (pxParMs * 1000).toFixed(1) + ' px/s'
+    : (pxParMs * 60000).toFixed(1) + ' px/min';
+
+  const axe = construireAxe(instants, d.debut, d.fin, pxParMs, elReplier.checked);
+  elReplis.textContent = axe.replies
+    ? axe.replies + ' temps mort' + (axe.replies > 1 ? 's' : '') + ' replié'
+      + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
+    : '';
+  const hauteur = MARGE_HAUT + d.agents.length * HAUTEUR_VOIE + 20;
+  const svg = el('svg', { width: Math.ceil(axe.largeur) + 2, height: hauteur });
+
+  // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
+  for (const s of axe.segments) {
+    if (!s.vide) continue;
+    svg.append(el('rect', {
+      x: s.x0, y: 0, width: LARGEUR_VIDE, height: hauteur,
+      fill: '#000', opacity: '.28',
+    }));
+    const t = el('text', {
+      x: s.x0 + LARGEUR_VIDE / 2, y: 16, 'text-anchor': 'middle',
+      fill: 'var(--texte-faible)', 'font-size': '8.5',
+    });
+    t.textContent = '⋯';
+    t.append(el('title', {}, document.createTextNode(
+      'temps mort replié : ' + duree(s.t1 - s.t0) + '\nde ' + heure(s.t0) + '\nà ' + heure(s.t1))));
+    svg.append(t);
+  }
+
+  // Les requêtes d'Yves : des repères verticaux traversant toutes les voies.
+  for (const r of d.requetes) {
+    if (r.instant === null) continue;
+    const x = axe.x(r.instant);
+    const g = el('g', {});
+    g.append(el('line', {
+      x1: x, y1: 20, x2: x, y2: hauteur,
+      stroke: 'var(--requete)', 'stroke-width': 1, opacity: '.55',
+    }));
+    g.append(el('circle', { cx: x, cy: 20, r: 3.5, fill: 'var(--requete)' }));
+    g.append(el('title', {}, document.createTextNode(
+      'requête — ' + heure(r.instant) + '\n\n' + (r.texte || '').slice(0, 400))));
+    svg.append(g);
+  }
+
+  d.agents.forEach((a, i) => {
+    const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
+    const y = centre - HAUTEUR_BARRE / 2;
+    const x0 = a.debut === null ? 0 : axe.x(a.debut);
+    const finEffective = a.fin ?? d.fin;
+    const x1 = Math.max(x0 + 2, axe.x(finEffective));
+    const g = el('g', { class: a.id === vise ? 'vise-barre' : '' });
+
+    // La barre de l'agent. Terminé : grisé. En cours : bord droit ouvert, en pointillés.
+    g.append(el('rect', {
+      x: x0, y, width: x1 - x0, height: HAUTEUR_BARRE, rx: 3,
+      fill: couleurEtat(a.etat),
+      opacity: a.etat === 'terminé' ? '.55' : '.85',
+      ...(a.fin === null ? { 'stroke-dasharray': '3 2', stroke: couleurEtat(a.etat) } : {}),
+    }));
+    g.append(el('title', {}, document.createTextNode(
+      a.nom + '\n' + a.etat + (a.arrierePlan ? ' (arrière-plan)' : '')
+      + '\nprofondeur ' + a.profondeur
+      + '\ndébut ' + (a.debut ? heure(a.debut) : '—')
+      + '\ndurée ' + duree(a.dureeMs)
+      + (a.modele ? '\nmodèle ' + a.modele : '')
+      + '\n' + a.outils.length + " appel(s) d'outil")));
+
+    // Les appels d'outils : tous, un par un, à leur instant — §5 du cahier des charges.
+    // La durée est une bande discrète posée sous la barre, l'instant de départ un trait
+    // net : sans quoi un appel long, comme un appel d'agent, masquerait l'agent lui-même.
+    for (const o of a.outils) {
+      if (o.debut === null) continue;
+      const ox = axe.x(o.debut);
+      const largeur = o.fin !== null ? Math.max(1.5, axe.x(o.fin) - ox) : 1.5;
+      const estAgent = o.nom === 'Agent' || o.nom === 'Task';
+      const couleur = o.ok === false ? 'var(--outil-echec)'
+        : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
+      if (largeur > 2) {
+        g.append(el('rect', {
+          x: ox, y: y + HAUTEUR_BARRE, width: largeur, height: 4,
+          fill: couleur, opacity: '.5',
+        }));
+      }
+      g.append(el('rect', {
+        x: ox, y: y - 3, width: 1.8, height: HAUTEUR_BARRE + 9, fill: couleur,
+      }));
+      const titre = el('rect', {
+        x: ox - 2.5, y: y - 3, width: Math.max(6, largeur + 5), height: HAUTEUR_BARRE + 9,
+        fill: 'transparent',
+      });
+      titre.append(el('title', {}, document.createTextNode(
+        o.nom + (o.ok === false ? '  — ÉCHEC' : '')
+        + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
+        + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));
+      g.append(titre);
+    }
+
+    g.addEventListener('click', () => { vise = (vise === a.id ? null : a.id); dessiner(); });
+    svg.append(g);
+  });
+
+  elPiste.replaceChildren(svg);
+}
+
+function dessiner() {
+  if (!deroule) return;
+  dessinerArbre();
+  dessinerPiste();
+}
+
+function resumer(d) {
+  const outils = d.agents.reduce((n, a) => n + a.outils.length, 0);
+  const sousAgents = d.agents.length - 1;
+  const parEtat = {};
+  for (const a of d.agents) parEtat[a.etat] = (parEtat[a.etat] || 0) + 1;
+  elResume.innerHTML = '';
+  const bout = (t) => { const s = document.createElement('span'); s.textContent = t; return s; };
+  const fort = (t) => { const b = document.createElement('b'); b.textContent = t; return b; };
+  elResume.append(
+    fort(sousAgents + ' sous-agent' + (sousAgents > 1 ? 's' : '')), bout(' · '),
+    fort(outils + " appel" + (outils > 1 ? 's' : '') + " d'outil"), bout(' · '),
+    fort(d.requetes.length + ' requête' + (d.requetes.length > 1 ? 's' : '')), bout(' · '),
+    bout('du ' + heure(d.debut) + ' au ' + heure(d.fin)), bout(' · '),
+    bout(duree(d.fin - d.debut)), bout(' · '),
+    bout(Object.entries(parEtat).map(([k, v]) => v + ' ' + k).join(', ')),
+  );
+}
+
+const id = new URLSearchParams(location.search).get('id');
+fetch('/api/session?id=' + encodeURIComponent(id || ''))
+  .then((r) => r.json())
+  .then((d) => {
+    if (d.erreur) throw new Error(d.erreur);
+    deroule = d;
+    elTitre.textContent = (d.session && d.session.nom) || d.agents[0]?.nom || id;
+    resumer(d);
+    dessiner();
+  })
+  .catch((e) => {
+    elPiste.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'message';
+    p.textContent = 'Impossible de lire cette session : ' + e.message;
+    elPiste.append(p);
+  });
+
+elZoom.addEventListener('input', dessiner);
+addEventListener('resize', dessiner);
+elReplier.addEventListener('change', dessiner);
+// L'arbre et les voies doivent rester alignés quand on fait défiler.
+elPiste.addEventListener('scroll', () => { elArbre.scrollTop = elPiste.scrollTop; });
+</script>
+</body>
+</html>
