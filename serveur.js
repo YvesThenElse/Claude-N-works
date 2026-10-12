@@ -8,6 +8,7 @@
 
 const http = require('node:http');
 const { lireSession } = require('./lecture.js');
+const { Suiveur } = require('./suivi.js');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -247,6 +248,21 @@ const serveur = http.createServer((requete, reponse) => {
     return;
   }
 
+  // Le suivi d'une session vivante : on n'envoie que lorsque le transcript a bougé.
+  if (url.pathname === '/flux-session') {
+    const id = url.searchParams.get('id');
+    if (!id || !/^[A-Za-z0-9-]{1,64}$/.test(id)) {
+      reponse.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' });
+      reponse.end('identifiant de session absent ou mal formé\n');
+      return;
+    }
+    suivreSession(id, requete, reponse).catch((err) => {
+      signaler(err);
+      try { reponse.end(); } catch { /* le navigateur est déjà parti */ }
+    });
+    return;
+  }
+
   if (url.pathname === '/session.html') {
     fs.readFile(path.join(__dirname, 'public', 'session.html'), (err, contenu) => {
       if (err) {
@@ -279,6 +295,71 @@ const serveur = http.createServer((requete, reponse) => {
   reponse.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
   reponse.end('rien ici\n');
 });
+
+// Le suivi est incrémental : chaque passage ne lit que ce qui s'est ajouté, donc on peut
+// le faire souvent sans que la taille du transcript entre en ligne de compte.
+const PERIODE_SUIVI_MS = 400;
+
+async function suivreSession(id, requete, reponse) {
+  const etat = await lireSessions();
+  const vivante = etat.sessions.find((s) => s.sessionId === id);
+  const transcript = vivante ? vivante.transcript : await trouverTranscript(id, null);
+  if (!transcript) {
+    reponse.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    reponse.end('transcript introuvable\n');
+    return;
+  }
+
+  reponse.writeHead(200, {
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  });
+  reponse.write('retry: 2000\n\n');
+
+  const suiveur = new Suiveur(transcript);
+  let vivant = Boolean(vivante);
+  let fini = false;
+  let enCours = false;
+
+  const envoyer = async (forcer) => {
+    if (fini || enCours) return;
+    enCours = true;
+    try {
+      // La session peut mourir pendant qu'on la regarde : c'est le seul moyen de
+      // distinguer un agent qui travaille d'un agent coupé net (§5 quater).
+      const liste = await lireSessions();
+      const toujours = liste.sessions.find((s) => s.sessionId === id);
+      const changeDeVie = Boolean(toujours) !== vivant;
+      vivant = Boolean(toujours);
+      const deroule = await suiveur.rafraichir({
+        sessionVivante: vivant,
+        nomSession: toujours ? toujours.nom : (vivante ? vivante.nom : null),
+        forcer: forcer || changeDeVie,
+      });
+      if (deroule && !fini) {
+        reponse.write(`data: ${JSON.stringify({
+          ...deroule,
+          session: toujours || vivante || { sessionId: id },
+          maintenant: Date.now(),
+        })}\n\n`);
+      }
+    } finally {
+      enCours = false;
+    }
+  };
+
+  await envoyer(true);
+  const garde = suiveur.surveiller(() => { envoyer(false).catch(signaler); });
+  // Le répertoire des sous-agents n'existe pas tant qu'aucun sous-agent n'a été lancé :
+  // on retente de le surveiller à chaque passage tant qu'il manque.
+  const horloge = setInterval(() => {
+    garde.poserSousAgents();
+    envoyer(false).catch(signaler);
+  }, PERIODE_SUIVI_MS);
+
+  requete.on('close', () => { fini = true; clearInterval(horloge); });
+}
 
 serveur.listen(PORT, HOTE, () => {
   process.stdout.write(`Claude N Works — http://${HOTE}:${PORT}\n`);

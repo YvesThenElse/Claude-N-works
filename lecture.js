@@ -108,92 +108,100 @@ async function* lignesDe(chemin) {
 
 // --------------------------------------------------- dépouillement d'un seul transcript
 
+/** L'état d'un dépouillement qui n'a encore rien vu. */
+function etatVide() {
+  return {
+    appels: new Map(), // id du tool_use -> appel
+    requetes: [],
+    notifications: [],
+    premier: null,
+    dernier: null,
+    modele: null,
+    effort: null,
+    interrompu: false,
+    derniereReponse: '',
+  };
+}
+
 /**
- * Lit un transcript et en extrait ce qui nous intéresse, sans encore rien interpréter :
- * les appels d'outils, leurs résultats, les requêtes humaines, les notifications de fin
- * d'agent d'arrière-plan, et les bornes de temps.
+ * Absorbe une ligne de transcript dans un état. Écrite pour être appelée ligne à ligne,
+ * aussi bien sur un fichier entier que sur ce qui vient de s'y ajouter : c'est ce qui
+ * permet au suivi d'une session vivante de ne pas tout relire (voir suivi.js).
  */
-async function depouiller(chemin) {
-  const appels = new Map();   // id du tool_use -> appel
-  const requetes = [];
-  const notifications = [];
-  let premier = null;
-  let dernier = null;
-  let modele = null;
-  let effort = null;
-  let interrompu = false;
-  let derniereReponse = '';
-
-  for await (const { ligne } of lignesDe(chemin)) {
-    const t = instant(ligne);
-    if (t !== null) {
-      if (premier === null || t < premier) premier = t;
-      if (dernier === null || t > dernier) dernier = t;
-    }
-
-    if (ligne.type === 'assistant') {
-      if (ligne.message && ligne.message.model) modele = ligne.message.model;
-      if (ligne.effort) effort = ligne.effort;
-      const dit = texteDe(ligne.message?.content);
-      if (dit.trim()) derniereReponse = dit;
-      for (const bloc of ligne.message?.content || []) {
-        if (bloc.type !== 'tool_use') continue;
-        appels.set(bloc.id, {
-          id: bloc.id,
-          nom: bloc.name,
-          debut: t,
-          fin: null,
-          ok: null,
-          resume: resumerEntree(bloc.name, bloc.input),
-          entree: bloc.input,
-        });
-      }
-      continue;
-    }
-
-    if (ligne.type !== 'user') continue;
-
-    const contenu = ligne.message?.content;
-    const texte = texteDe(contenu);
-
-    // Une notification de fin d'agent d'arrière-plan : §5 bis d'OBSERVATIONS-FORMAT.
-    if (ligne.origin && ligne.origin.kind === 'task-notification') {
-      const id = /<task-id>([^<]+)<\/task-id>/.exec(texte);
-      const statut = /<status>([^<]+)<\/status>/.exec(texte);
-      if (id) notifications.push({ agentId: id[1], statut: statut ? statut[1] : null, instant: t });
-      continue;
-    }
-
-    // Une vraie requête d'Yves, et elle seule : §5 bis également.
-    if (ligne.origin && ligne.origin.kind === 'human') {
-      requetes.push({ instant: t, texte: tronquer(texte) });
-      continue;
-    }
-
-    if (texte.startsWith('[Request interrupted by user')) interrompu = true;
-
-    if (Array.isArray(contenu)) {
-      for (const bloc of contenu) {
-        if (bloc.type !== 'tool_result') continue;
-        const appel = appels.get(bloc.tool_use_id);
-        if (!appel) continue;
-        appel.fin = t;
-        // `is_error` vaut parfois null : on ne transforme pas une absence d'information
-        // en succès, on la laisse inconnue.
-        appel.ok = bloc.is_error === true ? false : (bloc.is_error === false ? true : null);
-        // Attention : toolUseResult est tantôt un objet, tantôt une chaîne — §5 quater —
-        // et surtout il est **absent des transcripts de sous-agents**, où le résultat ne
-        // vit que dans le bloc tool_result lui-même.
-        appel.resultat = ligne.toolUseResult;
-        appel.resultatBloc = bloc.content;
-      }
-    }
+function avaler(etat, ligne) {
+  const t = instant(ligne);
+  if (t !== null) {
+    if (etat.premier === null || t < etat.premier) etat.premier = t;
+    if (etat.dernier === null || t > etat.dernier) etat.dernier = t;
   }
 
-  return {
-    appels, requetes, notifications, premier, dernier, modele, effort, interrompu,
-    derniereReponse,
-  };
+  if (ligne.type === 'assistant') {
+    if (ligne.message && ligne.message.model) etat.modele = ligne.message.model;
+    if (ligne.effort) etat.effort = ligne.effort;
+    const dit = texteDe(ligne.message?.content);
+    if (dit.trim()) etat.derniereReponse = dit;
+    for (const bloc of ligne.message?.content || []) {
+      if (bloc.type !== 'tool_use') continue;
+      etat.appels.set(bloc.id, {
+        id: bloc.id,
+        nom: bloc.name,
+        debut: t,
+        fin: null,
+        ok: null,
+        resume: resumerEntree(bloc.name, bloc.input),
+        entree: bloc.input,
+      });
+    }
+    return;
+  }
+
+  if (ligne.type !== 'user') return;
+
+  const contenu = ligne.message?.content;
+  const texte = texteDe(contenu);
+
+  // Une notification de fin d'agent d'arrière-plan : §5 bis d'OBSERVATIONS-FORMAT.
+  if (ligne.origin && ligne.origin.kind === 'task-notification') {
+    const id = /<task-id>([^<]+)<\/task-id>/.exec(texte);
+    const statut = /<status>([^<]+)<\/status>/.exec(texte);
+    if (id) {
+      etat.notifications.push({
+        agentId: id[1], statut: statut ? statut[1] : null, instant: t,
+      });
+    }
+    return;
+  }
+
+  // Une vraie requête d'Yves, et elle seule : §5 bis également.
+  if (ligne.origin && ligne.origin.kind === 'human') {
+    etat.requetes.push({ instant: t, texte: tronquer(texte) });
+    return;
+  }
+
+  if (texte.startsWith('[Request interrupted by user')) etat.interrompu = true;
+
+  if (!Array.isArray(contenu)) return;
+  for (const bloc of contenu) {
+    if (bloc.type !== 'tool_result') continue;
+    const appel = etat.appels.get(bloc.tool_use_id);
+    if (!appel) continue;
+    appel.fin = t;
+    // `is_error` vaut parfois null : on ne transforme pas une absence d'information en
+    // succès, on la laisse inconnue.
+    appel.ok = bloc.is_error === true ? false : (bloc.is_error === false ? true : null);
+    // Attention : toolUseResult est tantôt un objet, tantôt une chaîne — §5 quater — et
+    // surtout il est **absent des transcripts de sous-agents**, où le résultat ne vit que
+    // dans le bloc tool_result lui-même.
+    appel.resultat = ligne.toolUseResult;
+    appel.resultatBloc = bloc.content;
+  }
+}
+
+/** Dépouille un transcript entier, d'un coup. */
+async function depouiller(chemin) {
+  const etat = etatVide();
+  for await (const { ligne } of lignesDe(chemin)) avaler(etat, ligne);
+  return etat;
 }
 
 // ------------------------------------------------------------------ assemblage du tout
@@ -264,16 +272,27 @@ function conclure({ appelParent, notification, interrompu, sessionVivante, derni
  */
 async function lireSession(cheminTranscript, { sessionVivante = false, nomSession = null } = {}) {
   const racine = await depouiller(cheminTranscript);
-  const sousAgents = await listerSousAgents(cheminTranscript);
+  const trouves = await listerSousAgents(cheminTranscript);
+  const sousAgents = [];
+  for (const sa of trouves) {
+    sousAgents.push({ ...sa, etat: await depouiller(sa.chemin) });
+  }
+  return assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSession });
+}
 
+/**
+ * Assemble le déroulé à partir des états déjà dépouillés. Partagé par la lecture d'un
+ * coup (ci-dessus) et par le suivi incrémental d'une session vivante : les deux doivent
+ * produire exactement le même résultat, sans quoi l'écran changerait au rafraîchissement.
+ */
+function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSession }) {
   // Tous les appels de tous les transcripts, pour retrouver celui qui a créé un agent
   // donné — un agent de profondeur 2 est créé depuis le transcript d'un sous-agent.
   const tousAppels = new Map(racine.appels);
   const depouilles = new Map();
   for (const sa of sousAgents) {
-    const d = await depouiller(sa.chemin);
-    depouilles.set(sa.agentId, d);
-    for (const [id, appel] of d.appels) tousAppels.set(id, appel);
+    depouilles.set(sa.agentId, sa.etat);
+    for (const [id, appel] of sa.etat.appels) tousAppels.set(id, appel);
   }
 
   const notifications = new Map();
@@ -495,4 +514,4 @@ function nettoyerAppel(a) {
   };
 }
 
-module.exports = { lireSession, cheminSousAgents };
+module.exports = { lireSession, assembler, etatVide, avaler, cheminSousAgents };

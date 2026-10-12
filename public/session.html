@@ -126,6 +126,7 @@
   <a href="/">← toutes les sessions</a>
   <h1 id="titre">…</h1>
   <div class="resume" id="resume"></div>
+  <div class="resume"><span id="vivante" style="color:var(--en-cours)"></span></div>
 </header>
 
 <div class="reglages">
@@ -176,6 +177,7 @@ const elPiste = document.getElementById('piste');
 const elZoom = document.getElementById('zoom');
 const elZoomTexte = document.getElementById('zoomTexte');
 const elReplier = document.getElementById('replier');
+const elVivante = document.getElementById('vivante');
 const elReplis = document.getElementById('replis');
 const elBoucles = document.getElementById('boucles');
 
@@ -351,6 +353,7 @@ function dessinerArbre() {
 function dessinerPiste() {
   const d = deroule;
   const instants = tousLesInstants(d);
+  if (d.sessionVivante) { d.fin = Math.max(d.fin, Date.now()); instants.push(Date.now()); }
   const span = Math.max(1, d.fin - d.debut);
   // L'échelle la plus large fait tenir toute la session dans la largeur réellement
   // disponible — et non dans une largeur supposée, qui déborderait. Les bandes de temps
@@ -391,6 +394,21 @@ function dessinerPiste() {
     t.append(el('title', {}, document.createTextNode(
       'temps mort replié : ' + duree(s.t1 - s.t0) + '\nde ' + heure(s.t0) + '\nà ' + heure(s.t1))));
     svg.append(t);
+  }
+
+  // L'instant présent, quand la session tourne encore : la ligne du temps doit avancer
+  // même lorsque rien ne se produit (§7 du cahier des charges).
+  if (d.sessionVivante) {
+    const x = axe.x(Math.min(Date.now(), d.fin));
+    svg.append(el('line', {
+      x1: x, y1: 20, x2: x, y2: hauteur,
+      stroke: 'var(--en-cours)', 'stroke-width': 1.4, opacity: '.8',
+    }));
+    const marque = el('text', {
+      x: x - 4, y: 30, 'text-anchor': 'end', fill: 'var(--en-cours)', 'font-size': '9',
+    });
+    marque.textContent = 'maintenant';
+    svg.append(marque);
   }
 
   // Les requêtes d'Yves : des repères verticaux traversant toutes les voies.
@@ -755,6 +773,9 @@ function dessiner() {
   dessinerPiste();
 }
 
+// `deroule` commence vide : c'est le flux qui le remplit.
+
+
 function resumer(d) {
   const outils = d.agents.reduce((n, a) => n + a.outils.length, 0);
   const sousAgents = d.agents.length - 1;
@@ -774,23 +795,52 @@ function resumer(d) {
 }
 
 const id = new URLSearchParams(location.search).get('id');
-fetch('/api/session?id=' + encodeURIComponent(id || ''))
-  .then((r) => r.json())
-  .then((d) => {
-    if (d.erreur) throw new Error(d.erreur);
-    deroule = d;
+
+/**
+ * Le suivi d'une session vivante. Le serveur n'envoie que lorsque le transcript a bougé ;
+ * on redessine alors en conservant la position de défilement et la carte ouverte, sans
+ * quoi l'écran sauterait sous les doigts à chaque ligne écrite.
+ */
+function appliquerDeroule(d) {
+  const premiereFois = deroule === null;
+  const defil = elPiste.scrollLeft;
+  const carteOuverte = elPanneau.classList.contains('ouvert');
+  deroule = d;
+  if (premiereFois) {
     elTitre.textContent = (d.session && d.session.nom) || d.agents[0]?.nom || id;
-    resumer(d);
-    listerBoucles();
-    dessiner();
-  })
-  .catch((e) => {
-    elPiste.innerHTML = '';
-    const p = document.createElement('p');
-    p.className = 'message';
-    p.textContent = 'Impossible de lire cette session : ' + e.message;
-    elPiste.append(p);
-  });
+  }
+  elVivante.textContent = d.sessionVivante ? '· en direct' : '';
+  resumer(d);
+  listerBoucles();
+  dessiner();
+  elPiste.scrollLeft = defil;
+  if (carteOuverte) elPanneau.classList.add('ouvert');
+}
+
+function echouer(message) {
+  elPiste.replaceChildren();
+  const p = document.createElement('p');
+  p.className = 'message';
+  p.textContent = 'Impossible de lire cette session : ' + message;
+  elPiste.append(p);
+}
+
+const fluxSession = new EventSource('/flux-session?id=' + encodeURIComponent(id || ''));
+fluxSession.addEventListener('message', (e) => {
+  try {
+    const d = JSON.parse(e.data);
+    if (d.erreur) { echouer(d.erreur); return; }
+    appliquerDeroule(d);
+  } catch (err) { console.error(err); }
+});
+fluxSession.addEventListener('error', () => {
+  if (!deroule) echouer('le flux ne répond pas');
+});
+
+// Même quand rien ne se produit, le temps passe : le repère « maintenant » doit glisser.
+setInterval(() => {
+  if (deroule && deroule.sessionVivante) dessinerPiste();
+}, 1000);
 
 elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);

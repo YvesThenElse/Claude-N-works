@@ -31,7 +31,7 @@ Le programme **ne fait que lire**. Il n'écrit jamais dans `~/.claude`.
 | 2 — l'écran des sessions | fait |
 | 3 — la ligne du temps | fait |
 | 4 — les cartes | fait |
-| 5 — le temps réel | à faire |
+| 5 — le temps réel | fait |
 | 6 — la carte de boucle | fait |
 
 ### Ce que fait l'écran des sessions
@@ -66,6 +66,23 @@ repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appe
 donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
 Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée.
 
+### Le temps réel
+
+Une session vivante se suit en direct : les agents apparaissent dès leur première ligne,
+sans attendre leur fin, les appels d'outils s'ajoutent, les rails de boucle s'allongent, et
+un repère « maintenant » glisse vers la droite même quand rien ne se produit. L'en-tête
+affiche « en direct » tant que le processus répond.
+
+La lecture est **incrémentale** : on garde par fichier la position déjà lue et l'état déjà
+dépouillé, et chaque passage ne lit que ce qui s'est ajouté. Le coût ne dépend donc pas de
+la taille du transcript — relire les 37 Mo à chaque ligne écrite aurait coûté 610 ms à
+chaque fois.
+
+Deux précautions, imposées par le fait qu'on lit un fichier pendant qu'il s'écrit : une
+ligne peut être incomplète, donc on ne traite que jusqu'au dernier saut de ligne et on
+garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-agent n'a
+été lancé, donc on le cherche à chaque passage et pas une seule fois à l'ouverture.
+
 ### Les boucles
 
 Une boucle est une suite de réveils délimitée par un arrêt. Sa carte montre la répétition
@@ -97,6 +114,7 @@ Relevées le 12 octobre 2026 sur cette machine :
 | Ce qu'on mesure | Mesure | Exigé |
 |---|---|---|
 | Apparition d'une session → affichée | **224 ms** | < 2 s |
+| Ligne écrite dans un transcript → envoyée au navigateur | **56 à 125 ms** sur treize trames | < 2 s |
 | Mort d'un processus → retirée de la liste | **165, 246 et 464 ms** sur trois essais | < 2 s |
 | Coût d'un relevé complet | 4,5 ms en moyenne, 8,3 ms au pire sur vingt | — |
 
