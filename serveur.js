@@ -18,9 +18,10 @@ const DOSSIER_PROJETS = path.join(RACINE_CLAUDE, 'projects');
 const PORT = Number(process.env.PORT || 7420);
 const HOTE = '127.0.0.1';
 
-// Un relevé toutes les deux secondes en plus de la surveillance du dossier : la mort d'un
-// processus ne produit aucun événement de fichier, elle ne se voit qu'en le testant.
-const PERIODE_RELEVE_MS = 2000;
+// Un relevé périodique en plus de la surveillance du dossier : la mort d'un processus ne
+// produit aucun événement de fichier, elle ne se voit qu'en le testant. Le délai de
+// détection d'une session morte ne peut pas être meilleur que cette période.
+const PERIODE_RELEVE_MS = Number(process.env.PERIODE_RELEVE_MS || 500);
 const DELAI_ANTI_REBOND_MS = 200;
 
 // ---------------------------------------------------------------- lecture des sessions

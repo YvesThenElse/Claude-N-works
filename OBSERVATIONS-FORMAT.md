@@ -6,13 +6,15 @@ Ce document lève les risques R1 et R2 du cahier des charges.
 Tout ce qui suit est **constaté**, pas déduit : chaque affirmation vient d'un fichier
 nommé, produit par deux sessions de sondage jetables lancées exprès.
 
-Protocole. Deux sessions `claude -p --model sonnet` dans des répertoires jetables sous
+Protocole. Cinq sessions `claude -p --model sonnet` dans des répertoires jetables sous
 `$SCRATCH/r1-sondage` et `$SCRATCH/r1-sondage2`. **Leurs transcripts sont conservés** : ce
 sont les deux seuls exemples de sous-agents présents sur la machine, et ils servent de jeu
 d'essai aux lots 3 à 5. On les trouve sous
 `~/.claude/projects/-tmp-claude-1000--home-yves-projects-704b4e7c-…-scratchpad-r1-sondage*`.
 Le premier donne le cas synchrone et deux agents en parallèle, le second le cas
-d'arrière-plan. La première lance **deux sous-agents
+d'arrière-plan. Trois autres ont suivi : `r1-profondeur2` (un agent qui en lance un autre),
+`r1-interrompu` (SIGINT en vol) et `r1-tue` (SIGKILL en vol). Les cinq ensemble couvrent
+tous les comportements décrits ici. La première lance **deux sous-agents
 `Explore` en parallèle**, chacun lisant un fichier. La seconde lance **un sous-agent lent**
 (cinq commandes `bash` séparées par six secondes d'attente) pendant qu'un échantillonneur
 relevait la taille du transcript toutes les deux secondes.
@@ -208,6 +210,64 @@ Relevé : les cinq prompts de la session interactive `1f21b1d5` portent tous
 
 ---
 
+## 5 ter. La profondeur 2 — un sous-agent qui en lance un autre
+
+Sondage : un agent `general-purpose` chargé de lancer lui-même un `Explore` pour lire un
+fichier. Les deux `.meta.json` produits, intégralement :
+
+```json
+{"agentType":"general-purpose","description":"Délégation lecture secret.txt via sous-agent",
+ "toolUseId":"toolu_012NLt8ox4FUoEUfmDhstxTS","spawnDepth":1}
+
+{"agentType":"Explore","description":"Lire secret.txt",
+ "toolUseId":"toolu_01G62BEsvo1uTJ7QwMPQUCWe",
+ "parentAgentId":"a91d64d18b022f9b5","spawnDepth":2}
+```
+
+Deux choses à retenir.
+
+**Les deux fichiers sont côte à côte**, dans le même `subagents/` de la session racine. Le
+répertoire est **plat** : il ne reproduit pas l'arbre, quelle que soit la profondeur. C'est
+une bonne nouvelle — il suffit de surveiller un seul répertoire par session.
+
+**Un champ apparaît à partir de la profondeur 2 : `parentAgentId`.** Il nomme l'agent
+parent. Il est **absent** à la profondeur 1, où le parent est l'agent racine de la session.
+La règle de rattachement est donc : `parentAgentId` s'il est là, l'agent racine sinon.
+
+## 5 quater. Un agent interrompu, et un agent tué
+
+Deux morts très différentes, mesurées séparément. C'est la seconde qui est dangereuse.
+
+### Interruption douce (SIGINT, ce que fait Ctrl-C)
+
+Les deux côtés écrivent une trace, en une centaine de millisecondes :
+
+- dans le fichier du sous-agent, une dernière ligne `user` dont le texte est exactement
+  `[Request interrupted by user]` ;
+- chez le parent, le `tool_result` de l'appel `Agent` arrive, suivi d'une ligne `user`
+  portant `[Request interrupted by user for tool use]`.
+
+**Piège à éviter.** Dans ce cas le `toolUseResult` du parent n'est **pas un objet** : c'est
+la chaîne de caractères `"User rejected tool use"`. Un programme qui lit
+`toolUseResult.status` sans vérifier le type n'obtiendra pas d'erreur, il obtiendra
+`undefined`, et classera silencieusement l'agent comme d'un statut inconnu. Il faut tester
+le type avant de lire.
+
+### Mort brutale (SIGKILL, ou un plantage)
+
+**Rien.** Aucune trace, nulle part. Mesuré : le fichier du sous-agent s'arrête net sur un
+`tool_result` ordinaire, et le transcript du parent **n'a aucun `tool_result`** pour son
+appel `Agent` — ni avant, ni après la mort. Les deux fichiers comptaient 7 et 12 lignes
+avant le signal, et toujours 7 et 12 quatre secondes après.
+
+Un agent tué est donc indiscernable, dans les fichiers seuls, d'un agent qui travaille
+encore. Sa barre resterait ouverte pour toujours.
+
+**La seule issue est celle que l'écran des sessions emploie déjà** : tester si le processus
+de la session vit encore. Un agent sans marqueur de fin dans une session dont le processus
+est mort doit s'afficher *interrompu, fin inconnue* — et non *en cours*. La dernière ligne
+écrite donne au mieux une borne basse de l'instant de sa mort.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :
@@ -244,7 +304,18 @@ règles de fin, pas une :
 Conséquence pour l'écran 2 : tant que la notification n'est pas arrivée, la barre reste
 ouverte. Et les repères de requêtes doivent filtrer sur `origin.kind == "human"`.
 
-**C5 — ce qui reste non vérifié.** Deux choses seulement, après C4 : la profondeur 2 (un
-sous-agent qui en lance un autre, `spawnDepth: 2`), et le comportement d'un agent
-interrompu ou en échec, dont le `status` ne vaudra pas `completed` et dont la barre risque
-de rester ouverte pour toujours.
+**C5 — la profondeur et les morts. Mesurées** (§5 ter et §5 quater). Trois règles en
+sortent :
+
+- le répertoire `subagents/` est **plat** : un seul répertoire à surveiller par session,
+  quelle que soit la profondeur ;
+- le rattachement se fait par `parentAgentId` quand il est là, par l'agent racine sinon ;
+- il faut **trois** fins possibles, pas deux : terminé, interrompu, et *fin inconnue* —
+  cette dernière quand aucun marqueur n'existe et que le processus de la session est mort.
+
+Et une règle d'écriture : `toolUseResult` est **tantôt un objet, tantôt une chaîne**. Lire
+`.status` sans tester le type donne `undefined` au lieu d'une erreur, donc un agent mal
+classé en silence.
+
+**C6 — ce qui reste non vérifié.** Un sous-agent qui échoue de lui-même, sur une erreur
+d'API ou un dépassement, plutôt que d'être interrompu de l'extérieur.

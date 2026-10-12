@@ -159,12 +159,12 @@ se dérivent des champs du §3.
 
 **Session** — `sessionId`, `name`, `cwd`, `status`, `startedAt`, version de Claude Code.
 
-**Agent** — identité (`agentId`), rôle (`racine` ou `sous-agent`), nom (le `description`
-de son `.meta.json`, à défaut son `agentType`), agent parent (par le `toolUseId` du
-`.meta.json`), instant de début (horodatage du `tool_use` `Agent` chez le parent), instant
-de fin (horodatage du `tool_result`), état, modèle (`resolvedModel`), `effort`, outils
-employés, entrée (`prompt`), sortie (`content`), durée (`totalDurationMs`), jetons
-(`totalTokens`).
+**Agent** — identité (`agentId`), rôle (`racine` ou `sous-agent`), profondeur
+(`spawnDepth`), nom (le `description` de son `.meta.json`, à défaut son `agentType`), agent
+parent (`parentAgentId` s'il existe, l'agent racine sinon), instant de début (horodatage du
+`tool_use` `Agent` chez le parent), instant de fin, état (`en cours`, `terminé`,
+`interrompu`, `fin inconnue`), modèle (`resolvedModel`), `effort`, outils employés, entrée
+(`prompt`), sortie (`content`), durée (`totalDurationMs`), jetons (`totalTokens`).
 
 **AppelOutil** — agent appelant, nom de l'outil, instant, `input`, résultat, succès ou
 échec, durée quand elle est déductible de l'écart entre l'appel et son résultat.
@@ -320,10 +320,18 @@ aucun `isSidechain:true` — aucun n'avait de sous-agent, donc aucun n'avait ce 
 chez le parent, à l'horodatage du `tool_result` de l'appel `Agent`, dont le
 `toolUseResult` donne aussi `status` et `totalDurationMs` en recoupement.
 
-**R6 — les cas limites d'un sous-agent.** `run_in_background` a été mesuré au lot 1 et
-traité (C4). Restent deux inconnues : la profondeur 2, un sous-agent qui en lance un autre ;
-et un sous-agent interrompu ou en échec, dont le `status` ne vaudra pas `completed` et dont
-la barre risque de rester ouverte indéfiniment. À mesurer avant le lot 5.
+**R6 — les cas limites d'un sous-agent. Levé.** `run_in_background`, la profondeur 2,
+l'interruption douce et la mort brutale ont toutes été mesurées (C4 et C5
+d'`OBSERVATIONS-FORMAT.md`). Ce qu'il en reste pour l'écran 2 : le répertoire `subagents/`
+est plat, le rattachement passe par `parentAgentId` ou l'agent racine, et un agent a
+**trois** fins possibles et non deux — terminé, interrompu, ou *fin inconnue* quand aucun
+marqueur n'existe et que le processus de la session est mort. Ce dernier cas est le seul
+qui ne se lit pas dans les fichiers : il faut tester le processus, comme le fait déjà
+l'écran 1.
+
+**R7 — un agent qui échoue de lui-même. Non vérifié.** Une erreur d'API ou un dépassement,
+par opposition à une interruption venue de l'extérieur. À mesurer si le besoin s'en fait
+sentir au lot 4.
 
 **R3 — les autres formats.** 72 des 79 répertoires viennent de worktrees Cline et
 n'écrivent pas la même chose : seuls les trois transcripts de `-home-yves-projects`
