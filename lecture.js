@@ -193,6 +193,12 @@ function etatVide() {
     // naturelle de l'échange — de ce qui réveille l'agent jusqu'à ce qu'il rende la main —
     // et la seule mesure exacte du temps où la machine travaille.
     tours: [],
+    // L'outillage offert à l'agent et ses changements. Les permissions proprement dites
+    // sont presque toujours vides — 2 enregistrements non vides sur 230 dans tout le
+    // corpus — mais le catalogue d'outils, lui, bouge : il s'ouvre au démarrage, s'enrichit
+    // quand ToolSearch remonte des outils, et se restreint quand un skill l'impose.
+    outillage: [],
+    outilsOfferts: new Set(),
     // De quoi le contexte est fait, à l'instant où il est envoyé. On tient les totaux au
     // fil de la lecture et on en prend un instantané à chaque appel : reconstruire tout
     // l'historique pour chacun des deux mille appels coûterait un carré.
@@ -251,6 +257,43 @@ function avaler(etat, ligne) {
   if (ligne.type === 'attachment') {
     const taille = tailleInjectee(ligne.attachment);
     if (taille > 0) { etat.composition.systeme += taille; etat.composition.n += 1; }
+  }
+
+  if (ligne.type === 'attachment') {
+    const att = ligne.attachment;
+    if (att.type === 'deferred_tools_delta') {
+      const ajout = att.addedNames || [];
+      const retire = att.removedNames || [];
+      const remonte = att.surfacedNames || [];
+      const rendu = att.readdedNames || [];
+      for (const n of ajout.concat(rendu)) etat.outilsOfferts.add(n);
+      for (const n of retire) etat.outilsOfferts.delete(n);
+      if (ajout.length || retire.length || remonte.length || rendu.length) {
+        etat.outillage.push({
+          instant: t,
+          genre: remonte.length ? 'remontés' : (retire.length ? 'retirés' : 'offerts'),
+          ajoutes: ajout.length,
+          retires: retire.length,
+          remontes: remonte,
+          total: etat.outilsOfferts.size,
+          noms: (remonte.length ? remonte : ajout).slice(0, 200),
+        });
+      }
+    } else if (att.type === 'command_permissions' && (att.allowedTools || []).length) {
+      etat.outillage.push({
+        instant: t,
+        genre: 'restreint',
+        noms: att.allowedTools,
+        total: att.allowedTools.length,
+      });
+    } else if (att.type === 'mcp_instructions_delta' && (att.addedNames || []).length) {
+      etat.outillage.push({
+        instant: t,
+        genre: 'serveurs',
+        noms: att.addedNames,
+        total: etat.outilsOfferts.size,
+      });
+    }
   }
 
   if (ligne.type === 'attachment' && ligne.attachment?.type === 'invoked_skills') {
@@ -360,6 +403,16 @@ function avaler(etat, ligne) {
   }
 
   // Une vraie requête d'Yves, et elle seule : §5 bis également.
+  if (ligne.permissionMode && ligne.permissionMode !== etat.modePermission) {
+    if (etat.modePermission !== undefined) {
+      etat.outillage.push({
+        instant: t, genre: 'mode', noms: [ligne.permissionMode],
+        detail: 'de « ' + etat.modePermission + ' » à « ' + ligne.permissionMode + ' »',
+      });
+    }
+    etat.modePermission = ligne.permissionMode;
+  }
+
   if (ligne.origin && ligne.origin.kind === 'human') {
     etat.requetes.push({ instant: t, texte: tronquer(texte) });
     etat.composition.humain += texte.length;
@@ -529,6 +582,8 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     paroles: racine.paroles,
     requetesModele: nettoyerRequetes(racine.requetesModele),
     tours: racine.tours,
+    outillage: racine.outillage,
+    outilsOfferts: [...racine.outilsOfferts],
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
@@ -574,6 +629,8 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       paroles: d.paroles,
       requetesModele: nettoyerRequetes(d.requetesModele),
       tours: d.tours,
+      outillage: d.outillage,
+      outilsOfferts: [...d.outilsOfferts],
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,

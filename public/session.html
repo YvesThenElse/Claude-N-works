@@ -380,6 +380,7 @@ const VOIES_ANNEXES = [
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'reflexion', nom: 'réflexion', teinte: '#c4a7ff' },
   { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, #9ece6a, #f7768e)' },
+  { cle: 'outillage', nom: 'outillage', teinte: '#ffd479' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
@@ -387,7 +388,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, fichiers: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
 };
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
@@ -679,6 +680,9 @@ function construireVoies() {
     if (voiesVisibles.fichiers && (a.outils || []).some((o) => o.fichier)) {
       voies.push({ genre: 'fichiers', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.outillage && (a.outillage || []).length) {
+      voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a, prof: a.profondeur + 1 });
     }
@@ -797,6 +801,18 @@ const LEGENDE_VOIE = {
     '',
     'Le transcript ne contient aucun diff git. Ce qui est montré ici est',
     'ce que l’agent a demandé, ce qui est plus proche de la source.',
+  ].join('\n'),
+  outillage: [
+    'Ce que l’agent a le droit d’appeler, et quand cela change :',
+    '   trait plein    des outils lui sont offerts',
+    '   trait creux    des outils lui sont retirés',
+    '   losange        des outils remontés en cours de route (ToolSearch)',
+    '   carré          un serveur MCP qui se branche',
+    '   croix          une restriction, ou un changement de mode',
+    '',
+    'Les permissions proprement dites sont presque toujours vides dans le',
+    'transcript : deux enregistrements non vides sur deux cent trente, et',
+    'deux refus d’outil en tout. Ce qui bouge vraiment, c’est le catalogue.',
   ].join('\n'),
   contenu: [
     'De quoi le contexte était fait à chaque appel, en parts empilées :',
@@ -923,6 +939,17 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = distincts + ' fich.';
       surLigne(() => carteFichiers(a));
+    } else if (v.genre === 'outillage') {
+      d.title = (a.outilsOfferts || []).length + ' outils offerts à la fin\n'
+        + a.outillage.length + ' changement(s) d’outillage'
+        + '\n\n' + LEGENDE_VOIE.outillage;
+      icone.textContent = '⊠';
+      icone.style.color = '#ffd479';
+      puce.style.background = '#ffd479';
+      etiq.textContent = 'outillage';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = (a.outilsOfferts || []).length + ' out.';
+      surLigne(() => carteOutillage(a));
     } else if (v.genre === 'contexte') {
       const sien = Math.max(...a.contexte.map((c) => c.jetons));
       const ref = refContexte();
@@ -1266,6 +1293,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'fichiers') {
       svg.append(dessinerVoieFichiers(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'outillage') {
+      svg.append(dessinerVoieOutillage(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
@@ -1853,6 +1884,71 @@ function detaillerEntree(dl, j, nombre) {
   ligne(dl, '— payés au prix fort', nombre(j.entree)
     + (entree ? '   (' + Math.round(((j.entree || 0) / entree) * 100) + ' %)' : ''));
   return entree ? (j.cacheLu || 0) / entree : 0;
+}
+
+/** Carte de l'outillage : ce que l'agent peut appeler, et ce qui a changé en route. */
+function carteOutillage(agent, visee) {
+  const dl = document.createElement('dl');
+  if (visee) {
+    ligne(dl, 'Cet événement', NOM_OUTILLAGE[visee.genre]);
+    ligne(dl, 'Instant', heure(visee.instant));
+    ligne(dl, 'Détail', visee.detail);
+    if (visee.ajoutes) ligne(dl, 'Outils ajoutés', String(visee.ajoutes));
+    if (visee.retires) ligne(dl, 'Outils retirés', String(visee.retires));
+    ligne(dl, 'Offerts à cet instant', visee.total !== undefined ? String(visee.total) : null);
+  }
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Outils offerts à la fin', String((agent.outilsOfferts || []).length));
+  ligne(dl, 'Changements', String(agent.outillage.length));
+
+  const morceaux = [dl];
+
+  // La chronologie des changements.
+  if (agent.outillage.length) {
+    const liste = document.createElement('div');
+    liste.className = 'ctx-liste';
+    for (const e of agent.outillage) {
+      const d = document.createElement('details');
+      d.className = 'ctx-element';
+      const s = document.createElement('summary');
+      const m = document.createElement('i');
+      m.className = 'marque';
+      m.style.background = '#ffd479';
+      const quoi = document.createElement('span');
+      quoi.className = 'quoi';
+      quoi.textContent = NOM_OUTILLAGE[e.genre];
+      const quand = document.createElement('span');
+      quand.className = 'quand';
+      quand.textContent = e.instant ? new Date(e.instant).toLocaleTimeString('fr-FR') : '';
+      const taille = document.createElement('span');
+      taille.className = 'taille';
+      taille.textContent = (e.total !== undefined ? e.total + ' offerts' : '');
+      s.append(m, quoi, quand, taille);
+      const pre = document.createElement('pre');
+      pre.textContent = (e.noms || []).join('\n') || '(aucun nom enregistré)';
+      d.append(s, pre);
+      liste.append(d);
+    }
+    morceaux.push(liste);
+  }
+
+  // Et la liste de ce qui est offert à la fin.
+  const offerts = [...(agent.outilsOfferts || [])].sort();
+  if (offerts.length) {
+    morceaux.push(blocReplie('les ' + offerts.length + ' outils offerts à la fin',
+      offerts.join('\n'), false));
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Les permissions proprement dites ne sont presque jamais enregistrées : '
+    + 'sur l’ensemble des transcrits, deux enregistrements de permissions non vides sur '
+    + 'deux cent trente, deux refus d’outil, et un seul changement de mode. Ce qui bouge '
+    + 'réellement est le catalogue d’outils — ouvert au démarrage, enrichi quand une '
+    + 'recherche d’outils en remonte, restreint quand un skill l’impose.';
+  morceaux.push(p);
+
+  ouvrirPanneau('outillage', agent.nom, morceaux);
 }
 
 /** Carte des fichiers : lesquels ont été touchés, combien de fois, et de combien. */
@@ -2583,6 +2679,65 @@ const NOM_ATTENTE = {
   inoccupée: 'le tour est fini, personne n’a repris la main',
 };
 
+const FORME_OUTILLAGE = {
+  offerts: 'plein', retirés: 'creux', remontés: 'losange',
+  serveurs: 'carré', restreint: 'croix', mode: 'croix',
+};
+const NOM_OUTILLAGE = {
+  offerts: 'des outils offerts', retirés: 'des outils retirés',
+  remontés: 'des outils remontés en cours de route',
+  serveurs: 'un serveur MCP branché', restreint: 'l’outillage restreint',
+  mode: 'le mode de permission a changé',
+};
+
+/**
+ * La voie de l'outillage : ce que l'agent a le droit d'appeler, et les instants où cela
+ * change. Les événements sont rares — une poignée par session — donc des marques, pas des
+ * barres : une voie remplie laisserait croire à une activité continue qu'il n'y a pas.
+ */
+function dessinerVoieOutillage(agent, centre, axe, visible) {
+  const g = el('g', {});
+  for (const e of agent.outillage) {
+    if (e.instant === null) continue;
+    const x = axe.x(e.instant);
+    if (!visible(x - 6, x + 6)) continue;
+    const forme = FORME_OUTILLAGE[e.genre] || 'plein';
+    if (forme === 'losange' || forme === 'croix') {
+      const d = forme === 'losange'
+        ? `M ${x} ${centre - 7} L ${x + 6} ${centre} L ${x} ${centre + 7} L ${x - 6} ${centre} Z`
+        : `M ${x - 5} ${centre - 5} L ${x + 5} ${centre + 5} M ${x + 5} ${centre - 5} L ${x - 5} ${centre + 5}`;
+      g.append(el('path', {
+        d, fill: forme === 'losange' ? '#ffd479' : 'none',
+        stroke: '#ffd479', 'stroke-width': forme === 'croix' ? 1.8 : 0, opacity: '.95',
+      }));
+    } else if (forme === 'carré') {
+      g.append(el('rect', {
+        x: x - 4.5, y: centre - 4.5, width: 9, height: 9, rx: 1.5,
+        fill: 'none', stroke: '#ffd479', 'stroke-width': 1.6, opacity: '.95',
+      }));
+    } else {
+      g.append(el('rect', {
+        x: x - 1.4, y: centre - 8, width: 2.8, height: 16, rx: 1,
+        fill: forme === 'plein' ? '#ffd479' : 'none',
+        stroke: '#ffd479', 'stroke-width': forme === 'creux' ? 1.4 : 0, opacity: '.9',
+      }));
+    }
+    const prise = el('rect', {
+      x: x - 8, y: centre - 11, width: 16, height: 22, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      NOM_OUTILLAGE[e.genre] + '\n' + heure(e.instant)
+      + (e.detail ? '\n' + e.detail : '')
+      + (e.total !== undefined ? '\n' + e.total + ' outils offerts à cet instant' : '')
+      + (e.noms && e.noms.length ? '\n\n' + e.noms.slice(0, 12).join(', ')
+        + (e.noms.length > 12 ? ', …' : '') : ''))));
+    prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteOutillage(agent, e); });
+    g.append(prise);
+  }
+  return g;
+}
+
 /**
  * La voie des fichiers : un diff de part et d'autre d'une ligne de base, le vert vers le
  * haut pour ce qui est ajouté, le rose vers le bas pour ce qui est retiré. Les hauteurs
@@ -3097,6 +3252,7 @@ function remplirMenuVoies() {
     if ((a.outils || []).some((o) => o.fichier)) {
       presentes.fichiers = (presentes.fichiers || 0) + 1;
     }
+    if ((a.outillage || []).length) presentes.outillage = (presentes.outillage || 0) + 1;
     if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
     presentes.modele = (presentes.modele || 0) + modelesDe(a).length;

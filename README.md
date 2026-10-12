@@ -461,6 +461,21 @@ Tant qu'on n'y touche pas, l'ordre naturel s'applique, et une voie qui apparaît
 route — un sous-agent qui vient de naître — se place d'elle-même au bon endroit. Dès qu'on
 a rangé, les nouvelles voies se posent à la fin plutôt que de bousculer ce qui est en place.
 
+### L'outillage, et la question des permissions
+
+Ce que l'agent a le droit d'appeler, et les instants où cela change : des outils offerts au
+démarrage, un serveur MCP qui se branche, des outils remontés en cours de route par une
+recherche d'outils, une restriction imposée par un skill, un changement de mode. Des
+**marques** et non des barres : ces événements sont rares, et une voie remplie laisserait
+croire à une activité continue qui n'existe pas.
+
+**Les permissions proprement dites ne sont presque jamais enregistrées**, et il vaut mieux
+le dire que de bâtir une voie vide. Sur l'ensemble des transcrits : **2 enregistrements de
+permissions non vides sur 230**, **2 refus d'outil** en tout, et **un seul** changement de
+mode dans une seule session sur 106. Ce qui bouge réellement est le catalogue d'outils —
+89 outils offerts sur la session Litanie, en 10 changements. La carte en donne la
+chronologie et la liste complète.
+
 ### Choisir les voies affichées
 
 Un menu « voies » liste les voies annexes — contexte, attente, boucles — avec une case par
