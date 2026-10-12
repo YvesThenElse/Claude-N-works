@@ -384,8 +384,8 @@ arbre, plus le repli des temps morts rendu nécessaire par la mesure.
 
 **Lot 4 — les cartes. Fait le 12 octobre 2026.** Agent, outil, skill, plus la requête.
 
-**Lot 5 — le temps réel.** Suivi de la fin du fichier, agents qui apparaissent et se
-grisent en direct, marque de l'instant présent.
+**Lot 5 — le temps réel. Fait le 12 octobre 2026.** Suivi incrémental des fichiers,
+agents qui apparaissent et se grisent en direct, marque de l'instant présent.
 
 **Lot 6 — la boucle. Fait le 12 octobre 2026.** La carte de boucle et sa bande
 d'itérations.
