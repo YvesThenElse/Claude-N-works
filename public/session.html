@@ -1311,12 +1311,25 @@ function dessinerVoieAttente(agent, centre, axe, visible) {
     if (!visible(x0, x1)) continue;
     const couleur = COULEUR_ATTENTE[at.genre] || 'var(--attente)';
     g.append(el('rect', {
-      x: x0, y: centre - 6, width: x1 - x0, height: 12, rx: 2,
+      x: x0, y: centre - 11, width: x1 - x0, height: 12, rx: 2,
       fill: couleur, opacity: at.genre === 'question' ? '.8' : '.55',
       ...(at.ouverte ? { 'stroke-dasharray': '3 2', stroke: couleur } : {}),
     }));
+    // La durée écrite sous la barre, quand elle y tient. En deçà, l'étiquette serait
+    // illisible et se chevaucherait avec les voisines : le survol reste là pour ça.
+    const texte = duree(at.dureeMs);
+    const largeurTexte = texte.length * 5.2 + 6;
+    if (x1 - x0 >= largeurTexte) {
+      const et = el('text', {
+        x: (x0 + x1) / 2, y: centre + 15, 'text-anchor': 'middle',
+        fill: couleur, 'font-size': '9', opacity: '.95',
+      });
+      et.textContent = texte;
+      g.append(et);
+    }
+
     const prise = el('rect', {
-      x: x0 - 2, y: centre - 9, width: (x1 - x0) + 4, height: 18, fill: 'transparent',
+      x: x0 - 2, y: centre - 9, width: (x1 - x0) + 4, height: 26, fill: 'transparent',
     });
     prise.style.cursor = 'pointer';
     prise.append(el('title', {}, document.createTextNode(

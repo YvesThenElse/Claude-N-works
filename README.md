@@ -216,6 +216,9 @@ Une attente est un intervalle de plus de trente secondes **sans aucun événemen
 une question restée sans réponse. Une attente en cours — la session tourne, personne ne
 répond — reste ouverte à droite, en pointillés.
 
+La **durée est écrite sous chaque barre** dès qu'elle y tient ; en deçà, l'étiquette se
+chevaucherait avec ses voisines et seul le survol la donne.
+
 **Les pauses de réflexion de l'agent n'en sont pas.** Ses propres messages comptent comme
 des événements, sinon le temps qu'il passe à réfléchir entre deux appels ressemblerait à de
 l'attente. Mesuré : les compter élimine 59 fausses attentes sur une session et 106 sur une
