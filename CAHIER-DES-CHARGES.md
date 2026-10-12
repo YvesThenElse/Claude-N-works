@@ -287,6 +287,10 @@ de boucle correspondante.
   `noop` : quelque chose a été produit, ou rien n'a changé ;
 - pour l'itération survolée : son instant, son `reason`, le délai demandé ;
 - le rang courant, et le nombre d'itérations sans effet consécutives ;
+- les **agents nés pendant chaque tour**, toutes profondeurs confondues, dans l'ordre de
+  naissance et avec un lien vers leur carte ; réciproquement, la carte d'un agent né dans
+  une boucle dit de quelle itération il vient. *Qui* l'a lancé et *quand* dans la
+  répétition sont deux questions distinctes, et la carte répond aux deux ;
 - l'état : en cours (avec le prochain réveil attendu) ou arrêtée.
 
 ### 6.4 Carte d'appel d'outil

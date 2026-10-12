@@ -111,6 +111,11 @@ suite à la fin — le signe d'une boucle qui tourne à vide.
 Sur la session Litanie : dix boucles, 173 itérations, retrouvées sans en perdre ni en
 compter deux fois.
 
+La carte relie aussi les boucles aux agents : chaque itération liste les agents nés pendant
+ce tour, de toutes profondeurs, et la carte d'un agent dit réciproquement de quelle
+itération il vient. Un sous-agent de sous-agent né au troisième tour se lit donc des deux
+côtés — *qui* l'a lancé par l'arbre, *quand* dans la répétition par la boucle.
+
 La carte montre aussi le **délai subi** face au délai demandé : `ScheduleWakeup` dit quand
 on voudrait être réveillé, `scheduled_task_fire` dit quand on l'a été. Mesuré sur une
 itération : 300 s demandés, 272 s subis.

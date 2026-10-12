@@ -371,6 +371,34 @@ Un `tool_use` `Skill` dit **ce qu'on a demandé**. L'attachement `invoked_skills
 qui a été injecté** : `name`, `path` (par exemple `bundled:loop`) et `content` entier —
 8 778 caractères d'instructions pour le skill `loop`.
 
+## 5 septies. Un agent né dans une boucle, et qui en lance un autre
+
+Le cas n'existait **nulle part** dans les 106 transcripts de la machine : aucune session ne
+combinait des réveils de boucle et des sous-agents. Il a fallu le produire — une session de
+sondage menant trois itérations, chacune lançant un agent `general-purpose` qui déléguait à
+son tour à un `Explore`. Six sous-agents sur deux profondeurs, dans une boucle.
+
+Deux choses en sont sorties, toutes deux fausses jusque-là.
+
+**Un arrêt est aussi un passage.** Le dernier tour d'une boucle se termine par un
+`ScheduleWakeup` portant `stop: true`, et non par un réveil ordinaire. Ne compter que les
+réveils perdait donc le dernier tour — trois itérations réelles affichées comme deux.
+Compter l'arrêt comme l'itération qui le décide donne, sur la session Litanie,
+**183 itérations pour 183 appels `ScheduleWakeup`** : plus aucun passage ne se perd.
+
+**Une boucle sans appel de skill n'a pas d'instant de naissance évident.** Son premier
+réveil n'arrive qu'après coup, donc la fenêtre de sa première itération serait vide et les
+agents qui y sont nés passeraient à la trappe — constaté : le premier agent était né
+11 secondes avant le premier réveil. Il faut remonter au dernier point de départ connu qui
+précède : une requête d'Yves, ou le début de la session.
+
+**Le rattachement.** Chaque itération a une fenêtre — de la fin de la précédente à son
+propre réveil — et tout agent dont la naissance y tombe lui est rattaché, **quelle que soit
+sa profondeur**. Un sous-agent de sous-agent né au troisième tour est donc attribué au
+troisième tour, et sa filiation reste lisible par ailleurs dans l'arbre. Les deux
+informations sont distinctes et toutes deux nécessaires : *qui* l'a lancé, et *quand* dans
+la répétition.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :

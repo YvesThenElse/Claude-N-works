@@ -102,7 +102,25 @@
     background: var(--outil); position: relative;
   }
   .bande i.rien { background: var(--trait); }
+  .bande i.arret { background: var(--boucle); }
   .bande i.vise { outline: 2px solid var(--accent); outline-offset: 1px; }
+  /* Une pastille en haut à droite : cette itération a lancé des agents. */
+  .bande i.enfante::after {
+    content: ''; position: absolute; top: -3px; right: -3px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--outil-agent); border: 1px solid var(--fond);
+  }
+  .nes { margin-top: .45rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+  .nes button {
+    background: var(--fond-carte); border: 1px solid var(--outil-agent); color: var(--texte);
+    border-radius: 999px; padding: .1rem .55rem; font-size: .74rem; cursor: pointer;
+    font-family: inherit;
+  }
+  .nes button:hover { background: var(--outil-agent); color: #11131a; }
+  .lien-boucle {
+    background: none; border: 0; padding: 0; color: var(--boucle); cursor: pointer;
+    font: inherit; text-align: left; text-decoration: underline;
+  }
   .bande i:hover { filter: brightness(1.4); }
   .iteration {
     margin-top: .7rem; padding: .6rem .75rem; background: var(--fond);
@@ -663,6 +681,23 @@ function carteAgent(a) {
 
   const morceaux = [dl];
 
+  // Né pendant une boucle : on le dit, et on y renvoie.
+  if (a.neDansBoucle) {
+    const lien = trouverBoucle(a.neDansBoucle.boucle);
+    const dt = document.createElement('dt'); dt.textContent = 'Né pendant';
+    const dd = document.createElement('dd');
+    const bt = document.createElement('button');
+    bt.className = 'lien-boucle';
+    bt.textContent = 'l’itération ' + (a.neDansBoucle.rang + 1) + ' sur '
+      + a.neDansBoucle.total + ' d’une boucle';
+    if (lien) {
+      bt.addEventListener('click', () => carteBoucle(lien.b, lien.agent, a.neDansBoucle.rang));
+      bt.title = (lien.b.consigne || '').replace(/^\/loop\s*/, '').slice(0, 160);
+    }
+    dd.append(bt);
+    dl.append(dt, dd);
+  }
+
   // Les outils réellement employés, comptés — et non la liste des outils offerts, qui
   // n'est presque jamais disponible (C2 d'OBSERVATIONS-FORMAT.md).
   const parNom = {};
@@ -839,19 +874,48 @@ function carteBoucle(b, agent, rangVise) {
     raison.style.marginTop = '.35rem';
     raison.textContent = it.raison || '(aucune raison donnée)';
     detail.append(titre, quand, raison);
+
+    // Les agents nés pendant ce tour, de toutes profondeurs : c'est ici que se lit
+    // « ce sous-agent, il est né au tour numéro combien ? ».
+    if ((it.agents || []).length) {
+      const nes = document.createElement('div');
+      nes.className = 'nes';
+      const etiq = document.createElement('span');
+      etiq.style.cssText = 'font-size:.74rem;color:var(--texte-faible);align-self:center';
+      etiq.textContent = 'agents nés pendant ce tour :';
+      nes.append(etiq);
+      for (const ref of it.agents) {
+        const bt = document.createElement('button');
+        bt.textContent = (ref.profondeur > 1 ? '↳ '.repeat(ref.profondeur - 1) : '') + ref.nom;
+        bt.title = 'profondeur ' + ref.profondeur;
+        bt.addEventListener('click', () => {
+          const cible = deroule.agents.find((x) => x.id === ref.id);
+          if (cible) { vise = cible.id; dessiner(); carteAgent(cible); }
+        });
+        nes.append(bt);
+      }
+      detail.append(nes);
+    }
   }
 
   b.iterations.forEach((it, rang) => {
     const c = document.createElement('i');
-    c.className = it.noop ? 'rien' : '';
-    c.title = 'itération ' + (rang + 1) + (it.noop ? " — rien n'a changé" : '');
+    const classes = [];
+    if (it.arret) classes.push('arret'); else if (it.noop) classes.push('rien');
+    if ((it.agents || []).length) classes.push('enfante');
+    c.className = classes.join(' ');
+    c.title = 'itération ' + (rang + 1)
+      + (it.arret ? " — c'est elle qui a arrêté la boucle" : it.noop ? " — rien n'a changé" : '')
+      + ((it.agents || []).length ? '\n' + it.agents.length + ' agent(s) lancé(s)' : '');
     c.addEventListener('click', () => montrer(rang));
     bande.append(c);
   });
 
   const legende = document.createElement('div');
   legende.style.cssText = 'font-size:.74rem;color:var(--texte-faible);margin-top:.15rem';
-  legende.textContent = 'case pleine : quelque chose a été produit · case grise : rien n’a changé';
+  legende.textContent = 'case pleine : quelque chose a été produit · case grise : rien n’a '
+    + 'changé · case bleue : c’est elle qui a arrêté la boucle · pastille : des agents y '
+    + 'sont nés';
 
   morceaux.push(titreBande, bande, legende, detail,
     blocReplie('consigne de la boucle', b.consigne));
@@ -859,6 +923,13 @@ function carteBoucle(b, agent, rangVise) {
     ? b.consigne.replace(/^\/loop\s*/, '').slice(0, 70)
     : 'boucle sans consigne retrouvée', morceaux);
   montrer(rangVise >= 0 && rangVise < b.iterations.length ? rangVise : 0);
+}
+
+function trouverBoucle(id) {
+  for (const agent of deroule.agents) {
+    for (const b of agent.boucles || []) if (b.id === id) return { b, agent };
+  }
+  return null;
 }
 
 function listerBoucles() {

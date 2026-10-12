@@ -369,7 +369,8 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       ? racine.dernier - racine.premier : null,
     jetons: null,
     outils: [...racine.appels.values()].map(nettoyerAppel),
-    boucles: construireBoucles(racine.appels, 'racine', racine.reveils),
+    boucles: construireBoucles(racine.appels, 'racine', racine.reveils,
+      [racine.premier, ...racine.requetes.map((r) => r.instant)]),
     contexte: racine.contexte,
     compactages: racine.compactages,
     erreurs: racine.erreurs,
@@ -410,7 +411,8 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       dureeMs: res?.totalDurationMs ?? (fin !== null && debut !== null ? fin - debut : null),
       jetons: res?.totalTokens ?? null,
       compteurs: res?.toolStats ?? null,
-      boucles: construireBoucles(d.appels, sa.agentId, d.reveils),
+      boucles: construireBoucles(d.appels, sa.agentId, d.reveils,
+        [d.premier, ...d.requetes.map((r) => r.instant)]),
       contexte: d.contexte,
       compactages: d.compactages,
       erreurs: d.erreurs,
@@ -421,6 +423,33 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       arrierePlan: Boolean(appelParent?.entree?.run_in_background),
       outils: [...d.appels.values()].map(nettoyerAppel),
     });
+  }
+
+  // Un agent naît parfois pendant une itération de boucle — et s'il a lui-même des
+  // sous-agents, eux aussi. Chacun est rattaché à l'itération dont la fenêtre contient sa
+  // naissance, quelle que soit sa profondeur : c'est la seule façon de répondre à « ce
+  // sous-agent, il est né au tour de boucle numéro combien ? ».
+  const toutesBoucles = [];
+  for (const a of agents) for (const b of a.boucles || []) toutesBoucles.push({ b, agent: a });
+  for (const a of agents) {
+    if (a.id === 'racine' || a.debut === null) continue;
+    for (const { b } of toutesBoucles) {
+      const rang = b.iterations.findIndex(
+        (it) => a.debut >= it.depuis && a.debut <= it.jusqua);
+      if (rang < 0) continue;
+      a.neDansBoucle = { boucle: b.id, rang, total: b.iterations.length };
+      const it = b.iterations[rang];
+      if (!it.agents) it.agents = [];
+      it.agents.push({ id: a.id, nom: a.nom, profondeur: a.profondeur, debut: a.debut });
+      break;
+    }
+  }
+
+  // Dans chaque itération, les agents se lisent dans l'ordre où ils sont nés.
+  for (const { b } of toutesBoucles) {
+    for (const it of b.iterations) {
+      if (it.agents) it.agents.sort((x, y) => (x.debut ?? 0) - (y.debut ?? 0));
+    }
   }
 
   // Chaque réveil porte le numéro de sa boucle et son rang, pour qu'un clic sur la marque
@@ -490,7 +519,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
  * d'ouverture quand il y en a un. À défaut, la consigne se lit dans le champ `prompt` des
  * réveils, qui rejoue l'entrée `/loop` telle quelle.
  */
-function construireBoucles(appels, idAgent, reveils = []) {
+function construireBoucles(appels, idAgent, reveils = [], departsPossibles = []) {
   const suite = [...appels.values()]
     .filter((a) => a.nom === 'Skill' || a.nom === 'ScheduleWakeup')
     .sort((x, y) => (x.debut ?? 0) - (y.debut ?? 0));
@@ -499,13 +528,23 @@ function construireBoucles(appels, idAgent, reveils = []) {
   let courante = null;
   let skillEnAttente = null;
 
+  // Une boucle ouverte sans appel de skill n'a pas d'instant de naissance évident : son
+  // premier réveil arrive après coup. On remonte alors au dernier point de départ connu
+  // qui le précède — une requête d'Yves, ou le début de la session — sans quoi la fenêtre
+  // de la première itération serait vide et les agents qui y sont nés passeraient à la
+  // trappe.
+  const remonter = (instant) => {
+    const avant = departsPossibles.filter((d) => d !== null && d <= instant);
+    return avant.length ? Math.max(...avant) : instant;
+  };
+
   const ouvrir = (depart) => {
     courante = {
       id: idAgent + '-boucle-' + boucles.length,
       agent: idAgent,
       consigne: '',
       source: null,
-      debut: depart,
+      debut: remonter(depart),
       fin: null,
       etat: 'en cours',
       iterations: [],
@@ -527,19 +566,22 @@ function construireBoucles(appels, idAgent, reveils = []) {
     }
     const e = a.entree || {};
     if (!courante) ouvrir(a.debut);
+    // Un arrêt ferme la boucle, mais le passage qui l'a précédé a bel et bien eu lieu :
+    // il compte comme itération, marquée comme celle qui a décidé d'arrêter.
+    courante.iterations.push({
+      instant: a.debut,
+      noop: e.noop === true,
+      arret: e.stop === true,
+      raison: typeof e.reason === 'string' ? e.reason : null,
+      delaiS: typeof e.delaySeconds === 'number' ? e.delaySeconds : null,
+      idAppel: a.id,
+    });
     if (e.stop === true) {
       courante.fin = a.debut;
       courante.etat = 'arrêtée';
       courante = null;
       continue;
     }
-    courante.iterations.push({
-      instant: a.debut,
-      noop: e.noop === true,
-      raison: typeof e.reason === 'string' ? e.reason : null,
-      delaiS: typeof e.delaySeconds === 'number' ? e.delaySeconds : null,
-      idAppel: a.id,
-    });
     // Le prompt rejoué porte la consigne, utile quand aucun Skill n'a ouvert la boucle.
     if (!courante.consigne && typeof e.prompt === 'string' && e.prompt !== 'null') {
       courante.consigne = tronquer(e.prompt);
@@ -571,6 +613,14 @@ function construireBoucles(appels, idAgent, reveils = []) {
     for (let i = b.iterations.length - 1; i >= 0 && b.iterations[i].noop; i -= 1) sansEffet += 1;
     b.sansEffetALaFin = sansEffet;
     b.sansEffet = b.iterations.filter((i) => i.noop).length;
+    // La fenêtre de chaque itération : de la fin de la précédente à son propre réveil.
+    // C'est ce qui permet de dire quels agents sont nés pendant laquelle.
+    let bord = b.debut;
+    for (const it of b.iterations) {
+      it.depuis = bord;
+      it.jusqua = it.instant;
+      bord = it.instant;
+    }
   }
   return boucles.filter((b) => b.iterations.length > 0);
 }
