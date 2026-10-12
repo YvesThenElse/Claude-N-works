@@ -288,6 +288,12 @@ Mesuré sur la session Litanie, 2001 appels à `claude-opus-5` : attente avant r
 **7,9 s en moyenne**, réponse de **6,4 s**. La répartition des attentes : 1086 sous 5 s,
 870 entre 5 et 30 s, 44 entre 30 s et 2 min, et **une seule** au-delà.
 
+Cliquer un appel ouvre sa carte : **ce qui l'a déclenché** — une requête d'Yves, le
+résultat d'un outil avec sa commande, la fin d'une tâche d'arrière-plan, le réveil d'une
+boucle — ses **jetons d'entrée et de sortie** avec le détail du cache lu et écrit et des
+jetons de réflexion, les outils qu'il a appelés, et **ce que le modèle a dit**. La carte
+donne aussi les totaux du modèle sur toute la session.
+
 **Ce qu'on mesure et ce qu'on ne mesure pas**, dit aussi sur la carte. L'« appel » est le
 dernier événement écrit avant la réponse : une requête d'Yves, un résultat d'outil, ou le
 réveil d'une boucle — ce dernier compte, sans quoi la latence d'un tour de boucle

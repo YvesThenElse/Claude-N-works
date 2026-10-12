@@ -1325,15 +1325,30 @@ function carteModele(agent, modele, visee) {
   const pire = (f) => reqs.reduce((n, r) => Math.max(n, f(r)), 0);
   const sansDuree = reqs.filter((r) => r.reponseMs === 0).length;
 
+  const nombre = (n) => (n || 0).toLocaleString('fr-FR');
   const dl = document.createElement('dl');
+  const morceauxEnTete = [];
   if (visee) {
+    const j = visee.jetons || {};
     ligne(dl, 'Cet appel', heure(visee.appel));
+    ligne(dl, 'Déclenché par', visee.declencheur);
     ligne(dl, 'Attente avant réponse', duree(visee.latenceMs));
     ligne(dl, 'Durée de réponse', visee.reponseMs
       ? duree(visee.reponseMs)
       : 'non mesurable — réponse d’un seul bloc');
-    ligne(dl, 'Blocs écrits', String(visee.blocs));
+    ligne(dl, 'Jetons d’entrée', nombre(j.entree)
+      + (j.cacheLu ? '  ·  ' + nombre(j.cacheLu) + ' lus du cache' : '')
+      + (j.cacheEcrit ? '  ·  ' + nombre(j.cacheEcrit) + ' écrits au cache' : ''));
+    ligne(dl, 'Jetons de sortie', nombre(j.sortie)
+      + (j.reflexion ? '  ·  dont ' + nombre(j.reflexion) + ' de réflexion' : ''));
+    ligne(dl, 'Blocs écrits', visee.blocs
+      + (visee.reflechi ? ', dont un de réflexion' : ''));
+    ligne(dl, 'Outils appelés', visee.outils.length ? visee.outils.join(', ') : 'aucun');
     ligne(dl, 'Fin de réponse', visee.arret);
+    if (visee.dit) {
+      morceauxEnTete.push(blocReplie(
+        'ce que le modèle a dit' + (visee.ditTronque ? ' — extrait' : ''), visee.dit));
+    }
   }
   ligne(dl, 'Modèle', modele, true);
   ligne(dl, 'Agent', agent.nom);
@@ -1345,6 +1360,20 @@ function carteModele(agent, modele, visee) {
   ligne(dl, 'Sans durée mesurable', sansDuree + ' sur ' + reqs.length
     + '  (' + Math.round((sansDuree / Math.max(1, reqs.length)) * 100) + ' %)');
 
+  // Les jetons de tous les appels de ce modèle, pour situer celui qu'on regarde.
+  const total = reqs.reduce((n, r) => ({
+    entree: n.entree + (r.jetons?.entree || 0),
+    sortie: n.sortie + (r.jetons?.sortie || 0),
+    cacheLu: n.cacheLu + (r.jetons?.cacheLu || 0),
+    cacheEcrit: n.cacheEcrit + (r.jetons?.cacheEcrit || 0),
+    reflexion: n.reflexion + (r.jetons?.reflexion || 0),
+  }), { entree: 0, sortie: 0, cacheLu: 0, cacheEcrit: 0, reflexion: 0 });
+  ligne(dl, 'Jetons d’entrée, en tout', nombre(total.entree)
+    + '  ·  ' + nombre(total.cacheLu) + ' lus du cache'
+    + '  ·  ' + nombre(total.cacheEcrit) + ' écrits');
+  ligne(dl, 'Jetons de sortie, en tout', nombre(total.sortie)
+    + (total.reflexion ? '  ·  dont ' + nombre(total.reflexion) + ' de réflexion' : ''));
+
   const p = document.createElement('p');
   p.className = 'avert';
   p.textContent = 'Ce qu’on mesure ici est ce que le transcript permet de mesurer, et non '
@@ -1353,7 +1382,7 @@ function carteModele(agent, modele, visee) {
     + 'réponse » est l’instant où le premier bloc a été écrit, pas celui du premier jeton : '
     + 'un bloc de réflexion long repousse donc ce début. Et une réponse d’un seul bloc n’a '
     + 'pas de durée mesurable.';
-  ouvrirPanneau('modèle', modele.replace(/^claude-/, ''), [dl, p]);
+  ouvrirPanneau('modèle', modele.replace(/^claude-/, ''), [dl, ...morceauxEnTete, p]);
 }
 
 /** Carte de l'attente : le détail d'une période, et le compte de toutes. */
@@ -1617,7 +1646,10 @@ function dessinerVoieModele(agent, modele, centre, axe, visible) {
       modele + '\nappelé à ' + heure(r.appel)
       + '\nattente avant la réponse : ' + duree(r.latenceMs)
       + '\nréponse : ' + (r.reponseMs ? duree(r.reponseMs) : 'd’un seul bloc, durée non mesurable')
-      + '\n' + r.blocs + ' bloc(s)' + (r.arret ? '  ·  ' + r.arret : ''))));
+      + '\n' + r.blocs + ' bloc(s)' + (r.arret ? '  ·  ' + r.arret : '')
+      + '\n' + (r.jetons?.entree || 0).toLocaleString('fr-FR') + ' jetons en entrée, '
+      + (r.jetons?.sortie || 0).toLocaleString('fr-FR') + ' en sortie'
+      + (r.declencheur ? '\n\ndéclenché par ' + r.declencheur : ''))));
     prise.addEventListener('click', (e) => { e.stopPropagation(); carteModele(agent, modele, r); });
     g.append(prise);
   }

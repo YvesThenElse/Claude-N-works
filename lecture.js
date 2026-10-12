@@ -18,6 +18,8 @@ const LIMITE_TEXTE = 4000; // au-delà, on tronque : un prompt peut faire des pa
 // Par appel d'outil on est bien plus avare : une session en compte des milliers, et tout
 // garder ferait gonfler le modèle au-delà du raisonnable.
 const LIMITE_APPEL = 700;
+// Par appel au modèle on est plus avare encore : une session en compte deux mille.
+const LIMITE_REQUETE = 300;
 
 // ----------------------------------------------------------------------- petits outils
 
@@ -108,6 +110,37 @@ async function* lignesDe(chemin) {
 
 // --------------------------------------------------- dépouillement d'un seul transcript
 
+/**
+ * Ce qui a déclenché un appel au modèle : la nature du dernier enregistrement qui le
+ * précède. C'est la seule « entrée » que le transcript donne — le prompt complet envoyé à
+ * l'API n'y figure pas.
+ */
+function libelleDeclencheur(etat, ligne) {
+  if (ligne.type === 'system') {
+    if (ligne.subtype === 'scheduled_task_fire') return 'le réveil d’une boucle';
+    return 'un événement système (' + (ligne.subtype || '?') + ')';
+  }
+  if (ligne.type === 'attachment') return null; // trop anodin pour écraser le vrai motif
+  if (ligne.type !== 'user') return null;
+  if (ligne.origin?.kind === 'human') return 'une requête d’Yves';
+  // Une notification de tâche couvre aussi bien un sous-agent d'arrière-plan qu'une
+  // commande lancée en arrière-plan : la session Litanie en compte 77 sans avoir le
+  // moindre sous-agent.
+  if (ligne.origin?.kind === 'task-notification') return 'la fin d’une tâche d’arrière-plan';
+  const contenu = ligne.message?.content;
+  if (Array.isArray(contenu)) {
+    for (const bloc of contenu) {
+      if (bloc.type !== 'tool_result') continue;
+      const appel = etat.appels.get(bloc.tool_use_id);
+      return 'le résultat de ' + (appel ? appel.nom : 'un outil')
+        + (appel && appel.resume ? ' — ' + appel.resume.slice(0, 70) : '');
+    }
+  }
+  const texte = texteDe(contenu);
+  if (texte.startsWith('[Request interrupted')) return 'une interruption';
+  return texte ? 'un message : ' + texte.slice(0, 70) : null;
+}
+
 /** L'état d'un dépouillement qui n'a encore rien vu. */
 function etatVide() {
   return {
@@ -132,6 +165,7 @@ function etatVide() {
     requetesModele: [],
     requetesVues_: new Map(),
     dernierAvantReponse: null,
+    dernierLibelle: null,
     compactages: [],
     reveils: [],      // les réveils de boucle vus du côté du système
     erreurs: [],      // les messages que Claude Code s'écrit à lui-même sur une panne
@@ -154,7 +188,13 @@ function avaler(etat, ligne) {
   // Tout enregistrement qui n'est pas une réponse du modèle marque le moment où l'on s'est
   // mis à l'attendre. Un réveil de boucle en fait partie : sans lui, la latence d'un tour
   // de boucle engloberait tout le sommeil.
-  if (ligne.type !== 'assistant' && t !== null) etat.dernierAvantReponse = t;
+  if (ligne.type !== 'assistant' && t !== null) {
+    etat.dernierAvantReponse = t;
+    // Une pièce jointe compte comme instant mais ne dit rien du motif : elle ne doit pas
+    // effacer le libellé du vrai déclencheur, qui la précède de quelques millisecondes.
+    const motif = libelleDeclencheur(etat, ligne);
+    if (motif) etat.dernierLibelle = motif;
+  }
 
   if (ligne.type === 'system') {
     if (ligne.subtype === 'compact_boundary') {
@@ -204,9 +244,12 @@ function avaler(etat, ligne) {
           id: rid,
           modele: ligne.message.model,
           appel: etat.dernierAvantReponse,
+          declencheur: etat.dernierLibelle,
           debut: t,
           fin: t,
           blocs: 0,
+          dit: '',
+          outils: [],
         };
         etat.requetesVues_.set(rid, r);
         etat.requetesModele.push(r);
@@ -214,6 +257,14 @@ function avaler(etat, ligne) {
       r.fin = Math.max(r.fin, t);
       r.blocs += 1;
       if (ligne.message.stop_reason) r.arret = ligne.message.stop_reason;
+      // L'usage est répété à l'identique sur chaque enregistrement d'une même requête :
+      // on garde le dernier vu.
+      if (u && typeof u === 'object') r.usage = u;
+      for (const bloc of ligne.message?.content || []) {
+        if (bloc.type === 'tool_use') r.outils.push(bloc.name);
+        else if (bloc.type === 'text' && bloc.text) r.dit += (r.dit ? '\n' : '') + bloc.text;
+        else if (bloc.type === 'thinking') r.reflechi = true;
+      }
     }
     const dit = texteDe(ligne.message?.content);
     if (dit.trim()) etat.derniereReponse = dit;
@@ -768,16 +819,31 @@ function construireAttentes(agent, finSession, sessionVivante, maintenant) {
 function nettoyerRequetes(requetes) {
   return requetes
     .filter((r) => r.modele && r.modele !== '<synthetic>' && r.appel !== null)
-    .map((r) => ({
-      modele: r.modele,
-      appel: r.appel,
-      debut: r.debut,
-      fin: r.fin,
-      blocs: r.blocs,
-      arret: r.arret || null,
-      latenceMs: Math.max(0, r.debut - r.appel),
-      reponseMs: Math.max(0, r.fin - r.debut),
-    }));
+    .map((r) => {
+      const u = r.usage || {};
+      return {
+        modele: r.modele,
+        appel: r.appel,
+        declencheur: r.declencheur,
+        debut: r.debut,
+        fin: r.fin,
+        blocs: r.blocs,
+        arret: r.arret || null,
+        latenceMs: Math.max(0, r.debut - r.appel),
+        reponseMs: Math.max(0, r.fin - r.debut),
+        reflechi: Boolean(r.reflechi),
+        outils: r.outils,
+        dit: tronquer(r.dit, LIMITE_REQUETE),
+        ditTronque: r.dit.length > LIMITE_REQUETE,
+        jetons: {
+          entree: u.input_tokens || 0,
+          sortie: u.output_tokens || 0,
+          cacheLu: u.cache_read_input_tokens || 0,
+          cacheEcrit: u.cache_creation_input_tokens || 0,
+          reflexion: u.output_tokens_details?.thinking_tokens || 0,
+        },
+      };
+    });
 }
 
 /** La borne de fin à prendre pour un agent dont la fin n'est pas connue. */
