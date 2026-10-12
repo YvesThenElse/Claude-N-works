@@ -64,7 +64,9 @@ son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, s
 jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
 repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
 donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
-Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée.
+Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée **et les
+instructions réellement chargées** — l'appel dit ce qu'on a demandé, l'attachement
+`invoked_skills` dit ce qui a été injecté : 8 778 caractères pour le skill `loop`.
 
 ### Le temps réel
 
@@ -83,6 +85,21 @@ ligne peut être incomplète, donc on ne traite que jusqu'au dernier saut de lig
 garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-agent n'a
 été lancé, donc on le cherche à chaque passage et pas une seule fois à l'ouverture.
 
+### Le contexte, les compactages et les pannes
+
+La taille du contexte a sa propre voie, en aire remplie d'un dégradé vertical du vert au
+rouge — la hauteur de la courbe décide de la couleur, donc une fenêtre qui sature rougit.
+Elle se lit dans `message.usage` : entrée + lecture de cache + création de cache. Le
+`total_tokens_reminder` du transcript, lui, est un budget de jetons et non la fenêtre : il
+ne répond pas à la question.
+
+Les compactages sont des repères verticaux en pointillés. Sur la session `454ef787`, le
+contexte monte à **996 455 jetons**, un compactage survient, il retombe à **52 151** : la
+dent de scie est franche, et c'est le fait le moins intuitif du fonctionnement d'un agent.
+
+Les pannes d'API — messages de modèle `<synthetic>` portant `API Error: …` — ont leur
+repère et sont comptées sur la carte de l'agent.
+
 ### Les boucles
 
 Une boucle est une suite de réveils délimitée par un arrêt. Sa carte montre la répétition
@@ -93,6 +110,10 @@ suite à la fin — le signe d'une boucle qui tourne à vide.
 
 Sur la session Litanie : dix boucles, 173 itérations, retrouvées sans en perdre ni en
 compter deux fois.
+
+La carte montre aussi le **délai subi** face au délai demandé : `ScheduleWakeup` dit quand
+on voudrait être réveillé, `scheduled_task_fire` dit quand on l'a été. Mesuré sur une
+itération : 300 s demandés, 272 s subis.
 
 Les boucles ont aussi leur voie sur la ligne du temps, sous l'agent qui les mène. Une
 boucle n'étant pas un agent, elle s'y dessine comme un rail et non comme une barre : un

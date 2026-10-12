@@ -120,6 +120,14 @@ function etatVide() {
     effort: null,
     interrompu: false,
     derniereReponse: '',
+    // La taille du contexte à chaque requête : c'est la somme des jetons d'entrée, de
+    // lecture de cache et de création de cache. Elle monte jusqu'à saturer la fenêtre,
+    // puis retombe d'un coup au compactage — mesuré : 996 455 puis 52 151.
+    contexte: [],
+    compactages: [],
+    reveils: [],      // les réveils de boucle vus du côté du système
+    erreurs: [],      // les messages que Claude Code s'écrit à lui-même sur une panne
+    skillsCharges: [],
   };
 }
 
@@ -135,7 +143,43 @@ function avaler(etat, ligne) {
     if (etat.dernier === null || t > etat.dernier) etat.dernier = t;
   }
 
+  if (ligne.type === 'system') {
+    if (ligne.subtype === 'compact_boundary') {
+      etat.compactages.push({ instant: t });
+    } else if (ligne.subtype === 'scheduled_task_fire') {
+      etat.reveils.push({ instant: t, texte: String(ligne.content || '').slice(0, 200) });
+    }
+    return;
+  }
+
+  if (ligne.type === 'attachment' && ligne.attachment?.type === 'invoked_skills') {
+    for (const s of ligne.attachment.skills || []) {
+      etat.skillsCharges.push({
+        instant: t,
+        nom: s.name,
+        chemin: s.path || null,
+        taille: typeof s.content === 'string' ? s.content.length : null,
+        contenu: tronquer(s.content || ''),
+      });
+    }
+    return;
+  }
+
   if (ligne.type === 'assistant') {
+    // Un message que Claude Code s'écrit lui-même sur une panne : « API Error: … ».
+    // C'est la seule trace d'un agent qui échoue de lui-même, par opposition à un agent
+    // interrompu de l'extérieur.
+    if (ligne.message?.model === '<synthetic>') {
+      etat.erreurs.push({ instant: t, texte: texteDe(ligne.message?.content).slice(0, 300) });
+      return;
+    }
+    const u = ligne.message?.usage;
+    if (u && typeof u === 'object') {
+      const taille = (u.input_tokens || 0)
+        + (u.cache_read_input_tokens || 0)
+        + (u.cache_creation_input_tokens || 0);
+      if (taille > 0 && t !== null) etat.contexte.push({ instant: t, jetons: taille });
+    }
     if (ligne.message && ligne.message.model) etat.modele = ligne.message.model;
     if (ligne.effort) etat.effort = ligne.effort;
     const dit = texteDe(ligne.message?.content);
@@ -325,7 +369,11 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       ? racine.dernier - racine.premier : null,
     jetons: null,
     outils: [...racine.appels.values()].map(nettoyerAppel),
-    boucles: construireBoucles(racine.appels, 'racine'),
+    boucles: construireBoucles(racine.appels, 'racine', racine.reveils),
+    contexte: racine.contexte,
+    compactages: racine.compactages,
+    erreurs: racine.erreurs,
+    skillsCharges: racine.skillsCharges,
   });
 
   for (const sa of sousAgents) {
@@ -362,7 +410,11 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       dureeMs: res?.totalDurationMs ?? (fin !== null && debut !== null ? fin - debut : null),
       jetons: res?.totalTokens ?? null,
       compteurs: res?.toolStats ?? null,
-      boucles: construireBoucles(d.appels, sa.agentId),
+      boucles: construireBoucles(d.appels, sa.agentId, d.reveils),
+      contexte: d.contexte,
+      compactages: d.compactages,
+      erreurs: d.erreurs,
+      skillsCharges: d.skillsCharges,
       statutBrut: typeof appelParent?.resultat === 'string'
         ? appelParent.resultat
         : (res?.status ?? null),
@@ -420,7 +472,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
  * d'ouverture quand il y en a un. À défaut, la consigne se lit dans le champ `prompt` des
  * réveils, qui rejoue l'entrée `/loop` telle quelle.
  */
-function construireBoucles(appels, idAgent) {
+function construireBoucles(appels, idAgent, reveils = []) {
   const suite = [...appels.values()]
     .filter((a) => a.nom === 'Skill' || a.nom === 'ScheduleWakeup')
     .sort((x, y) => (x.debut ?? 0) - (y.debut ?? 0));
@@ -474,6 +526,20 @@ function construireBoucles(appels, idAgent) {
     if (!courante.consigne && typeof e.prompt === 'string' && e.prompt !== 'null') {
       courante.consigne = tronquer(e.prompt);
       courante.source = 'réveil';
+    }
+  }
+
+  // Le délai demandé n'est pas le délai subi : `ScheduleWakeup` dit quand on voudrait être
+  // réveillé, `scheduled_task_fire` dit quand on l'a été. On rapproche chaque itération du
+  // premier réveil système qui la suit.
+  const tries = [...reveils].sort((x, y) => (x.instant ?? 0) - (y.instant ?? 0));
+  for (const b of boucles) {
+    for (const it of b.iterations) {
+      const suivant = tries.find((r) => r.instant > it.instant);
+      if (suivant) {
+        it.reveilReel = suivant.instant;
+        it.attenteMs = suivant.instant - it.instant;
+      }
     }
   }
 

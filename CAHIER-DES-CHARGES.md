@@ -228,6 +228,19 @@ par itération — pleine si quelque chose a été produit, creuse si rien n'a c
 boucles d'un même agent ne se chevauchent jamais, un arrêt fermant toujours la précédente,
 donc une seule voie suffit.
 
+**Le contexte, les compactages et les pannes** — *demandés après le lot 5*. Trois ajouts
+au-delà du périmètre initial, tous lus dans des données déjà présentes :
+
+- **la taille du contexte** prend sa propre voie sous l'agent, en aire remplie d'un dégradé
+  vertical du vert au rouge : la hauteur de la courbe décide de la couleur, donc une
+  fenêtre qui sature se voit rougir. La référence est le plus haut niveau atteint dans la
+  session ;
+- **les compactages** sont des repères verticaux en pointillés. Mesuré sur la session
+  `454ef787` : le contexte monte à 996 455 jetons, un compactage survient, il retombe à
+  52 151. C'est le fait le moins intuitif du fonctionnement d'un agent, et il devient
+  visible d'un coup d'œil ;
+- **les pannes d'API** sont des repères à part, et comptées sur la carte de l'agent.
+
 **L'arbre**, à côté de la ligne du temps : qui a démarré qui, forme statique de la même
 information. Sélectionner un nœud met en évidence sa voie, et réciproquement.
 
@@ -348,9 +361,9 @@ marqueur n'existe et que le processus de la session est mort. Ce dernier cas est
 qui ne se lit pas dans les fichiers : il faut tester le processus, comme le fait déjà
 l'écran 1.
 
-**R7 — un agent qui échoue de lui-même. Non vérifié.** Une erreur d'API ou un dépassement,
-par opposition à une interruption venue de l'extérieur. À mesurer si le besoin s'en fait
-sentir au lot 4.
+**R7 — un agent qui échoue de lui-même. Levé.** C'est un message `assistant` de modèle
+`"<synthetic>"` portant `API Error: …`. Ces pannes sont désormais marquées sur la ligne du
+temps et comptées sur la carte de l'agent.
 
 **R3 — les autres formats.** 72 des 79 répertoires viennent de worktrees Cline et
 n'écrivent pas la même chose : seuls les trois transcripts de `-home-yves-projects`

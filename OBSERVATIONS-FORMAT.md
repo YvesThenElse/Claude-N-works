@@ -291,6 +291,67 @@ arrêts**. Aucune itération perdue, aucune comptée deux fois.
 Enfin, `noop` vaut `true` sur 24 réveils, `false` sur 149, et **`null` sur les 10 arrêts** :
 c'est cohérent, un arrêt n'étant pas une itération.
 
+## 5 sexies. Ce que le transcript dit encore, et qu'on a fini par montrer
+
+Relevé sur les 106 transcripts de la machine, par ordre de fréquence :
+
+| Donnée | Où | Compté |
+|---|---|---|
+| Déclenchements de hooks | `attachment/hook_success` | 29 652 |
+| Budget de jetons restant | `attachment/total_tokens_reminder` | 14 191 |
+| Commandes mises en file | `attachment/queued_command` | 339 |
+| Fichiers édités | `attachment/edited_text_file` | 321 |
+| Permissions | `attachment/command_permissions` | 229 |
+| Réveils de boucle, côté système | `system/scheduled_task_fire` | 217 |
+| Serveurs MCP ajoutés | `attachment/mcp_instructions_delta` | 123 |
+| Durée d'un tour | `system/turn_duration` (`durationMs`, `messageCount`) | 651 |
+| Skills réellement chargés | `attachment/invoked_skills` | 9 |
+| Compactages | `system/compact_boundary` | 9 |
+| Pannes d'API | message `assistant` de modèle `<synthetic>` | 3 |
+
+### La taille du contexte : deux sources, une seule bonne
+
+`total_tokens_reminder` dit « 15 000 000 tokens left » : c'est un **budget de jetons**, pas
+la fenêtre de contexte, et il se réinitialise. Il ne répond pas à la question.
+
+La vraie mesure est dans `message.usage` de chaque message `assistant` :
+
+```
+contexte = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+```
+
+Vérifié sur la session `454ef787`, autour de son premier compactage :
+
+```
+06:54:53   contexte = 996 455
+06:56:46   >>> compact_boundary <<<
+06:56:50   contexte =  52 151
+```
+
+La dent de scie est franche, et le pic d'avant compactage **est** la fenêtre réelle,
+puisque c'est lui qui l'a déclenché. C'est la référence qu'emploie le dégradé de la voie
+de contexte.
+
+### Le délai demandé n'est pas le délai subi
+
+`ScheduleWakeup` dit quand on **voudrait** être réveillé ; `system/scheduled_task_fire`,
+dont le texte est de la forme « Claude resuming /loop wakeup (Sep 20 11:15pm) », dit quand
+on l'**a été**. Mesuré sur une itération : 300 s demandés, 272 s subis. Rapprocher les deux
+rend visibles les dérives d'une boucle.
+
+### Un agent qui échoue de lui-même — R7 levée
+
+Le §5 quater décrivait l'interruption venue de l'extérieur. Une panne venue de l'intérieur
+s'écrit autrement : un message `assistant` dont le `model` vaut `"<synthetic>"` et dont le
+texte est `API Error: …`. Trois relevés sur la machine :
+`Connection lost mid-response`, `Request timeout`, `Server error mid-response`.
+
+### Les skills : l'appel ne dit pas ce qui a été chargé
+
+Un `tool_use` `Skill` dit **ce qu'on a demandé**. L'attachement `invoked_skills` dit **ce
+qui a été injecté** : `name`, `path` (par exemple `bundled:loop`) et `content` entier —
+8 778 caractères d'instructions pour le skill `loop`.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :
@@ -368,5 +429,8 @@ succès, non renseigné — ce dernier s'omettant à l'affichage.
 du cahier des charges est à amender : seules 3 des 10 boucles de la session Litanie
 commencent par un appel du skill.
 
-**C8 — ce qui reste non vérifié.** Un sous-agent qui échoue de lui-même, sur une erreur
-d'API ou un dépassement, plutôt que d'être interrompu de l'extérieur.
+**C8 — un agent qui échoue de lui-même. Levé** (§5 sexies) : message `assistant` de modèle
+`"<synthetic>"` portant `API Error: …`.
+
+**C10 — ce qui reste non vérifié.** Rien de connu à ce jour sur ce que l'application
+affiche.

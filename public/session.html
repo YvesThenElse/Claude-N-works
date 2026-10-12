@@ -13,6 +13,8 @@
     --outil: #9ece6a; --outil-echec: #f7768e; --outil-agent: #bb9af7;
     --requete: #e0af68;
     --boucle: #2ac3de;
+    --compact: #bb9af7;
+    --panne: #f7768e;
   }
   * { box-sizing: border-box; }
   body {
@@ -146,6 +148,8 @@
     <span><i class="puce" style="background:var(--outil-agent)"></i>appel d'agent</span>
     <span><i class="puce" style="background:var(--requete)"></i>requête</span>
     <span><i class="puce" style="background:var(--boucle);border-radius:50%"></i>boucle</span>
+    <span><i class="puce" style="background:var(--compact)"></i>compactage</span>
+    <span><i class="puce" style="background:var(--panne);border-radius:50%"></i>panne</span>
   </div>
 </div>
 
@@ -307,6 +311,7 @@ function construireVoies() {
   const voies = [];
   for (const a of deroule.agents) {
     voies.push({ genre: 'agent', agent: a });
+    if ((a.contexte || []).length > 1) voies.push({ genre: 'contexte', agent: a });
     if ((a.boucles || []).length) voies.push({ genre: 'boucles', agent: a });
   }
   return voies;
@@ -333,6 +338,14 @@ function dessinerArbre() {
       etiq.textContent = a.nom;
       etat.textContent = a.outils.length + ' out.';
       d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
+    } else if (v.genre === 'contexte') {
+      const pic = Math.max(...a.contexte.map((c) => c.jetons));
+      d.title = 'taille du contexte — pic à ' + pic.toLocaleString('fr-FR') + ' jetons';
+      tiret.textContent = '│ '.repeat(a.profondeur) + '▁ ';
+      puce.style.background = 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)';
+      etiq.textContent = 'contexte';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = Math.round(pic / 1000) + ' k';
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
@@ -378,6 +391,17 @@ function dessinerPiste() {
   const voies = construireVoies();
   const hauteur = MARGE_HAUT + voies.length * HAUTEUR_VOIE + 20;
   const svg = el('svg', { width: Math.ceil(axe.largeur) + 2, height: hauteur });
+  const defs = el('defs', {});
+  const degrade = el('linearGradient', {
+    id: 'degrade-contexte', x1: '0', y1: '1', x2: '0', y2: '0',
+  });
+  degrade.append(
+    el('stop', { offset: '0%', 'stop-color': '#9ece6a' }),
+    el('stop', { offset: '55%', 'stop-color': '#e0af68' }),
+    el('stop', { offset: '100%', 'stop-color': '#f7768e' }),
+  );
+  defs.append(degrade);
+  svg.append(defs);
 
   // Les temps morts repliés, en fond, avec la durée élidée écrite dessus.
   for (const s of axe.segments) {
@@ -411,6 +435,43 @@ function dessinerPiste() {
     svg.append(marque);
   }
 
+  // Les compactages : l'instant où l'agent perd le détail de sa mémoire. C'est le fait le
+  // moins intuitif du fonctionnement d'un agent, il mérite un repère franc.
+  for (const a of d.agents) {
+    for (const k of a.compactages || []) {
+      if (k.instant === null) continue;
+      const x = axe.x(k.instant);
+      const g = el('g', {});
+      g.append(el('line', {
+        x1: x, y1: 18, x2: x, y2: hauteur,
+        stroke: 'var(--compact)', 'stroke-width': 1.2, 'stroke-dasharray': '2 3',
+        opacity: '.85',
+      }));
+      const et = el('text', {
+        x: x + 3, y: 30, fill: 'var(--compact)', 'font-size': '8.5',
+      });
+      et.textContent = '⟲';
+      g.append(et);
+      g.append(el('title', {}, document.createTextNode(
+        'compactage — ' + heure(k.instant)
+        + "\nla conversation est résumée ici : l'agent perd le détail de ce qui précède")));
+      svg.append(g);
+    }
+    for (const err of a.erreurs || []) {
+      if (err.instant === null) continue;
+      const x = axe.x(err.instant);
+      const g = el('g', {});
+      g.append(el('line', {
+        x1: x, y1: 18, x2: x, y2: hauteur, stroke: 'var(--panne)', 'stroke-width': 1.2,
+        opacity: '.8',
+      }));
+      g.append(el('circle', { cx: x, cy: 18, r: 3, fill: 'var(--panne)' }));
+      g.append(el('title', {}, document.createTextNode(
+        'panne — ' + heure(err.instant) + '\n' + err.texte)));
+      svg.append(g);
+    }
+  }
+
   // Les requêtes d'Yves : des repères verticaux traversant toutes les voies.
   for (const r of d.requetes) {
     if (r.instant === null) continue;
@@ -430,6 +491,7 @@ function dessinerPiste() {
 
   voies.forEach((v, i) => {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
+    if (v.genre === 'contexte') { svg.append(dessinerVoieContexte(v.agent, centre, axe)); return; }
     if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
     const a = v.agent;
     const y = centre - HAUTEUR_BARRE / 2;
@@ -588,6 +650,35 @@ function carteAgent(a) {
     morceaux.push(bloc);
   }
 
+  if ((a.skillsCharges || []).length) {
+    const bloc = document.createElement('div');
+    bloc.className = 'bloc';
+    const s = document.createElement('div');
+    s.style.cssText = 'font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--texte-faible)';
+    s.textContent = 'skills réellement chargés';
+    const puces = document.createElement('div');
+    puces.className = 'puces-outils';
+    const vus = new Map();
+    for (const sk of a.skillsCharges) {
+      if (!vus.has(sk.nom)) vus.set(sk.nom, { n: 0, taille: sk.taille, chemin: sk.chemin });
+      vus.get(sk.nom).n += 1;
+    }
+    for (const [nom, info] of vus) {
+      const sp = document.createElement('span');
+      sp.textContent = nom + (info.n > 1 ? ' × ' + info.n : '');
+      sp.title = (info.chemin || '') + (info.taille ? '  —  ' + info.taille + ' caractères chargés' : '');
+      puces.append(sp);
+    }
+    bloc.append(s, puces);
+    morceaux.push(bloc);
+  }
+  if ((a.erreurs || []).length) {
+    const p = document.createElement('p');
+    p.className = 'avert';
+    p.textContent = a.erreurs.length + ' panne(s) pendant son travail : '
+      + a.erreurs.map((e) => e.texte.replace(/^API Error:\s*/, '')).join(' · ');
+    morceaux.push(p);
+  }
   morceaux.push(blocReplie('entrée — le prompt reçu', a.prompt));
   morceaux.push(blocReplie('sortie — sa réponse finale', a.sortie));
 
@@ -617,6 +708,28 @@ function carteOutil(o, agent) {
   const morceaux = [dl,
     blocReplie(estSkill ? 'consigne donnée au skill' : 'entrée', o.entree),
     blocReplie('résultat', o.sortie)];
+
+  // Le contenu que le skill a réellement injecté : ce que l'appel seul ne dit pas.
+  if (estSkill) {
+    const charge = (agent.skillsCharges || [])
+      .filter((s) => s.nom === o.skill)
+      .sort((x, y) => Math.abs(x.instant - o.debut) - Math.abs(y.instant - o.debut))[0];
+    if (charge) {
+      ligne(dl, 'Chargé depuis', charge.chemin, true);
+      ligne(dl, 'Taille chargée', charge.taille + ' caractères');
+      const tronqueSkill = charge.taille && charge.taille > charge.contenu.length;
+      morceaux.push(blocReplie(
+        'instructions réellement chargées' + (tronqueSkill ? ' — extrait' : ''),
+        charge.contenu));
+      if (tronqueSkill) {
+        const p = document.createElement('p');
+        p.className = 'avert';
+        p.textContent = 'Le skill fait ' + charge.taille
+          + ' caractères ; l’extrait ci-dessus s’arrête à ' + charge.contenu.length + '.';
+        morceaux.push(p);
+      }
+    }
+  }
 
   if (o.tronque) {
     const p = document.createElement('p');
@@ -673,8 +786,20 @@ function carteBoucle(b, agent, rangVise) {
     titre.style.fontWeight = '600';
     const quand = document.createElement('div');
     quand.className = 'quand';
-    quand.textContent = heure(it.instant)
-      + (it.delaiS ? '  ·  prochain réveil demandé dans ' + duree(it.delaiS * 1000) : '');
+    let texte = heure(it.instant);
+    if (it.delaiS) texte += '  ·  réveil demandé dans ' + duree(it.delaiS * 1000);
+    // Le délai demandé n'est pas le délai subi : scheduled_task_fire dit quand le réveil
+    // a vraiment eu lieu.
+    if (it.attenteMs) {
+      texte += '  ·  réveillé après ' + duree(it.attenteMs);
+      if (it.delaiS) {
+        const ecart = it.attenteMs - it.delaiS * 1000;
+        if (Math.abs(ecart) > 30000) {
+          texte += ' (' + (ecart > 0 ? '+' : '−') + duree(Math.abs(ecart)) + ')';
+        }
+      }
+    }
+    quand.textContent = texte;
     const raison = document.createElement('div');
     raison.style.marginTop = '.35rem';
     raison.textContent = it.raison || '(aucune raison donnée)';
@@ -721,6 +846,51 @@ function listerBoucles() {
 
 function carteRequete(r) {
   ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
+}
+
+/**
+ * La taille du contexte, en aire remplie d'un dégradé vertical : vert en bas quand il
+ * reste de la place, rouge en haut quand la fenêtre sature. Le dégradé étant vertical,
+ * c'est la hauteur de la courbe qui décide de la couleur — pas de calcul par point.
+ *
+ * La référence est le plus haut niveau atteint dans la session. Quand la session a connu
+ * un compactage, ce pic **est** la fenêtre réelle, puisque c'est lui qui l'a déclenché.
+ */
+function dessinerVoieContexte(agent, centre, axe) {
+  const g = el('g', {});
+  const points = agent.contexte;
+  const pic = Math.max(...points.map((c) => c.jetons), 1);
+  const haut = centre - 13;
+  const bas = centre + 13;
+  const y = (jetons) => bas - (jetons / pic) * (bas - haut);
+
+  const chemin = [];
+  for (const c of points) chemin.push(`${axe.x(c.instant).toFixed(1)},${y(c.jetons).toFixed(1)}`);
+  if (chemin.length < 2) return g;
+
+  const x0 = axe.x(points[0].instant);
+  const x1 = axe.x(points[points.length - 1].instant);
+  g.append(el('polygon', {
+    points: `${x0.toFixed(1)},${bas} ${chemin.join(' ')} ${x1.toFixed(1)},${bas}`,
+    fill: 'url(#degrade-contexte)', opacity: '.8',
+  }));
+  g.append(el('polyline', {
+    points: chemin.join(' '), fill: 'none',
+    stroke: 'var(--texte)', 'stroke-width': .7, opacity: '.45',
+  }));
+
+  // Une prise par dixième de la largeur, pour lire une valeur au survol sans surcharger.
+  const pas = Math.max(1, Math.floor(points.length / 60));
+  for (let i = 0; i < points.length; i += pas) {
+    const c = points[i];
+    const px = axe.x(c.instant);
+    const prise = el('rect', { x: px - 3, y: haut, width: 6, height: bas - haut, fill: 'transparent' });
+    prise.append(el('title', {}, document.createTextNode(
+      c.jetons.toLocaleString('fr-FR') + ' jetons de contexte  ('
+      + Math.round((c.jetons / pic) * 100) + ' % du pic)\n' + heure(c.instant))));
+    g.append(prise);
+  }
+  return g;
 }
 
 /**
