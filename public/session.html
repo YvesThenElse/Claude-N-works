@@ -402,6 +402,57 @@ function construireVoies() {
   return voies;
 }
 
+// La légende de chaque voie, donnée au survol de sa ligne dans l'arbre. Les couleurs de
+// la barre d'outils en haut valent pour toute la piste ; ici on dit ce que chacune signifie
+// dans la voie qu'on survole, ce qui n'est pas la même question.
+const LEGENDE_VOIE = {
+  agent: [
+    'Couleur de la barre — l’état de l’agent :',
+    '   bleu plein   il travaille encore (bord droit ouvert, en pointillés)',
+    '   gris         il a terminé',
+    '   rose         il a été interrompu',
+    '   orange       fin inconnue : aucun marqueur, et la session ne tourne plus',
+    '',
+    'Marques sur la barre — les appels d’outils :',
+    '   vert         un appel ordinaire',
+    '   violet       un appel d’agent, qui lance un sous-agent',
+    '   rose         un appel en échec',
+    'Le trait fin donne l’instant de départ, la bande dessous la durée.',
+  ].join('\n'),
+  contexte: [
+    'La taille du contexte au fil du temps.',
+    '',
+    'Quand la session a compacté, on connaît la fenêtre réelle — c’est le',
+    'niveau qui a déclenché le compactage — et la courbe se peint en dégradé :',
+    '   vert en bas   il reste de la place',
+    '   ambre         la fenêtre se remplit',
+    '   rouge en haut elle sature',
+    'La courbe retombe d’un coup à chaque compactage.',
+    '',
+    'Sans compactage, la fenêtre est inconnue : la couleur reste neutre et',
+    'l’échelle n’est que relative au plus haut niveau atteint.',
+  ].join('\n'),
+  attente: [
+    'Les moments où le système patiente au lieu de travailler :',
+    '   ambre        une question posée et pas encore répondue',
+    '   cyan         une boucle qui dort entre deux tours',
+    '   gris         le tour est fini, personne n’a repris la main',
+    '',
+    'Une barre en pointillés, ouverte à droite, est une attente en cours.',
+    'La durée est écrite dessous quand la barre est assez large.',
+    'Les pauses de réflexion de l’agent n’en sont pas : il travaille alors.',
+  ].join('\n'),
+  boucles: [
+    'Chaque boucle est un rail, du début à l’arrêt :',
+    '   montant plein   le début, et la fin',
+    '   montant pâle    la boucle tourne encore',
+    '   encoche pleine  ce tour a produit quelque chose',
+    '   encoche creuse  ce tour n’a rien changé',
+    '',
+    'Deux boucles ne se recouvrent jamais : la suivante passe au rang dessous.',
+  ].join('\n'),
+};
+
 function dessinerArbre() {
   elArbre.replaceChildren(...construireVoies().map((v) => {
     const a = v.agent;
@@ -417,7 +468,7 @@ function dessinerArbre() {
     etat.className = 'etat';
 
     if (v.genre === 'agent') {
-      d.title = a.nom;
+      d.title = a.nom + '  —  ' + a.etat + '\n\n' + LEGENDE_VOIE.agent;
       tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
       puce.style.background = couleurEtat(a.etat);
       etiq.textContent = a.nom;
@@ -426,13 +477,12 @@ function dessinerArbre() {
     } else if (v.genre === 'contexte') {
       const sien = Math.max(...a.contexte.map((c) => c.jetons));
       const ref = refContexte();
-      d.title = 'taille du contexte — pic à ' + sien.toLocaleString('fr-FR') + ' jetons, '
+      d.title = 'Pic à ' + sien.toLocaleString('fr-FR') + ' jetons, '
         + (ref.fenetreConnue
-          ? 'soit ' + Math.round((sien / ref.pic) * 100) + ' % de la fenêtre, connue par '
-            + 'le compactage qu’elle a déclenché (' + ref.pic.toLocaleString('fr-FR') + ')'
-          : 'sur une fenêtre de taille inconnue — cette session n’a jamais compacté, donc '
-            + 'l’échelle est relative au plus haut niveau atteint ('
-            + ref.pic.toLocaleString('fr-FR') + ') et la couleur reste neutre');
+          ? 'soit ' + Math.round((sien / ref.pic) * 100) + ' % de la fenêtre ('
+            + ref.pic.toLocaleString('fr-FR') + ')'
+          : 'sur une fenêtre de taille inconnue')
+        + '\n\n' + LEGENDE_VOIE.contexte;
       tiret.textContent = '│ '.repeat(a.profondeur) + '▁ ';
       puce.style.background = ref.fenetreConnue
         ? 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)'
@@ -445,7 +495,8 @@ function dessinerArbre() {
       const total = a.attentes.reduce((n, x) => n + (x.dureeMs || 0), 0);
       const questions = a.attentes.filter((x) => x.genre === 'question').length;
       d.title = a.attentes.length + ' périodes d’attente, ' + duree(total) + ' en tout'
-        + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '');
+        + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '')
+        + '\n\n' + LEGENDE_VOIE.attente;
       tiret.textContent = '│ '.repeat(a.profondeur) + '⏸ ';
       puce.style.background = 'var(--requete)';
       etiq.textContent = 'attente';
@@ -455,7 +506,7 @@ function dessinerArbre() {
     } else {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
-      d.title = n + ' boucle(s), ' + its + ' itération(s)';
+      d.title = n + ' boucle(s), ' + its + ' itération(s)\n\n' + LEGENDE_VOIE.boucles;
       tiret.textContent = '│ '.repeat(a.profondeur) + '↻ ';
       puce.style.background = 'var(--boucle)';
       puce.style.borderRadius = '50%';

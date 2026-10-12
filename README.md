@@ -186,6 +186,15 @@ régulière en pixels mentirait. Chaque segment porte en plus un repère daté �
 car à grande échelle le pas retenu peut dépasser la durée d'un segment — la règle serait
 alors muette. Une étiquette qui n'a pas la place n'est pas écrite ; son trait reste.
 
+### Lire les couleurs
+
+Rester sur une ligne de l'arbre — l'agent, le contexte, l'attente, les boucles — en donne
+la légende complète : ce que chaque couleur signifie **dans cette voie-là**, ce qui n'est
+pas toujours la même question que dans la barre du haut. Pour un agent, l'état de la barre
+et la nature des marques d'outils ; pour le contexte, ce que le dégradé mesure et quand il
+ne mesure rien ; pour l'attente, les trois formes ; pour les boucles, les montants et les
+encoches.
+
 ### Le contexte, les compactages et les pannes
 
 La taille du contexte a sa propre voie, en aire remplie d'un dégradé vertical du vert au
