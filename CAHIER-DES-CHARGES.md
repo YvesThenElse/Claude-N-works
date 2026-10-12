@@ -371,7 +371,7 @@ langage et la bibliothèque (§8).
 en entier : voies, grisage des agents terminés, repères des requêtes, marques d'outils,
 arbre, plus le repli des temps morts rendu nécessaire par la mesure.
 
-**Lot 4 — les cartes.** Agent, outil, skill.
+**Lot 4 — les cartes. Fait le 12 octobre 2026.** Agent, outil, skill, plus la requête.
 
 **Lot 5 — le temps réel.** Suivi de la fin du fichier, agents qui apparaissent et se
 grisent en direct, marque de l'instant présent.

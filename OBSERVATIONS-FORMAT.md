@@ -317,5 +317,29 @@ Et une règle d'écriture : `toolUseResult` est **tantôt un objet, tantôt une 
 `.status` sans tester le type donne `undefined` au lieu d'une erreur, donc un agent mal
 classé en silence.
 
-**C6 — ce qui reste non vérifié.** Un sous-agent qui échoue de lui-même, sur une erreur
+**C6 — les résultats d'outils ne sont pas au même endroit selon le transcript.** Découvert
+en écrivant les cartes, et mesuré : **un transcript de sous-agent ne contient aucun champ
+`toolUseResult`**, à aucune ligne. Compté sur le sondage de profondeur 2 : une occurrence
+dans le transcript du parent, zéro dans chacun des deux fichiers de sous-agent.
+
+Le résultat d'un outil appelé par un sous-agent vit donc uniquement dans le bloc
+`tool_result` du message, dont le champ `content` est tantôt une chaîne, tantôt un tableau
+de blocs. Un programme qui ne lit que `toolUseResult` n'affichera **aucun** résultat pour
+les outils d'un sous-agent.
+
+Deux conséquences dans la foulée :
+
+- un agent de profondeur 2 n'a **pas de sortie enregistrée** : l'appel `Agent` qui l'a créé
+  vient d'un transcript de sous-agent, donc sans `toolUseResult`, donc sans `content`, sans
+  `totalTokens` ni `totalDurationMs`. Sa dernière réponse dans son propre transcript est la
+  seule sortie disponible ;
+- `toolStats` n'est pas toujours là non plus : présent pour les agents `Explore` du premier
+  sondage, absent pour l'agent `general-purpose` du sondage de profondeur 2.
+
+**C7 — `is_error` est souvent absent.** Il vaut `true` sur un échec, mais sur un succès il
+est le plus souvent simplement absent, et non `false`. Écrire `ok = !bloc.is_error` déclare
+donc « succès » une information qu'on n'a pas. Trois états valent mieux que deux : échec,
+succès, non renseigné — ce dernier s'omettant à l'affichage.
+
+**C8 — ce qui reste non vérifié.** Un sous-agent qui échoue de lui-même, sur une erreur
 d'API ou un dépassement, plutôt que d'être interrompu de l'extérieur.

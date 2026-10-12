@@ -52,6 +52,52 @@
   svg { display: block; }
   .vise-barre { outline: 1px solid var(--accent); }
   .message { padding: 3rem 1.5rem; color: var(--texte-faible); }
+
+  /* Le panneau des cartes : il recouvre la droite de la piste sans la faire bouger. */
+  .panneau {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(31rem, 94vw);
+    background: var(--fond-carte); border-left: 1px solid var(--trait);
+    box-shadow: -14px 0 34px #0008; overflow-y: auto; padding: 1.2rem 1.3rem 3rem;
+    display: none;
+  }
+  .panneau.ouvert { display: block; }
+  .panneau .fermer {
+    float: right; background: none; border: 0; color: var(--texte-faible);
+    font-size: 1.3rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
+  }
+  .panneau .fermer:hover { color: var(--texte); }
+  .panneau .genre {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--texte-faible);
+  }
+  .panneau h2 { font-size: 1.05rem; margin: .25rem 0 .9rem; font-weight: 600; }
+  .panneau dl {
+    display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem;
+    margin: 0 0 1rem; font-size: .82rem;
+  }
+  .panneau dt { color: var(--texte-faible); }
+  .panneau dd { margin: 0; overflow-wrap: anywhere; }
+  .panneau dd code { font-family: ui-monospace, Menlo, monospace; font-size: .95em; }
+  .bloc { margin-top: 1rem; }
+  .bloc > summary {
+    cursor: pointer; font-size: .78rem; color: var(--texte-faible);
+    text-transform: uppercase; letter-spacing: .07em; padding: .25rem 0;
+  }
+  .bloc > summary:hover { color: var(--texte); }
+  .bloc pre {
+    margin: .45rem 0 0; padding: .7rem .8rem; background: var(--fond);
+    border: 1px solid var(--trait); border-radius: 6px;
+    font: 12px/1.5 ui-monospace, Menlo, monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto;
+  }
+  .avert {
+    margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
+  }
+  .puces-outils { display: flex; flex-wrap: wrap; gap: .3rem; margin: .2rem 0 0; }
+  .puces-outils span {
+    background: var(--fond); border: 1px solid var(--trait); border-radius: 999px;
+    padding: .1rem .55rem; font-size: .74rem;
+  }
 </style>
 </head>
 <body>
@@ -83,6 +129,8 @@
   <div class="arbre" id="arbre"></div>
   <div class="piste" id="piste"><p class="message">Lecture du transcript…</p></div>
 </div>
+
+<aside class="panneau" id="panneau" aria-live="polite"></aside>
 
 <script>
 'use strict';
@@ -242,7 +290,7 @@ function dessinerArbre() {
     etat.className = 'etat';
     etat.textContent = a.outils.length + ' out.';
     d.append(tiret, puce, etiq, etat);
-    d.addEventListener('click', () => { vise = (vise === a.id ? null : a.id); dessiner(); });
+    d.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     return d;
   }));
 }
@@ -303,6 +351,8 @@ function dessinerPiste() {
     g.append(el('circle', { cx: x, cy: 20, r: 3.5, fill: 'var(--requete)' }));
     g.append(el('title', {}, document.createTextNode(
       'requête — ' + heure(r.instant) + '\n\n' + (r.texte || '').slice(0, 400))));
+    g.style.cursor = 'pointer';
+    g.addEventListener('click', () => carteRequete(r));
     svg.append(g);
   }
 
@@ -356,14 +406,163 @@ function dessinerPiste() {
         o.nom + (o.ok === false ? '  — ÉCHEC' : '')
         + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
         + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));
+      titre.style.cursor = 'pointer';
+      titre.addEventListener('click', (e) => {
+        e.stopPropagation();
+        vise = a.id; dessiner(); carteOutil(o, a);
+      });
       g.append(titre);
     }
 
-    g.addEventListener('click', () => { vise = (vise === a.id ? null : a.id); dessiner(); });
+    g.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
     svg.append(g);
   });
 
   elPiste.replaceChildren(svg);
+}
+
+// ------------------------------------------------------------------------- les cartes
+
+const elPanneau = document.getElementById('panneau');
+
+function ligne(dl, cle, valeur, mono) {
+  if (valeur === null || valeur === undefined || valeur === '') return;
+  const dt = document.createElement('dt'); dt.textContent = cle;
+  const dd = document.createElement('dd');
+  if (mono) { const c = document.createElement('code'); c.textContent = valeur; dd.append(c); }
+  else dd.textContent = valeur;
+  dl.append(dt, dd);
+}
+
+/** Un bloc replié par défaut : un prompt ou une sortie peut faire des pages (§6.4). */
+function blocReplie(titre, contenu, ouvert) {
+  if (!contenu) return null;
+  const d = document.createElement('details');
+  d.className = 'bloc';
+  if (ouvert) d.open = true;
+  const s = document.createElement('summary');
+  s.textContent = titre + '  (' + contenu.length + ' caractères)';
+  const pre = document.createElement('pre');
+  pre.textContent = contenu;
+  d.append(s, pre);
+  return d;
+}
+
+function ouvrirPanneau(genre, titre, elements) {
+  elPanneau.replaceChildren();
+  const fermer = document.createElement('button');
+  fermer.className = 'fermer';
+  fermer.textContent = '×';
+  fermer.title = 'fermer (Échap)';
+  fermer.addEventListener('click', fermerPanneau);
+  const g = document.createElement('div'); g.className = 'genre'; g.textContent = genre;
+  const h = document.createElement('h2'); h.textContent = titre;
+  elPanneau.append(fermer, g, h, ...elements.filter(Boolean));
+  elPanneau.classList.add('ouvert');
+  elPanneau.scrollTop = 0;
+}
+
+function fermerPanneau() {
+  elPanneau.classList.remove('ouvert');
+  elPanneau.replaceChildren();
+}
+
+/** Carte d'agent — §6.1. Chaque champ absent est omis, jamais inventé. */
+function carteAgent(a) {
+  const dl = document.createElement('dl');
+  ligne(dl, 'État', a.etat + (a.arrierePlan ? '  (lancé en arrière-plan)' : ''));
+  ligne(dl, 'Type d’agent', a.type);
+  ligne(dl, 'Profondeur', a.profondeur === 0 ? 'agent racine' : String(a.profondeur));
+  const parent = a.parent && a.parent !== 'racine'
+    ? (deroule.agents.find((x) => x.id === a.parent)?.nom || a.parent)
+    : (a.profondeur === 0 ? null : 'agent racine');
+  ligne(dl, 'Lancé par', parent);
+  ligne(dl, 'Début', a.debut ? heure(a.debut) : null);
+  ligne(dl, 'Fin', a.fin ? heure(a.fin) : (a.etat === 'en cours' ? 'pas encore' : 'inconnue'));
+  ligne(dl, 'Durée', duree(a.dureeMs));
+  ligne(dl, 'Modèle', a.modele, true);
+  ligne(dl, 'Effort', a.effort);
+  ligne(dl, 'Jetons', a.jetons !== null && a.jetons !== undefined ? a.jetons.toLocaleString('fr-FR') : null);
+  ligne(dl, 'Appels d’outils', String(a.outils.length));
+  const enfants = deroule.agents.filter((x) => x.parent === a.id).length;
+  ligne(dl, 'Sous-agents lancés', enfants ? String(enfants) : null);
+  if (a.statutBrut && a.statutBrut !== 'completed') ligne(dl, 'Statut brut', a.statutBrut, true);
+
+  const morceaux = [dl];
+
+  // Les outils réellement employés, comptés — et non la liste des outils offerts, qui
+  // n'est presque jamais disponible (C2 d'OBSERVATIONS-FORMAT.md).
+  const parNom = {};
+  for (const o of a.outils) parNom[o.nom] = (parNom[o.nom] || 0) + 1;
+  const noms = Object.entries(parNom).sort((x, y) => y[1] - x[1]);
+  if (noms.length) {
+    const bloc = document.createElement('div');
+    bloc.className = 'bloc';
+    const s = document.createElement('div');
+    s.style.cssText = 'font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--texte-faible)';
+    s.textContent = 'outils employés';
+    const puces = document.createElement('div');
+    puces.className = 'puces-outils';
+    for (const [nom, n] of noms) {
+      const sp = document.createElement('span');
+      sp.textContent = nom + ' × ' + n;
+      puces.append(sp);
+    }
+    bloc.append(s, puces);
+    morceaux.push(bloc);
+  }
+
+  morceaux.push(blocReplie('entrée — le prompt reçu', a.prompt));
+  morceaux.push(blocReplie('sortie — sa réponse finale', a.sortie));
+
+  if (a.etat === 'fin inconnue') {
+    const p = document.createElement('p');
+    p.className = 'avert';
+    p.textContent = "Aucun marqueur de fin n'a été écrit et la session ne tourne plus : "
+      + "cet agent a été coupé net. L'instant affiché est sa dernière trace, pas sa fin.";
+    morceaux.push(p);
+  }
+  ouvrirPanneau(a.profondeur === 0 ? 'agent racine' : 'sous-agent', a.nom, morceaux);
+}
+
+/** Carte d'un appel d'outil — §6.4 — ou d'un skill — §6.2. */
+function carteOutil(o, agent) {
+  const estSkill = Boolean(o.skill);
+  const dl = document.createElement('dl');
+  if (estSkill) ligne(dl, 'Skill', o.skill, true);
+  ligne(dl, 'Outil', o.nom, true);
+  ligne(dl, 'Appelé par', agent.nom);
+  ligne(dl, 'Instant', o.debut ? heure(o.debut) : null);
+  ligne(dl, 'Durée', o.fin !== null ? duree(o.dureeMs) : 'sans résultat enregistré');
+  // Un résultat sans drapeau d'erreur est le cas ordinaire : on omet la ligne plutôt que
+  // d'afficher « inconnue » sur presque tous les appels.
+  ligne(dl, 'Issue', o.ok === false ? 'échec' : o.ok === true ? 'succès' : null);
+
+  const morceaux = [dl,
+    blocReplie(estSkill ? 'consigne donnée au skill' : 'entrée', o.entree),
+    blocReplie('résultat', o.sortie)];
+
+  if (o.tronque) {
+    const p = document.createElement('p');
+    p.className = 'avert';
+    p.textContent = "Entrée ou résultat tronqués à 700 caractères : le transcript en "
+      + 'contient davantage.';
+    morceaux.push(p);
+  }
+  if (estSkill && o.skill === 'loop') {
+    const p = document.createElement('p');
+    p.className = 'avert';
+    p.textContent = "Ce skill ouvre une boucle. Sa carte, avec la bande d'itérations, "
+      + 'arrive au lot 6.';
+    morceaux.push(p);
+  }
+  ouvrirPanneau(estSkill ? 'skill' : "appel d'outil",
+    estSkill ? o.skill : o.nom + (o.resume ? ' — ' + o.resume.slice(0, 60) : ''),
+    morceaux);
+}
+
+function carteRequete(r) {
+  ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
 }
 
 function dessiner() {
@@ -410,6 +609,7 @@ fetch('/api/session?id=' + encodeURIComponent(id || ''))
 
 elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);
+addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
 elReplier.addEventListener('change', dessiner);
 // L'arbre et les voies doivent rester alignés quand on fait défiler.
 elPiste.addEventListener('scroll', () => { elArbre.scrollTop = elPiste.scrollTop; });

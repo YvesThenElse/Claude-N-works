@@ -15,6 +15,9 @@ const path = require('node:path');
 const readline = require('node:readline');
 
 const LIMITE_TEXTE = 4000; // au-delà, on tronque : un prompt peut faire des pages
+// Par appel d'outil on est bien plus avare : une session en compte des milliers, et tout
+// garder ferait gonfler le modèle au-delà du raisonnable.
+const LIMITE_APPEL = 700;
 
 // ----------------------------------------------------------------------- petits outils
 
@@ -33,9 +36,46 @@ function texteDe(contenu) {
     .join('\n');
 }
 
-function tronquer(texte) {
+function tronquer(texte, limite = LIMITE_TEXTE) {
   if (typeof texte !== 'string') return '';
-  return texte.length > LIMITE_TEXTE ? texte.slice(0, LIMITE_TEXTE) + '\n…' : texte;
+  return texte.length > limite ? texte.slice(0, limite) + '\n…' : texte;
+}
+
+/** Le texte d'un résultat d'outil, quelle que soit la forme qu'il a prise. */
+function texteResultat(resultat) {
+  if (resultat === null || resultat === undefined) return '';
+  if (typeof resultat === 'string') return resultat;
+  if (typeof resultat !== 'object') return String(resultat);
+  // Un bloc tool_result porte parfois directement un tableau de blocs de texte.
+  if (Array.isArray(resultat)) return texteDe(resultat);
+  if (typeof resultat.stdout === 'string' || typeof resultat.stderr === 'string') {
+    return [resultat.stdout, resultat.stderr].filter(Boolean).join('\n');
+  }
+  if (Array.isArray(resultat.content)) return texteDe(resultat.content);
+  if (typeof resultat.content === 'string') return resultat.content;
+  if (typeof resultat.file === 'object' && typeof resultat.file?.content === 'string') {
+    return resultat.file.content;
+  }
+  try {
+    return JSON.stringify(resultat);
+  } catch {
+    return '';
+  }
+}
+
+/** L'entrée d'un outil, rendue lisible : la commande seule plutôt que tout l'objet. */
+function texteEntree(nom, entree) {
+  if (entree === null || entree === undefined) return '';
+  if (typeof entree === 'string') return entree;
+  if (nom === 'Bash' && typeof entree.command === 'string') return entree.command;
+  if (nom === 'Skill') {
+    return [entree.skill, entree.args].filter(Boolean).join('\n\n');
+  }
+  try {
+    return JSON.stringify(entree, null, 2);
+  } catch {
+    return '';
+  }
 }
 
 /** Résumé d'une entrée d'outil, pour une marque survolée. */
@@ -82,6 +122,7 @@ async function depouiller(chemin) {
   let modele = null;
   let effort = null;
   let interrompu = false;
+  let derniereReponse = '';
 
   for await (const { ligne } of lignesDe(chemin)) {
     const t = instant(ligne);
@@ -93,6 +134,8 @@ async function depouiller(chemin) {
     if (ligne.type === 'assistant') {
       if (ligne.message && ligne.message.model) modele = ligne.message.model;
       if (ligne.effort) effort = ligne.effort;
+      const dit = texteDe(ligne.message?.content);
+      if (dit.trim()) derniereReponse = dit;
       for (const bloc of ligne.message?.content || []) {
         if (bloc.type !== 'tool_use') continue;
         appels.set(bloc.id, {
@@ -135,14 +178,22 @@ async function depouiller(chemin) {
         const appel = appels.get(bloc.tool_use_id);
         if (!appel) continue;
         appel.fin = t;
-        appel.ok = !bloc.is_error;
-        // Attention : toolUseResult est tantôt un objet, tantôt une chaîne — §5 quater.
+        // `is_error` vaut parfois null : on ne transforme pas une absence d'information
+        // en succès, on la laisse inconnue.
+        appel.ok = bloc.is_error === true ? false : (bloc.is_error === false ? true : null);
+        // Attention : toolUseResult est tantôt un objet, tantôt une chaîne — §5 quater —
+        // et surtout il est **absent des transcripts de sous-agents**, où le résultat ne
+        // vit que dans le bloc tool_result lui-même.
         appel.resultat = ligne.toolUseResult;
+        appel.resultatBloc = bloc.content;
       }
     }
   }
 
-  return { appels, requetes, notifications, premier, dernier, modele, effort, interrompu };
+  return {
+    appels, requetes, notifications, premier, dernier, modele, effort, interrompu,
+    derniereReponse,
+  };
 }
 
 // ------------------------------------------------------------------ assemblage du tout
@@ -249,7 +300,8 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
     modele: racine.modele,
     effort: racine.effort,
     prompt: null,
-    sortie: null,
+    // L'agent racine ne « rend » rien : sa dernière réponse tient lieu de sortie.
+    sortie: tronquer(racine.derniereReponse),
     dureeMs: racine.premier !== null && racine.dernier !== null
       ? racine.dernier - racine.premier : null,
     jetons: null,
@@ -284,9 +336,15 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
       modele: res?.resolvedModel || d.modele,
       effort: d.effort,
       prompt: tronquer(res?.prompt ?? appelParent?.entree?.prompt ?? ''),
-      sortie: tronquer(res ? texteDe(res.content) : ''),
+      // Un agent de profondeur 2 n'a pas de résultat côté parent : son transcript ne
+      // porte pas toolUseResult. Sa dernière réponse fait alors office de sortie.
+      sortie: tronquer(res ? texteDe(res.content) : d.derniereReponse),
       dureeMs: res?.totalDurationMs ?? (fin !== null && debut !== null ? fin - debut : null),
       jetons: res?.totalTokens ?? null,
+      compteurs: res?.toolStats ?? null,
+      statutBrut: typeof appelParent?.resultat === 'string'
+        ? appelParent.resultat
+        : (res?.status ?? null),
       arrierePlan: Boolean(appelParent?.entree?.run_in_background),
       outils: [...d.appels.values()].map(nettoyerAppel),
     });
@@ -318,6 +376,10 @@ async function lireSession(cheminTranscript, { sessionVivante = false, nomSessio
 }
 
 function nettoyerAppel(a) {
+  const entree = texteEntree(a.nom, a.entree);
+  const sortie = a.resultat !== undefined && a.resultat !== null
+    ? texteResultat(a.resultat)
+    : texteResultat(a.resultatBloc);
   return {
     id: a.id,
     nom: a.nom,
@@ -326,6 +388,13 @@ function nettoyerAppel(a) {
     dureeMs: a.debut !== null && a.fin !== null ? a.fin - a.debut : null,
     ok: a.ok,
     resume: a.resume,
+    // `tronque` dit franchement que la carte ne montre pas tout, plutôt que de laisser
+    // croire que l'appel tenait en sept cents caractères.
+    entree: tronquer(entree, LIMITE_APPEL),
+    sortie: tronquer(sortie, LIMITE_APPEL),
+    tronque: entree.length > LIMITE_APPEL || sortie.length > LIMITE_APPEL,
+    // Un appel de skill porte son nom à part : il mérite sa propre carte (§6.2).
+    skill: a.nom === 'Skill' ? (a.entree?.skill || null) : null,
   };
 }
 

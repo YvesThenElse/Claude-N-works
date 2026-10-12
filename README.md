@@ -30,7 +30,7 @@ Le programme **ne fait que lire**. Il n'écrit jamais dans `~/.claude`.
 | 1 — connaître le terrain | fait : R1 et R2 levés, format consigné, langage arrêté |
 | 2 — l'écran des sessions | fait |
 | 3 — la ligne du temps | fait |
-| 4 — les cartes | à faire |
+| 4 — les cartes | fait |
 | 5 — le temps réel | à faire |
 | 6 — la carte de boucle | à faire |
 
@@ -58,6 +58,13 @@ Tous les appels d'outils sont là, un par un, à leur instant : un trait net au 
 bande discrète pour la durée. Un appel d'agent et un appel en échec ont leur couleur. Les
 requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
 repères verticaux.
+
+Cliquer un agent, un appel d'outil ou une requête ouvre sa carte. Celle d'un agent donne
+son état, son type, sa profondeur, qui l'a lancé, ses instants, son modèle, son effort, ses
+jetons, les outils qu'il a **employés** comptés par nom, et son entrée et sa sortie
+repliées. Un agent à la fin inconnue le dit en toutes lettres. Celle d'un appel d'outil
+donne son entrée et son résultat, tronqués à 700 caractères — et le dit quand il tronque.
+Un appel de skill a sa propre carte, avec la consigne qui lui a été donnée.
 
 **Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
