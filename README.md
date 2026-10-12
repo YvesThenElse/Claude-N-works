@@ -371,6 +371,10 @@ engloberait tout le sommeil. Le « début de réponse » est l'instant où le pr
 **45 % des appels n'ont pas de durée de réponse mesurable** — leur réponse tenait en un
 seul bloc, donc début et fin se confondent.
 
+Chaque voie porte un pictogramme dans sa couleur : ◆ l'agent racine, ◈ un sous-agent,
+⊞ les outils, ▥ la taille du contexte, ▤ son contenu, ⊝ l'attente, ⟳ les boucles,
+◇ un modèle.
+
 ### Ranger les voies
 
 Deux flèches en tête de chaque ligne échangent la voie avec sa voisine, vers le haut ou

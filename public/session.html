@@ -48,7 +48,12 @@
     overflow: hidden; text-overflow: ellipsis; font-size: .82rem;
   }
   .noeud:hover, .noeud.vise { background: var(--fond-carte); }
-  .noeud .tiret { color: var(--trait); font-family: monospace; }
+  .noeud .tiret { color: #39405a; font-family: monospace; }
+  /* Le pictogramme de la voie. Il était dessiné dans la couleur des traits d'arbre, si
+     sombre qu'on ne le voyait pas : il porte maintenant la couleur de sa voie. */
+  .noeud .icone {
+    font-size: 1rem; line-height: 1; flex: none; width: 1.25rem; text-align: center;
+  }
   /* Les flèches de rangement, en tête de ligne. Discrètes tant qu'on ne survole pas. */
   .noeud .rangement { display: flex; flex-direction: column; flex: none; }
   /* Chaque flèche doit rester visable : à sept pixels de haut, on la rate une fois sur
@@ -511,6 +516,15 @@ function tousLesInstants(d) {
   return ts;
 }
 
+/**
+ * La couleur d'un pictogramme d'agent. Celle de l'état convient pour une barre, mais
+ * « terminé » y est un gris si sombre qu'un glyphe de treize pixels y disparaît : on
+ * l'éclaircit, sans changer le sens — gris veut toujours dire terminé.
+ */
+function couleurPicto(etat) {
+  return etat === 'terminé' ? 'var(--texte-faible)' : couleurEtat(etat);
+}
+
 function couleurEtat(etat) {
   return etat === 'en cours' ? 'var(--en-cours)'
     : etat === 'interrompu' ? 'var(--interrompu)'
@@ -730,6 +744,8 @@ function dessinerArbre() {
 
     const tiret = document.createElement('span');
     tiret.className = 'tiret';
+    const icone = document.createElement('span');
+    icone.className = 'icone';
     const puce = document.createElement('i');
     puce.className = 'puce';
     const etiq = document.createElement('span');
@@ -740,6 +756,8 @@ function dessinerArbre() {
     if (v.genre === 'agent') {
       d.title = a.nom + '  —  ' + a.etat + '\n\n' + LEGENDE_VOIE.agent;
       tiret.textContent = a.profondeur === 0 ? '' : '│ '.repeat(a.profondeur - 1) + '└─';
+      icone.textContent = a.profondeur === 0 ? '◆' : '◈';
+      icone.style.color = couleurPicto(a.etat);
       puce.style.background = couleurEtat(a.etat);
       etiq.textContent = a.nom;
       etat.textContent = a.outils.length + ' out.';
@@ -753,7 +771,9 @@ function dessinerArbre() {
             + ref.pic.toLocaleString('fr-FR') + ')'
           : 'sur une fenêtre de taille inconnue')
         + '\n\n' + LEGENDE_VOIE.contexte;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '▁ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '▥';
+      icone.style.color = '#e0af68';
       puce.style.background = ref.fenetreConnue
         ? 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)'
         : 'var(--termine)';
@@ -768,7 +788,9 @@ function dessinerArbre() {
       d.title = a.outils.length + ' appels d’outils\n'
         + tri.map(([n, c]) => '   ' + n + ' × ' + c).join('\n')
         + '\n\n' + LEGENDE_VOIE.outils;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '⚒ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '⊞';
+      icone.style.color = 'var(--outil)';
       puce.style.background = 'var(--outil)';
       etiq.textContent = 'outils';
       etiq.style.color = 'var(--texte-faible)';
@@ -778,7 +800,9 @@ function dessinerArbre() {
       const derniere = a.requetesModele[a.requetesModele.length - 1];
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
         + LEGENDE_VOIE.contenu;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '▤ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '▤';
+      icone.style.color = '#7aa2f7';
       puce.style.background = 'linear-gradient(to right, #7aa2f7, #9ece6a)';
       etiq.textContent = 'Contenu CTX';
       etiq.style.color = 'var(--texte-faible)';
@@ -792,7 +816,9 @@ function dessinerArbre() {
         + '\nlatence moyenne ' + duree(Math.round(lat))
         + '\nréponse moyenne ' + duree(Math.round(rep))
         + '\n\n' + LEGENDE_VOIE.modele;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '◇ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '◇';
+      icone.style.color = teinteModele(v.modele);
       puce.style.background = teinteModele(v.modele);
       etiq.textContent = v.modele.replace(/^claude-/, '');
       etiq.style.color = 'var(--texte-faible)';
@@ -804,7 +830,9 @@ function dessinerArbre() {
       d.title = a.attentes.length + ' périodes d’attente, ' + duree(total) + ' en tout'
         + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '')
         + '\n\n' + LEGENDE_VOIE.attente;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '⏸ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '⊝';
+      icone.style.color = 'var(--requete)';
       puce.style.background = 'var(--requete)';
       etiq.textContent = 'attente';
       etiq.style.color = 'var(--texte-faible)';
@@ -814,7 +842,9 @@ function dessinerArbre() {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
       d.title = n + ' boucle(s), ' + its + ' itération(s)\n\n' + LEGENDE_VOIE.boucles;
-      tiret.textContent = '│ '.repeat(a.profondeur) + '↻ ';
+      tiret.textContent = '│ '.repeat(a.profondeur);
+      icone.textContent = '⟳';
+      icone.style.color = 'var(--boucle)';
       puce.style.background = 'var(--boucle)';
       puce.style.borderRadius = '50%';
       etiq.textContent = n > 1 ? n + ' boucles' : 'une boucle';
@@ -822,7 +852,7 @@ function dessinerArbre() {
       etat.textContent = its + ' it.';
       surLigne(() => carteBoucle(a.boucles[0], a, 0));
     }
-    d.append(rangement, tiret, puce, etiq, etat);
+    d.append(rangement, tiret, icone, puce, etiq, etat);
     return d;
   }));
 }
