@@ -84,6 +84,12 @@
   .noeud:hover .rangement button { opacity: .9; }
   .noeud .rangement button:hover:not(:disabled) { color: var(--accent); opacity: 1; }
   .noeud .rangement button:disabled { visibility: hidden; }
+  .menu .remise {
+    margin-top: .3rem; width: 100%; background: none; border: 0;
+    border-top: 1px solid var(--trait); color: var(--texte-faible); cursor: pointer;
+    font: inherit; font-size: .74rem; text-align: left; padding: .4rem .2rem 0;
+  }
+  .menu .remise:hover { color: var(--accent); }
   .noeud .etiq { overflow: hidden; text-overflow: ellipsis; }
   .noeud .etat { margin-left: auto; font-size: .72rem; color: var(--texte-faible); }
 
@@ -355,6 +361,63 @@ let axeCourant = null;
 // placent d'elles-mêmes au bon endroit.
 let ordreVoies = [];
 let ordrePersonnalise = false;
+// Ce qu'Yves a disposé lui-même survit au rechargement : sans quoi chaque retour sur une
+// session lui redemanderait le même travail. Deux portées, parce que ce ne sont pas les
+// mêmes choses. Les voies affichées valent pour toutes les sessions — c'est un goût, pas
+// un détail de telle trace. L'ordre des lignes et les agents repliés, eux, tiennent aux
+// agents de CETTE session, dont les identifiants ne veulent rien dire ailleurs.
+const CLE_MEMOIRE = 'claude-n-works.reglages.v1';
+const SESSIONS_RETENUES = 40;
+
+function lireReglages() {
+  try { return JSON.parse(localStorage.getItem(CLE_MEMOIRE)) || {}; } catch { return {}; }
+}
+
+function retenir() {
+  const r = lireReglages();
+  r.voies = { ...voiesVisibles };
+  r.sessions = r.sessions || {};
+  const s = r.sessions[idSession] || (r.sessions[idSession] = {});
+  s.ordre = ordrePersonnalise ? ordreVoies : null;
+  s.replies = [...agentsReplies];
+  s.vu = Date.now();
+  // On ne retient pas toutes les sessions de la machine : les plus anciennement vues
+  // s'effacent, sans quoi le stockage grossirait sans fin et finirait par déborder.
+  const ids = Object.keys(r.sessions)
+    .sort((a, b) => (r.sessions[b].vu || 0) - (r.sessions[a].vu || 0));
+  for (const trop of ids.slice(SESSIONS_RETENUES)) delete r.sessions[trop];
+  // Un navigateur en navigation privée, ou un stockage plein, refuse d'écrire. Ce n'est
+  // pas une raison pour casser l'écran : on se passe de mémoire et on continue.
+  try { localStorage.setItem(CLE_MEMOIRE, JSON.stringify(r)); } catch { /* tant pis */ }
+}
+
+function seSouvenir() {
+  const r = lireReglages();
+  if (r.voies) {
+    for (const cle of Object.keys(voiesVisibles)) {
+      if (typeof r.voies[cle] === 'boolean') voiesVisibles[cle] = r.voies[cle];
+    }
+  }
+  const s = (r.sessions || {})[idSession];
+  if (!s) return;
+  if (Array.isArray(s.ordre) && s.ordre.length) {
+    ordreVoies = s.ordre;
+    ordrePersonnalise = true;
+  }
+  for (const agentId of s.replies || []) agentsReplies.add(agentId);
+}
+
+/** Tout réafficher, tout déplier, et rendre l'ordre naturel. */
+function oublier() {
+  for (const cle of Object.keys(voiesVisibles)) voiesVisibles[cle] = true;
+  ordreVoies = [];
+  ordrePersonnalise = false;
+  agentsReplies.clear();
+  retenir();
+  remplirMenuVoies();
+  dessiner();
+}
+
 // Les agents repliés. Replier ferme tout ce qui est sous la ligne de l'agent : ses propres
 // voies annexes comme ses sous-agents et les leurs. Un agent replié tient donc en une
 // seule ligne, ce qui est le seul moyen de rendre un arbre fourni lisible.
@@ -686,6 +749,7 @@ function deplacerVoie(voies, i, pas) {
   if (ia < 0 || ib < 0) return;
   ordreVoies[ia] = b;
   ordreVoies[ib] = a;
+  retenir();
   dessiner();
 }
 
@@ -983,6 +1047,7 @@ function dessinerArbre() {
       chevron.addEventListener('click', () => {
         if (agentsReplies.has(a.id)) agentsReplies.delete(a.id);
         else agentsReplies.add(a.id);
+        retenir();
         dessiner();
       });
     } else {
@@ -3499,6 +3564,9 @@ function resumer(d) {
 const id = new URLSearchParams(location.search).get('id');
 const idSession = id;
 
+// Avant le premier dessin : on remet l'écran tel qu'Yves l'avait laissé.
+seSouvenir();
+
 /**
  * Le suivi d'une session vivante. Le serveur n'envoie que lorsque le transcript a bougé ;
  * on redessine alors en conservant la position de défilement et la carte ouverte, sans
@@ -3567,10 +3635,20 @@ function remplirMenuVoies() {
       presentes.fichiers = (presentes.fichiers || 0) + 1;
     }
     if ((a.outillage || []).length) presentes.outillage = (presentes.outillage || 0) + 1;
-    if ((a.requetesModele || []).length > 1) presentes.contenu = (presentes.contenu || 0) + 1;
+    if ((a.requetesModele || []).length > 1) {
+      presentes.contenu = (presentes.contenu || 0) + 1;
+      presentes.buffer = (presentes.buffer || 0) + 1;
+    }
     if ((a.boucles || []).length) presentes.boucles = (presentes.boucles || 0) + 1;
     presentes.modele = (presentes.modele || 0) + modelesDe(a).length;
   }
+  const remise = document.createElement('button');
+  remise.className = 'remise';
+  remise.textContent = 'tout réafficher et remettre l’ordre';
+  remise.title = 'Réaffiche toutes les voies — ce réglage vaut pour toutes les sessions — '
+    + 'et rend à celle-ci son ordre naturel, agents dépliés.';
+  remise.addEventListener('click', (e) => { e.preventDefault(); oublier(); });
+
   elListeVoies.replaceChildren(...VOIES_ANNEXES.map((v) => {
     const l = document.createElement('label');
     const c = document.createElement('input');
@@ -3581,6 +3659,7 @@ function remplirMenuVoies() {
     c.disabled = !presentes[v.cle];
     c.addEventListener('change', () => {
       voiesVisibles[v.cle] = c.checked;
+      retenir();
       majResumeVoies(presentes);
       dessiner();
     });
@@ -3597,7 +3676,7 @@ function remplirMenuVoies() {
       : 'aucune';
     l.append(c, puce, nom, compte);
     return l;
-  }));
+  }), remise);
   majResumeVoies(presentes);
 }
 

@@ -526,6 +526,31 @@ elles passent d'une luminance de 60 à 127 sur un fond à 21, soit 2,7 fois plus
 Une commande qu'on ne voit pas est une commande qui n'existe pas. Elles s'éclaircissent
 encore au survol de la ligne, et prennent la couleur d'accent sous le pointeur.
 
+### Ce dont l'écran se souvient
+
+Ce qu'on dispose soi-même survit au rechargement. Sans cela, chaque retour sur une session
+redemande le même travail : remasquer les voies qu'on ne regarde pas, remettre côte à côte
+celles qu'on compare, replier les sous-agents qu'on a déjà lus.
+
+Deux portées, parce que ce ne sont pas les mêmes choses :
+
+| | |
+|---|---|
+| **les voies affichées** | pour **toutes** les sessions — c'est un goût, pas un détail de telle trace |
+| **l'ordre des lignes et les agents repliés** | pour **cette** session seulement : les identifiants d'agents ne veulent rien dire ailleurs |
+
+Tout tient dans une seule entrée de `localStorage`, et les quarante sessions vues le plus
+récemment seulement : au-delà, les plus anciennes s'effacent, sans quoi le stockage
+grossirait sans fin. Mesuré avec soixante sessions en mémoire : quarante retenues, la
+courante toujours gardée, 3,6 ko au total.
+
+Si le navigateur refuse d'écrire — navigation privée, stockage plein — l'écran ne s'arrête
+pas : il se passe de mémoire et continue.
+
+Au bas du menu des voies, **tout réafficher et remettre l'ordre** défait le tout : les voies
+reviennent toutes (pour toutes les sessions, puisque c'est leur portée), l'ordre naturel
+reprend et les agents se déplient.
+
 ### L'outillage, et la question des permissions
 
 Ce que l'agent a le droit d'appeler, et les instants où cela change : des outils offerts au
