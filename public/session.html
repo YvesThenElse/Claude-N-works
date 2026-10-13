@@ -383,13 +383,72 @@ const VOIES_ANNEXES = [
   { cle: 'outillage', nom: 'outillage', teinte: '#ffd479' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
+  { cle: 'buffer', nom: 'Buffer CTX', teinte: 'linear-gradient(to right, #f7768e, #e0af68, #9ece6a)' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
   { cle: 'boucles', nom: 'boucles', teinte: 'var(--boucle)' },
   { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, contexte: true, contenu: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
 };
+
+// Ce que coûte un appel, en multiples du prix plein : écrire au cache coûte 1,25 fois, y
+// lire 0,1 fois. Ce sont les tarifs relatifs d'Anthropic, et ils ne dépendent ni du modèle
+// ni de la monnaie — c'est pour cela qu'on peut les écrire ici sans mentir.
+const PRIX_JETON = { neuf: 1, ecrit: 1.25, lu: 0.1 };
+
+/**
+ * Ce qu'un appel économise par rapport au plein tarif.
+ *
+ * On ne retient pas la simple part relue : mesurée sur 16 178 requêtes de la machine, elle
+ * vaut 97,9 % en moyenne et 96 % des appels sont au-dessus de 90 %. Une échelle fondée
+ * dessus ne distinguerait rien. L'économie réelle s'étale, elle, de −25 % — tout écrit au
+ * cache, donc payé 1,25 fois — à 90 %, le plafond, puisqu'une lecture coûte encore un
+ * dixième.
+ */
+function economieCache(j) {
+  const total = (j?.entree || 0) + (j?.cacheLu || 0) + (j?.cacheEcrit || 0);
+  if (!total) return null;
+  const cout = (j.entree || 0) * PRIX_JETON.neuf
+    + (j.cacheEcrit || 0) * PRIX_JETON.ecrit
+    + (j.cacheLu || 0) * PRIX_JETON.lu;
+  return { total, cout, part: 1 - cout / total, relu: (j.cacheLu || 0) / total };
+}
+
+// Le dégradé est tendu de 50 % à 90 %, et non de 0 à 1. 90 % est le plafond atteignable ;
+// 50 % est le premier centile mesuré (52,4 %), si bien que le pour-cent d'appels les plus
+// coûteux sature en rouge au lieu d'écraser l'échelle. Entre les deux, les percentiles
+// mesurés se répartissent : p5 à 80,6 %, p25 à 88,4 %, médiane à 89,4 %.
+const PALIERS_BUFFER = [
+  { a: 0.50, rgb: [247, 118, 142] },
+  { a: 0.70, rgb: [224, 175, 104] },
+  { a: 0.90, rgb: [158, 206, 106] },
+];
+function teinteBuffer(part) {
+  const x = Math.max(PALIERS_BUFFER[0].a, Math.min(PALIERS_BUFFER.at(-1).a, part));
+  for (let i = 1; i < PALIERS_BUFFER.length; i += 1) {
+    const g = PALIERS_BUFFER[i - 1];
+    const d = PALIERS_BUFFER[i];
+    if (x > d.a) continue;
+    const k = (x - g.a) / (d.a - g.a);
+    const c = g.rgb.map((v, j) => Math.round(v + (d.rgb[j] - v) * k));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  }
+  return `rgb(${PALIERS_BUFFER.at(-1).rgb.join(',')})`;
+}
+
+/** L'économie d'un agent entier : les coûts et les totaux s'additionnent, pas les parts. */
+function economieAgent(agent) {
+  let total = 0;
+  let cout = 0;
+  let relu = 0;
+  for (const r of agent.requetesModele || []) {
+    const e = economieCache(r.jetons);
+    if (!e) continue;
+    total += e.total; cout += e.cout; relu += (r.jetons.cacheLu || 0);
+  }
+  return total ? { total, cout, part: 1 - cout / total, relu: relu / total } : null;
+}
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
 const PARTS_CONTENU = [
@@ -689,6 +748,9 @@ function construireVoies() {
     if (voiesVisibles.contenu && (a.requetesModele || []).length > 1) {
       voies.push({ genre: 'contenu', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.buffer && (a.requetesModele || []).length > 1) {
+      voies.push({ genre: 'buffer', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.attente && (a.attentes || []).length) {
       voies.push({ genre: 'attente', agent: a, prof: a.profondeur + 1 });
     }
@@ -744,6 +806,33 @@ const LEGENDE_VOIE = {
     'la reprise. Sur l’ensemble des transcrits, 78 % des échecs sont suivis',
     'du même outil — mais presque jamais à l’identique : l’agent corrige',
     'son entrée et relance.',
+  ].join('\n'),
+  buffer: [
+    'Ce que chaque appel au modèle économise, grâce au cache, par rapport à',
+    'ce qu’il aurait coûté sans lui. Une bande par appel, qui tient jusqu’au',
+    'suivant.',
+    '',
+    '   vert     l’appel relit son contexte — il paie un dixième',
+    '   orange   une partie se reconstruit',
+    '   rouge    le buffer est perdu et se réécrit au prix fort',
+    '',
+    'Le dégradé est tendu de 50 % à 90 %, pas de 0 à 100 %. 90 % est le',
+    'plafond : même entièrement relu, un contexte coûte encore un dixième.',
+    '50 % est le premier centile mesuré sur cette machine — 124 transcrits,',
+    '16 178 requêtes, de −25 % (tout réécrit au cache, payé 1,25 fois) à 90 %.',
+    '',
+    'La voie est verte presque partout, et c’est la vérité : la moitié des',
+    'appels dépasse 89 %, et seuls 2,1 % tombent sous 70 %. Son travail est',
+    'de montrer ces exceptions-là, pas de noircir un tableau qui va bien.',
+    '',
+    'Le premier appel d’un agent est rouge sans faute de personne : il n’y',
+    'a rien à relire. Les suivants disent, eux, si le buffer a tenu.',
+    '',
+    'Les stries rouges au milieu d’une bande verte sont des reprises après',
+    'une pause : le cache expire, et le premier appel au retour le réécrit.',
+    'Mesuré sur la session la plus longue — 2 880 appels : des 22 appels',
+    'sous 70 %, 18 suivent un silence de plus de cinq minutes, l’écart',
+    'médian étant de 2 h 36. Parmi les 2 857 autres, 26 seulement.',
   ].join('\n'),
   contexte: [
     'La taille du contexte au fil du temps.',
@@ -1019,6 +1108,24 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(totalComposition(derniere?.composition) / 1000) + ' k car.';
       surLigne(() => carteContenu(a, derniere));
+    } else if (v.genre === 'buffer') {
+      const e = economieAgent(a);
+      const pires = (a.requetesModele || [])
+        .map((r) => economieCache(r.jetons)).filter(Boolean)
+        .filter((x) => x.part < 0.7).length;
+      d.title = 'Le cache lui a épargné ' + Math.round((e?.part || 0) * 100) + ' % de ce que '
+        + 'ses appels auraient coûté\n'
+        + (e ? Math.round(e.total).toLocaleString('fr-FR') + ' jetons présentés, ' + Math.round(e.relu * 100)
+          + ' % relus du cache\n' : '')
+        + (pires ? pires + ' appel(s) sous 70 % — le buffer y a été reconstruit\n' : '')
+        + '\n' + LEGENDE_VOIE.buffer;
+      icone.textContent = '⊞';
+      icone.style.color = teinteBuffer(e?.part ?? 0.9);
+      puce.style.background = 'linear-gradient(to right, #f7768e, #e0af68, #9ece6a)';
+      etiq.textContent = 'Buffer CTX';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = Math.round((e?.part || 0) * 100) + ' %';
+      surLigne(() => carteBuffer(a, null));
     } else if (v.genre === 'modele') {
       const reqs = a.requetesModele.filter((r) => r.modele === v.modele);
       const lat = reqs.reduce((n, r) => n + r.latenceMs, 0) / Math.max(1, reqs.length);
@@ -1286,6 +1393,10 @@ function dessinerPiste() {
     const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
     if (v.genre === 'contexte') {
       svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      return;
+    }
+    if (v.genre === 'buffer') {
+      svg.append(dessinerVoieBuffer(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'contenu') {
@@ -2367,6 +2478,75 @@ async function montrerContenuContexte(agent, requete, hote) {
 }
 
 /** Carte du contenu du contexte à un appel donné. */
+/** Carte du buffer : ce que le cache épargne, pour un appel ou pour l'agent entier. */
+function carteBuffer(agent, visee) {
+  const nombre = (n) => Math.round(n || 0).toLocaleString('fr-FR');
+  const global = economieAgent(agent);
+  const dl = document.createElement('dl');
+  const morceaux = [dl];
+
+  if (visee) {
+    const e = economieCache(visee.jetons);
+    const rang = (agent.requetesModele || []).indexOf(visee);
+    ligne(dl, 'Cet appel', heure(visee.appel)
+      + (rang === 0 ? '   —  le premier de l’agent : il n’avait rien à relire' : ''));
+    ligne(dl, 'Déclenché par', visee.declencheur);
+    detaillerEntree(dl, visee.jetons, nombre);
+    if (e) {
+      ligne(dl, 'Coût de l’appel', nombre(e.cout) + ' jetons au prix plein, '
+        + 'pour ' + nombre(e.total) + ' présentés');
+      morceaux.push(jaugeCache(e.part, 'du prix plein épargné par le cache',
+        ['tout au prix fort', '45 %', 'plafond : 90 %']));
+    }
+  }
+
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Appels mesurés', String((agent.requetesModele || []).length));
+  if (global) {
+    ligne(dl, 'Jetons présentés en tout', nombre(global.total));
+    ligne(dl, 'Relus du cache', Math.round(global.relu * 100) + ' %');
+    ligne(dl, 'Coût réel', nombre(global.cout) + ' jetons au prix plein');
+    ligne(dl, 'Épargné par le cache', nombre(global.total - global.cout) + ' jetons, soit '
+      + Math.round(global.part * 100) + ' %');
+    if (!visee) {
+      morceaux.push(jaugeCache(global.part, 'du prix plein épargné sur tout l’agent',
+        ['tout au prix fort', '45 %', 'plafond : 90 %']));
+    }
+    const faibles = (agent.requetesModele || [])
+      .map((r) => ({ r, e: economieCache(r.jetons) })).filter((x) => x.e)
+      .filter((x) => x.e.part < 0.7);
+    ligne(dl, 'Appels sous 70 %', faibles.length
+      ? faibles.length + '  —  ' + faibles.slice(0, 6).map((x) => heure(x.r.appel)).join(', ')
+        + (faibles.length > 6 ? '…' : '')
+      : 'aucun');
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  const q = document.createElement('p');
+  q.className = 'avert';
+  q.style.fontStyle = 'normal';
+  q.style.color = 'var(--texte-faible)';
+  q.textContent = 'Un appel qui épargne peu suit presque toujours une pause : le cache '
+    + 'expire, et le retour le réécrit. Mesuré sur la session la plus longue de cette '
+    + 'machine, 2 880 appels : des 22 qui tombent sous 70 %, 18 suivent un silence de plus '
+    + 'de cinq minutes, l’écart médian étant de 2 h 36 — contre 2,3 s pour les autres. '
+    + 'Ce n’est donc pas une faute de conduite, c’est le prix d’une interruption.';
+  morceaux.push(q);
+
+  const avert = document.createElement('p');
+  avert.className = 'avert';
+  avert.textContent = 'Les tarifs employés sont des rapports, pas une monnaie : écrire au '
+    + 'cache coûte 1,25 fois le prix plein, y lire 0,1 fois. L’économie est donc exacte en '
+    + 'proportion et muette en euros — le transcript ne porte aucun prix. Le plafond est '
+    + '90 % : même entièrement relu, un contexte coûte encore un dixième. Et le premier '
+    + 'appel d’un agent est toujours bas sans que personne n’ait mal fait : il n’y a rien '
+    + 'à relire avant de l’avoir écrit.';
+  morceaux.push(avert);
+
+  ouvrirPanneau('buffer', visee ? 'Buffer CTX — un appel' : 'Buffer CTX — ' + agent.nom, morceaux);
+}
+
 function carteContenu(agent, requete) {
   const c = requete?.composition || {};
   const total = totalComposition(c);
@@ -3099,6 +3279,68 @@ function dessinerVoieAttente(agent, centre, axe, visible) {
  * du dessus donne déjà la taille, et superposer les deux rendrait les petites parts
  * illisibles quand le contexte est presque vide.
  */
+/**
+ * La voie du buffer : ce que le cache épargne, appel par appel.
+ *
+ * Une bande par appel, qui court jusqu'au suivant — l'état du buffer tient tant que rien
+ * ne le change. La couleur seule porte le message ; les nombres sont dans la carte.
+ */
+function dessinerVoieBuffer(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const reqs = agent.requetesModele || [];
+  const haut = centre - 9;
+  const hauteur = 18;
+  const finAgent = agent.fin ?? deroule.fin;
+  // En dessous de cette largeur, deux appels de même teinte ne se distinguent plus : on
+  // les réunit en une seule bande. Mesuré sur la session de 2 880 appels, cela ramène
+  // 5 761 éléments à quelques centaines sans rien changer à l'image.
+  const SEUIL_FUSION = 2;
+  const seau = (x) => Math.round(x * 40);
+
+  const bornes = reqs.map((r, i) => ({
+    r,
+    e: economieCache(r.jetons),
+    x: axe.x(r.appel),
+    xf: axe.x(i + 1 < reqs.length ? reqs[i + 1].appel : finAgent),
+  })).filter((b) => b.e);
+
+  let i = 0;
+  while (i < bornes.length) {
+    const d = bornes[i];
+    let j = i;
+    // On n'agrège que des bandes trop fines pour être lues séparément, et de même teinte.
+    while (j + 1 < bornes.length
+        && bornes[j].xf - bornes[j].x < SEUIL_FUSION
+        && seau(bornes[j + 1].e.part) === seau(d.e.part)) {
+      j += 1;
+    }
+    const f = bornes[j];
+    const largeur = Math.max(1.4, f.xf - d.x);
+    if (visible(d.x, d.x + largeur)) {
+      const parts = bornes.slice(i, j + 1).map((b) => b.e.part);
+      const bande = el('rect', {
+        x: d.x, y: haut, width: largeur, height: hauteur,
+        fill: teinteBuffer(d.e.part), opacity: '.85',
+      });
+      bande.style.cursor = 'pointer';
+      bande.append(el('title', {}, document.createTextNode(
+        j > i
+          ? (j - i + 1) + ' appels, de ' + Math.round(Math.min(...parts) * 100) + ' % à '
+            + Math.round(Math.max(...parts) * 100) + ' % épargnés\n' + heure(d.r.appel)
+          : 'le cache épargne ' + Math.round(d.e.part * 100) + ' % de cet appel\n'
+            + heure(d.r.appel) + (i === 0 ? '   (premier appel : rien à relire)' : '') + '\n'
+            + Math.round(d.e.total).toLocaleString('fr-FR') + ' jetons présentés\n'
+            + '   ' + Math.round(d.e.relu * 100) + ' % relus du cache\n'
+            + '   ' + (d.r.jetons.cacheEcrit || 0).toLocaleString('fr-FR') + ' écrits au cache\n'
+            + '   ' + (d.r.jetons.entree || 0).toLocaleString('fr-FR') + ' payés au prix fort')));
+      bande.addEventListener('click', (ev) => { ev.stopPropagation(); carteBuffer(agent, d.r); });
+      g.append(bande);
+    }
+    i = j + 1;
+  }
+  return g;
+}
+
 function dessinerVoieContenu(agent, centre, axe, visible) {
   const g = el('g', {});
   const reqs = agent.requetesModele;

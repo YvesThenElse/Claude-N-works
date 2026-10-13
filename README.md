@@ -456,6 +456,46 @@ engloberait tout le sommeil. Le « début de réponse » est l'instant où le pr
 **45 % des appels n'ont pas de durée de réponse mesurable** — leur réponse tenait en un
 seul bloc, donc début et fin se confondent.
 
+### La voie Buffer CTX
+
+Une bande par appel au modèle, du rouge au vert selon ce que le cache **épargne** sur cet
+appel. La bande tient jusqu'à l'appel suivant : l'état du buffer ne change que quand on y
+touche.
+
+**Pourquoi l'économie plutôt que la part relue.** La part relue ne distingue rien : mesurée
+sur **16 178 requêtes** de cette machine, elle vaut 97,9 % en moyenne et 96 % des appels
+sont au-dessus de 90 %. Une échelle fondée dessus peindrait tout en vert. On montre donc ce
+que l'appel ne paie pas, aux tarifs relatifs d'Anthropic — écrire au cache coûte 1,25 fois
+le prix plein, y lire 0,1 fois :
+
+```
+économie = 1 − (prix fort + 1,25 × écrits au cache + 0,1 × lus du cache) / entrée totale
+```
+
+**Le dégradé est tendu de 50 % à 90 %, pas de 0 à 100 %.** 90 % est le plafond : même
+entièrement relu, un contexte coûte encore un dixième. 50 % est le premier centile mesuré
+(52,4 %), ce qui fait saturer en rouge le pour-cent d'appels les plus coûteux au lieu
+d'écraser l'échelle. Entre les deux, les percentiles mesurés se répartissent — p5 à 80,6 %,
+p25 à 88,4 %, médiane à 89,4 %, minimum absolu **−25 %** quand tout est réécrit au cache.
+
+**La voie est verte presque partout, et c'est la vérité** : seuls 2,1 % des appels tombent
+sous 70 %. Son travail est de montrer ces exceptions-là, pas de noircir un tableau qui va
+bien.
+
+**Ce que disent les stries rouges.** Elles ne sont pas des fautes de conduite : ce sont des
+reprises après une pause, où le cache a expiré. Mesuré sur la session la plus longue,
+2 880 appels : des **22 appels sous 70 %, 18 suivent un silence de plus de cinq minutes**,
+l'écart médian étant de 2 h 36 — contre 2,3 s pour les 2 857 autres. Le premier appel d'un
+agent est rouge pour la même raison, en pire : il n'y a rien à relire.
+
+**Ce qui est fusionné, et pourquoi.** Deux bandes voisines de même teinte et trop fines pour
+être distinguées — moins de 2 px — sont réunies en une seule, et l'infobulle dit alors
+combien d'appels elle couvre. Sans cela, la session de 2 880 appels ajoutait 5 761 éléments
+au dessin ; avec, elle en ajoute 873, pour exactement la même image.
+
+**Ce qu'on ne sait pas dire.** Les tarifs sont des rapports, pas une monnaie : l'économie
+est exacte en proportion et muette en euros, parce que le transcript ne porte aucun prix.
+
 ### Replier l'arbre
 
 Chaque ligne d'agent porte un chevron. Le replier ferme **tout ce qui est sous lui** : ses
