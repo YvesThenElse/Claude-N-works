@@ -77,11 +77,11 @@
   /* Chaque flèche doit rester visable : à sept pixels de haut, on la rate une fois sur
      deux. Deux boutons de quatorze tiennent dans la hauteur d'une ligne. */
   .noeud .rangement button {
-    background: none; border: 0; color: var(--texte-faible); cursor: pointer;
-    height: 14px; line-height: 14px; font-size: .68rem; padding: 0 3px; opacity: .3;
+    background: none; border: 0; color: var(--texte); cursor: pointer;
+    height: 14px; line-height: 14px; font-size: .68rem; padding: 0 3px; opacity: .5;
     font-family: inherit; display: flex; align-items: center; justify-content: center;
   }
-  .noeud:hover .rangement button { opacity: .75; }
+  .noeud:hover .rangement button { opacity: .9; }
   .noeud .rangement button:hover:not(:disabled) { color: var(--accent); opacity: 1; }
   .noeud .rangement button:disabled { visibility: hidden; }
   .noeud .etiq { overflow: hidden; text-overflow: ellipsis; }

@@ -521,6 +521,11 @@ Tant qu'on n'y touche pas, l'ordre naturel s'applique, et une voie qui apparaît
 route — un sous-agent qui vient de naître — se place d'elle-même au bon endroit. Dès qu'on
 a rangé, les nouvelles voies se posent à la fin plutôt que de bousculer ce qui est en place.
 
+Les flèches sont posées en gris clair à mi-opacité, et non en gris sombre : mesuré au pixel,
+elles passent d'une luminance de 60 à 127 sur un fond à 21, soit 2,7 fois plus de contraste.
+Une commande qu'on ne voit pas est une commande qui n'existe pas. Elles s'éclaircissent
+encore au survol de la ligne, et prennent la couleur d'accent sous le pointeur.
+
 ### L'outillage, et la question des permissions
 
 Ce que l'agent a le droit d'appeler, et les instants où cela change : des outils offerts au
