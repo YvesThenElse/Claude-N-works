@@ -70,12 +70,33 @@ chiffre l'écart entre les deux.
 
 **Quatre tempéraments de poste.** C'est le vrai sujet du kit :
 
-| Poste | Sa forme dans le temps |
-|---|---|
-| taillage | une marche par légume — le même geste qui revient, court |
-| cuisson | deux ou trois gestes seulement, dont un très long : un agent qui attend travaille |
-| sauce | un geste qui **revient parce que le précédent n'allait pas** — on goûte, on rectifie, on réduit encore |
-| dressage | le seul qui consomme : il vide la mise en place qu'il met dans l'assiette |
+| Poste | Modèle | Sa forme dans le temps |
+|---|---|---|
+| taillage | haiku | une marche par légume — le même geste qui revient, court |
+| cuisson | sonnet | deux ou trois gestes seulement, dont un très long : un agent qui attend travaille |
+| sauce | sonnet | un geste qui **revient parce que le précédent n'allait pas** — on goûte, on rectifie, on réduit encore |
+| dressage | haiku | le seul qui consomme : il vide la mise en place qu'il met dans l'assiette |
+
+**Et trois modèles, choisis par tempérament.** Le chef pense en opus — c'est lui qui
+décide du menu et de qui fait quoi. Les postes qui **jugent** — un point de cuisson, un
+assaisonnement — sont en sonnet. Les postes qui **répètent** — tailler cinq légumes,
+monter des couches dans l'ordre — sont en haiku. La voie *modèle* montre alors trois
+bandes au lieu de deux, et comme les barres d'agent sont juste au-dessus, on lit dans la
+même image ce que le choix du modèle coûte en temps.
+
+Mesuré sur une ratatouille à trois modèles, **attentes du minuteur retirées** — sans quoi
+on comparerait des longueurs de gestes et non des modèles :
+
+| Modèle | Agents | Temps de modèle | Appels d'outil | Par appel |
+|---|---|---|---|---|
+| sonnet | 5 | 75 s en moyenne | 9,8 | **7,6 s** |
+| haiku | 4 | 54 s en moyenne | 14,8 | **3,6 s** |
+
+Haiku répond deux fois plus vite à l'appel **et** en passe une moitié de plus : il travaille
+par petits pas là où sonnet réfléchit plus longtemps entre deux gestes. Et il a tenu son
+poste sans faute — skill chargée, repères demandés au livre, un geste par légume avec son
+`timeout`, parures écrites puis supprimées une par une. C'est le genre de constat qu'on ne
+peut pas tirer d'une barre : il faut la voie modèle **et** la voie outils en regard.
 
 **Une courbe de fichiers qui monte puis redescend.** Chaque commis dépose un fichier par
 élément préparé, et la courbe de la voie *fichiers* monte d'une marche à chaque fois.
