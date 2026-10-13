@@ -521,7 +521,32 @@ d'outil, un sous-agent n'a qu'un seul hook, `SubagentStart`, à sa naissance.**
 > ⚠️ **BLANC — un hook qui BLOQUE.** Les 32 609 enregistrements ont un `exitCode` de **0** :
 > aucun hook n'a jamais échoué ni refusé quoi que ce soit sur cette machine. **On ne sait
 > donc pas ce qu'écrit un hook bloquant**, et l'application ne doit rien prétendre à son
-> sujet. C'est à un kit d'en produire un pour qu'on puisse le mesurer.
+> sujet.
+>
+> **Mesuré le 13 octobre 2026, et la réponse est pire que la question** : un hook bloquant
+> n'écrit **rien du tout**, parce qu'un hook de projet n'écrit jamais rien. Voir ci-dessous.
+
+### ⚠️ Seuls les hooks de l'UTILISATEUR sont enregistrés — mesuré le 13 octobre 2026
+
+Un hook déclaré dans le `.claude/settings.json` **d'un projet** s'exécute pour de vrai, et
+ses effets sont bien réels — mais **il ne laisse aucune trace dans le transcript**.
+
+L'épreuve, sur un même exercice portant un `PreToolUse` qui journalise et un second qui
+**refuse** la commande (`permissionDecision: "deny"`) :
+
+| Lancement | Le hook du projet s'exécute | `hook_success` enregistrés |
+|---|---|---|
+| `--setting-sources project` (hooks personnels exclus) | **oui** — le journal est écrit, le refus atteint l'agent qui le rapporte | **0** |
+| sans ce drapeau (les deux sources chargées) | **oui** — le journal est écrit | **4**, et leur champ `command` montre qu'ils viennent **tous** de `~/.claude/settings.json` |
+
+Le premier cas tranche : un hook de projet qui tourne seul produit **zéro** enregistrement.
+Ce n'est donc pas une déduplication par `hookName`, c'est bien la **source** qui décide.
+
+**Ce qu'il faut en retenir pour l'application** : la voie *hooks* montre ce que **votre
+propre configuration** coûte à chaque geste. Elle ne montre pas, et ne peut pas montrer,
+les hooks que le dépôt observé déclare. C'est une limite de la trace, pas du programme —
+et elle mérite d'être dite, parce qu'un hook de projet qui refuse une commande est
+précisément le genre de chose qu'on croirait voir.
 
 **Et la commande d'un hook n'est pas envoyée au modèle.** Le champ `command` pèse 3 226
 caractères en moyenne — douze millions au total sur une seule session — et c'est

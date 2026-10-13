@@ -1181,9 +1181,10 @@ const LEGENDE_VOIE = {
     '41 ms, soit un dixième de pixel. C’est la carte qui donne les durées ;',
     'ici on lit la densité — deux traits par appel d’outil.',
     '',
-    'BLANC : aucun hook BLOQUANT n’a jamais été observé. Les 32 609',
-    'enregistrements de la machine ont tous un code de sortie nul, et on',
-    'ne sait donc pas ce qu’écrit un hook qui refuse.',
+'MESURÉ : seuls les hooks de VOTRE configuration personnelle sont',
+    'enregistrés. Un hook déclaré par le dépôt observé s’exécute — son refus',
+    'atteint l’agent — mais ne laisse aucune trace. Cette voie montre donc ce',
+    'que votre propre outillage coûte, jamais celui du projet regardé.',
   ].join('\n'),
   outillage: [
     'Ce que l’agent a le droit d’appeler, et quand cela change :',
@@ -2387,12 +2388,13 @@ function carteHooks(agent, visee) {
 
   const p = document.createElement('p');
   p.className = 'avert';
-  p.textContent = 'Ce que cette voie ne peut pas montrer : un hook qui REFUSE. '
-    + 'Sur l’ensemble des transcrits de la machine, les 32 609 enregistrements de hook ont '
-    + 'un code de sortie nul — aucun n’a jamais échoué ni bloqué quoi que ce soit. On ne '
-    + 'sait donc pas ce qu’écrit un hook bloquant, et l’application ne prétend rien à son '
-    + 'sujet. La commande d’un hook, elle, n’est jamais envoyée au modèle : elle pèse '
-    + '3 226 caractères en moyenne et ne compte pas dans le contexte.';
+  p.textContent = 'Ce que cette voie ne peut pas montrer, et c’est mesuré : les hooks '
+    + 'déclarés par le dépôt observé. Un hook de projet s’exécute pour de vrai — son refus '
+    + 'atteint l’agent, ses fichiers sont écrits — mais il ne laisse AUCUN enregistrement '
+    + 'dans le transcript. Les 32 609 enregistrements de la machine viennent tous de la '
+    + 'configuration personnelle, et c’est aussi pourquoi aucun n’a jamais un code de '
+    + 'sortie non nul. La commande d’un hook, elle, n’est jamais envoyée au modèle : elle '
+    + 'pèse 3 226 caractères en moyenne et ne compte pas dans le contexte.';
   morceaux.push(p);
 
   ouvrirPanneau('hooks', agent.nom, morceaux);
