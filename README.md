@@ -313,8 +313,24 @@ n'a changé. Cliquer une case donne son instant, le délai demandé pour le rév
 la raison écrite à ce moment-là. L'en-tête compte les itérations sans effet, et combien de
 suite à la fin — le signe d'une boucle qui tourne à vide.
 
-Sur la session Litanie : dix boucles, 173 itérations, retrouvées sans en perdre ni en
-compter deux fois.
+Sur la session Litanie : dix boucles, **183 cases**, retrouvées sans en perdre ni en
+compter deux fois — 173 relances et les **10 arrêts**, qui ont chacun leur case et leur
+marque. Sur la session `454ef787` : six boucles, 78 cases, dont 6 arrêts. *Ce passage
+annonçait 173 jusqu'au 13 octobre 2026 : il oubliait les cases d'arrêt que l'écran montre
+pourtant.*
+
+**Et un réveil programmé n'est pas un réveil survenu.** Sur les 173 relances de la session
+Litanie, le transcript n'enregistre que **146 réveils** (`system/scheduled_task_fire`) :
+27 n'ont jamais eu lieu. Un relevé de ce qui vient après chaque relance en donne le sens —
+128 fois le réveil lui-même, **35 fois la fin d'une tâche d'arrière-plan** qui reprend la
+main avant lui, 7 fois Yves, 3 sans rien d'identifiable. Ce relevé est approximatif : il ne
+retrouve que 128 des 146 réveils réellement enregistrés, parce qu'il ne regarde que les
+quarante lignes suivantes. L'ordre de grandeur, lui, tient — et sur `454ef787` une seule
+relance sur 72 est restée en l'air.
+
+⚠️ **La bande d'itérations ne distingue pas encore les deux.** Une case dit ce que le tour
+a produit, pas si le réveil qu'il a demandé a eu lieu. C'est une réserve connue, pas une
+mesure manquante.
 
 La carte relie aussi les boucles aux agents : chaque itération liste les agents nés pendant
 ce tour, de toutes profondeurs, et la carte d'un agent dit réciproquement de quelle

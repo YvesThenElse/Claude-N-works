@@ -50,8 +50,9 @@ document.
 - Les coûts, la facturation, les quotas.
 - L'agrégation entre sessions, les statistiques historiques, les comparaisons.
 - Les sessions nuageuses, les sessions d'autres machines, les autres clients que Claude
-  Code (les worktrees Cline présents sur la machine n'écrivent pas le même format — voir
-  §9, risque R3).
+  Code. Les worktrees Cline présents sur la machine écrivent en fait **le même format** et
+  se lisent sans incident ; ce qui les met hors périmètre est leur invite d'ouverture, qui
+  n'est pas une consigne d'Yves — voir §9, risque R3.
 - La persistance : l'application ne constitue pas sa propre base. Elle lit, elle affiche.
 
 ---
@@ -120,15 +121,22 @@ Champs utiles, tous observés :
 | `message.content[].type` | `text`, `thinking`, `tool_use` |
 | `message.content[]` où `type=="tool_use"` | `id`, `name`, `input` — l'appel d'outil |
 | `toolUseResult` sur un `user` | le résultat, rattaché par `sourceToolAssistantUUID` |
-| `attachment.type=="prompt_snapshot"` | `.attachment.tools` = la liste des outils réellement offerts à cet agent |
+| `attachment.type=="deferred_tools_delta"` | `addedNames`, `removedNames`, `surfacedNames`, `readdedNames` — c'est de là, **accumulés**, que vient la liste des outils offerts |
+| `attachment.type=="prompt_snapshot"` | `.attachment.tools` donne aussi une liste d'outils, mais elle n'est pas la source retenue (voir ci-dessous) |
 | `attachment.type=="skill_listing"` | le catalogue des skills disponibles |
 | `attachment.type=="agent_listing_delta"` | le catalogue des types d'agents disponibles |
 | `system.subtype` | `turn_duration` (avec `durationMs`), `stop_hook_summary`, `local_command` |
 
-**Constaté** sur `.../-home-yves-projects-litanie/54d3641a-….jsonl` : `.attachment.tools`
-vaut par exemple `["Agent","Bash","Edit","ListAgents","Read","ReportFindings",
-"ScheduleWakeup","Skill","ToolSearch","Workflow","Write"]`. C'est de là que vient la liste
-d'outils de la carte d'agent, et non d'une déduction à partir des appels observés.
+**Constaté, et corrigé le 13 octobre 2026.** Ce paragraphe disait que la liste d'outils de
+la carte d'agent venait de `prompt_snapshot`.`tools`. **C'est faux** : le programme la
+construit en accumulant les `deferred_tools_delta` — les noms ajoutés et remontés entrent,
+les retirés sortent. Comptés sur tous les transcrits de la machine, racines et sous-agents
+confondus : **256 `deferred_tools_delta` contre 36 `prompt_snapshot`**, dont 18 seulement
+portent un champ `tools`. Aucun des 27 agents contrôlés au §12 n'a de `prompt_snapshot`, et
+leur liste d'outils offerts n'en est pas moins exacte — recoupée une à une, 0 écart.
+
+Dans les deux cas le principe tient, et c'est lui qui compte : la liste est **lue dans le
+transcript**, jamais déduite des appels observés.
 
 ### 3.3 Les skills
 
@@ -281,9 +289,10 @@ n'existe pas** :
 - début, fin, durée ;
 - modèle et `effort` ;
 - outils employés, relevés un par un dans le transcript du sous-agent, et leurs
-  compteurs agrégés (`toolStats`) ; la liste des outils *offerts* n'est affichée que
-  lorsqu'un `prompt_snapshot` la donne, ce qui est rare (voir C2 dans
-  `OBSERVATIONS-FORMAT.md`) ;
+  compteurs agrégés (`toolStats`) ; la liste des outils *offerts* est celle qu'on obtient
+  en accumulant les `deferred_tools_delta` de cet agent, et elle est donc presque toujours
+  disponible — corrigé le 13 octobre 2026, ce paragraphe la faisait venir d'un
+  `prompt_snapshot` (§3.2) ;
 - entrée : le prompt reçu, replié par défaut, dépliable en entier ;
 - sortie : son texte final, même traitement ;
 - compte d'appels d'outils, de skills, de sous-agents démarrés ;
@@ -390,11 +399,22 @@ l'écran 1.
 `"<synthetic>"` portant `API Error: …`. Ces pannes sont désormais marquées sur la ligne du
 temps et comptées sur la carte de l'agent.
 
-**R3 — les autres formats.** 72 des 79 répertoires viennent de worktrees Cline et
-n'écrivent pas la même chose : seuls les trois transcripts de `-home-yves-projects`
-portent un champ `isSidechain`. L'application doit
-ignorer proprement un fichier qu'elle ne sait pas lire, sans planter et sans prétendre
-l'avoir compris.
+**R3 — les autres formats. Reformulé le 13 octobre 2026, parce qu'il se trompait de
+cause.** Il disait que les transcripts venant des worktrees Cline « n'écrivent pas la même
+chose », et le déduisait de l'absence d'`isSidechain` hors de `-home-yves-projects`.
+Mesuré depuis : cette absence s'expliquait par le fait qu'**aucune de ces sessions n'avait
+de sous-agent**, et les fichiers sont **au même format** — l'un d'eux, passé à
+l'application, se lit sans incident et rend son agent, son modèle et ses huit appels.
+
+Ce qui les distingue réellement est leur **invite d'ouverture** : au lieu d'une consigne
+d'Yves, elles portent un message `user` de `promptSource: "sdk"` dont le contenu est un
+tableau de blocs, où le client réinjecte son invite système et le rejeu de ses résultats
+d'outils — 41 343 caractères pour l'une d'elles. C'est ce qui a imposé la règle étroite
+d'`estUneConsigne` : les compter pour des requêtes aurait fabriqué une fausse requête
+**et** une fausse part humaine du contexte (défaut ① du §12).
+
+L'exigence, elle, ne change pas : l'application doit ignorer proprement un fichier qu'elle
+ne sait pas lire, sans planter et **sans prétendre l'avoir compris**.
 
 **R4 — le volume.** Un transcript observé fait 37 Mo pour 17 790 lignes, soit environ
 2 ko par ligne — un ordre de grandeur confirmé sur les transcripts de sous-agent du
@@ -464,7 +484,10 @@ chemins sont dans `OBSERVATIONS-FORMAT.md`.
 
 ## 12. Le solde des critères — constaté le 13 octobre 2026
 
-**Constaté.** Les onze critères du §11 ont été contrôlés. **Dix passent, un échoue.**
+**Constaté.** Les onze critères du §11 ont été contrôlés. **Dix passaient, un échouait ;
+le défaut a été corrigé le jour même et les onze passent.** Les cinq défauts trouvés en
+chemin sont corrigés — le détail et la mesure de chacun sont conservés plus bas, parce
+qu'ils disent comment le programme peut se tromper à nouveau.
 
 ### L'instrument, et pourquoi il est séparé
 
@@ -504,7 +527,7 @@ sous-agents. Les « trois sessions différentes » se lisent donc par critère :
 | | Critère | Verdict | Ce qui a été mesuré |
 |---|---|---|---|
 | 1 | la session apparaît avec son nom et son état justes | ✅ | nom, `waiting` + `input needed`, début, version, 8 sous-agents comptés ; 2 fichiers de session mal formés ignorés et comptés, le `.key` ignoré en silence |
-| 2 | tout le passé, sans trou ni doublon | ❌ | aucun trou ni doublon sur les agents, les 555 appels d'outil et les 263 itérations des cinq sessions — **mais la requête de l'utilisateur est perdue** quand la session a été lancée non interactivement (défaut ① ci-dessous) |
+| 2 | tout le passé, sans trou ni doublon | ✅ *après correction* | aucun trou ni doublon sur les agents, les 555 appels d'outil et les 263 itérations des cinq sessions. La requête de l'utilisateur était perdue quand la session avait été lancée non interactivement (défaut ① ci-dessous) : corrigé, **311 → 331 requêtes** sur les 125 transcrits, les 20 vraies consignes et rien d'autre |
 | 3 | l'arbre correspond au transcript | ✅ | ensemble des agents, parenté, profondeur et type recoupés agent par agent sur 3 sessions (27 agents) — 0 écart |
 | 4 | terminé grisé, en cours non | ✅ | mesuré **à l'écran** sur une session montée pour avoir les trois états : terminé = gris `rgb(74,81,112)` à 55 % d'opacité, plein ; en cours = bleu à 85 %, pointillé `3 2` ; interrompu = rose à 85 %, plein. Un style et un seul par état |
 | 5 | tous les appels, au bon instant | ✅ | 146 appels au modèle, **146 dessinés**, comptes par nom identiques, positions monotones, pente mesurée 2,641 px/s contre 2,6 annoncée |
@@ -515,7 +538,9 @@ sous-agents. Les « trois sessions différentes » se lisent donc par critère :
 | 10 | un format inconnu ignoré sans incident | ✅ | un `.jsonl` de deux lignes illisibles et un transcrit d'un autre client : HTTP 200, aucune exception, aucune ligne perdue ailleurs |
 | 11 | un sous-agent né après l'ouverture apparaît | ✅ | répertoire `subagents/` **absent à l'ouverture**, créé ensuite : l'agent paraît **84 ms** après l'écriture de son fichier |
 
-### Les défauts trouvés en chemin
+### Les défauts trouvés en chemin — tous corrigés le 13 octobre 2026
+
+Chacun porte ce qui a été mesuré, ce qui a été changé, et ce qui a été vérifié après.
 
 **① La requête est perdue quand la session n'a pas été lancée interactivement.**
 `lecture.js` ne retient une requête que si `origin.kind === 'human'`. Mesuré sur les 125
@@ -531,16 +556,43 @@ commandé — et c'est justement la seule session qui réunit les trois prémiss
 (réinvocations de `/loop`) et 10 résumés de compactage le portent aussi, et le filtre
 actuel a raison de les écarter. Le discriminant mesuré est `promptSource`.
 
+**Corrigé.** Les trois endroits qui filtraient les requêtes — le dépouillement, le
+déclencheur d'un appel au modèle, la lecture du contexte — passent désormais par une seule
+fonction, `estUneConsigne`. Elle exige `origin.kind === 'human'` quand un `origin` existe,
+et sinon un `promptSource`, **un contenu en texte simple**, ni `isMeta` ni résumé de
+compactage.
+
+⚠️ **La condition « texte simple » n'est pas de la coquetterie, et elle a été ajoutée après
+une première correction trop large.** 24 des 44 lignes `promptSource: "sdk"` portent un
+tableau de blocs : ce sont les transcripts des worktrees Cline, où le client réinjecte à
+chaque tour son invite système et le rejeu de ses résultats d'outils — **41 343
+caractères** pour l'une d'elles. La première version les comptait pour des requêtes
+d'Yves, ce qui aurait ajouté 24 fausses requêtes et autant de fausse part humaine dans la
+composition du contexte.
+
+**Vérifié après** : sur les 125 transcripts, **311 → 331 requêtes**, soit exactement les
+20 consignes en texte simple, aucune perdue au passage, et aucune ligne `isMeta` ni résumé
+de compactage entré. Les deux grosses sessions interactives ne bougent pas (76 et 51).
+
 **② `/api/contexte` rend tout le contexte quand la borne vaut zéro.** `lecture.js` teste
 `borne &&` là où il fallait tester la finitude, et `serveur.js` valide par
 `Number.isFinite`, qui accepte la chaîne vide puisque `Number('')` vaut `0`. Mesuré :
 `instant=` et `instant=0` rendent 137 éléments, un instant réel en rend 9. **Latent** :
 l'écran n'appelle cette route qu'avec des instants epoch, jamais nuls.
 
+**Corrigé** des deux côtés : `lecture.js` teste `Number.isFinite(borne)`, et `serveur.js`
+exige une suite de chiffres. **Vérifié après** : `instant=` et `instant=abc` sont refusés,
+`instant=0` rend **0 élément**, un instant réel en rend toujours 9.
+
 **③ Le §3.2 et le §6.1 de ce document sont périmés.** Ils font venir la liste d'outils
 offerts de `prompt_snapshot`.`tools` ; le programme la construit en accumulant les
 `deferred_tools_delta`. Aucun des 27 agents contrôlés n'a de `prompt_snapshot`, et les
 listes n'en sont pas moins exactes. C'est le document qui a tort, pas le code.
+
+**Corrigé** : le tableau du §3.2 nomme désormais `deferred_tools_delta` comme source, le
+paragraphe qui suit dit ce qui a été mesuré (**256 `deferred_tools_delta` contre 36
+`prompt_snapshot`**, dont 18 avec un champ `tools`), et le §6.1 ne promet plus une liste
+rare.
 
 **④ Le compte d'itérations du `README` ne correspond pas à l'écran.** Il annonce « 173
 itérations » sur la session Litanie, l'écran en montre **183** — la case d'arrêt y compte
@@ -549,10 +601,22 @@ relances programmées, 10 arrêts, mais seulement **146 réveils réellement sur
 (`system/scheduled_task_fire`). **27 réveils demandés n'ont jamais eu lieu**, et rien à
 l'écran ne les distingue de ceux qui ont eu lieu.
 
+**Corrigé dans le `README`**, qui annonce maintenant 183 cases dont 10 arrêts, donne le
+même compte pour `454ef787` (78 cases, 6 arrêts) et porte la mesure des réveils non
+survenus — avec ce qui vient à leur place : 35 fois la fin d'une tâche d'arrière-plan,
+7 fois Yves. Ce relevé-là est **approximatif** et le dit : il ne retrouve que 128 des 146
+réveils enregistrés, parce qu'il ne regarde que les quarante lignes suivantes.
+
+⚠️ **Ce qui n'est pas fait** : la bande d'itérations ne distingue toujours pas un réveil
+demandé d'un réveil survenu. C'est une réserve écrite, pas une mesure manquante.
+
 **⑤ Le risque R3 décrit mal ce qu'il décrit.** Il dit que les transcrits venant des
 worktrees Cline « n'écrivent pas la même chose ». Mesuré : ils sont au **même format** et
 se lisent sans incident. Ce qui les distingue est leur invite d'ouverture — `promptSource:
 "sdk"`, « You are Cline… » — c'est-à-dire exactement le défaut ①, pas un format étranger.
+
+**Corrigé** : R3 est reformulé au §9, et le §2 ne dit plus que ces fichiers « n'écrivent
+pas le même format ». L'exigence, elle, est inchangée.
 
 **Une nuance sur le point 10, qui n'est pas un défaut mais un parti pris à connaître** :
 un `.jsonl` dont aucune ligne n'est lisible produit tout de même un agent racine à l'état

@@ -140,6 +140,38 @@ function tailleInjectee(att) {
 }
 
 /**
+ * Cette ligne `user` est-elle une consigne donnée à la session ?
+ *
+ * Deux portes d'entrée, mesurées sur les 125 transcrits de la machine.
+ *
+ * ① La saisie interactive porte `origin.kind === 'human'` — 311 lignes, toutes en
+ *    `promptSource` `queued` ou `typed`.
+ * ② Le lancement **non interactif** — `claude -p`, le SDK — n'écrit aucun `origin` mais un
+ *    `promptSource: "sdk"`. Les écarter faisait afficher « 0 requête » aux six sessions du
+ *    kit cuisine, qu'on avait pourtant bel et bien commandées, et comptait leur consigne
+ *    en « système » dans la composition du contexte.
+ *
+ * ⚠️ Deux pièges, mesurés, et c'est pourquoi le second cas est si étroit.
+ *
+ * - **Ne jamais lire ce test comme « pas d'`origin` »** : 266 lignes `isMeta` (les
+ *   réinvocations de `/loop`) et 10 résumés de compactage sont aussi sans `origin`, et ce
+ *   ne sont pas des consignes.
+ * - **Le contenu doit être une chaîne.** 24 lignes `promptSource: "sdk"` portent un
+ *   tableau de blocs : ce sont les transcrits des worktrees Cline, où le client réinjecte
+ *   à chaque tour son invite système et le rejeu de ses résultats d'outils — 41 343
+ *   caractères pour l'une d'elles. Ce n'est pas une consigne d'Yves, et la compter en
+ *   ferait une fausse requête **et** une fausse part humaine du contexte. Une consigne
+ *   entrée par la ligne de commande est du texte simple ; on s'en tient là.
+ */
+function estUneConsigne(ligne) {
+  if (ligne.origin) return ligne.origin.kind === 'human';
+  return Boolean(ligne.promptSource)
+    && typeof ligne.message?.content === 'string'
+    && !ligne.isMeta
+    && !ligne.isCompactSummary;
+}
+
+/**
  * Ce qui a déclenché un appel au modèle : la nature du dernier enregistrement qui le
  * précède. C'est la seule « entrée » que le transcript donne — le prompt complet envoyé à
  * l'API n'y figure pas.
@@ -151,7 +183,7 @@ function libelleDeclencheur(etat, ligne) {
   }
   if (ligne.type === 'attachment') return null; // trop anodin pour écraser le vrai motif
   if (ligne.type !== 'user') return null;
-  if (ligne.origin?.kind === 'human') return 'une requête d’Yves';
+  if (estUneConsigne(ligne)) return 'une requête d’Yves';
   // Une notification de tâche couvre aussi bien un sous-agent d'arrière-plan qu'une
   // commande lancée en arrière-plan : la session Litanie en compte 77 sans avoir le
   // moindre sous-agent.
@@ -413,7 +445,10 @@ function avaler(etat, ligne) {
     etat.modePermission = ligne.permissionMode;
   }
 
-  if (ligne.origin && ligne.origin.kind === 'human') {
+  // Une consigne donnée à la session, par quelque bout qu'elle soit entrée — voir
+  // `estUneConsigne` : les écarter faisait afficher « 0 requête » à une session qu'on
+  // avait bel et bien commandée, et comptait sa consigne en « système ».
+  if (estUneConsigne(ligne)) {
     etat.requetes.push({ instant: t, texte: tronquer(texte) });
     etat.composition.humain += texte.length;
     etat.composition.n += 1;
@@ -1160,7 +1195,9 @@ async function lireContexte(cheminTranscript, borne) {
 
   for await (const { ligne } of lignesDe(cheminTranscript)) {
     const t = instant(ligne);
-    if (t !== null && borne && t > borne) break;
+    // `Number.isFinite` et non la véracité : une borne à zéro est une borne, et la tester
+    // par `borne &&` rendait **tout** le contexte au lieu de rien — 137 éléments contre 9.
+    if (t !== null && Number.isFinite(borne) && t > borne) break;
 
     if (ligne.type === 'system' && ligne.subtype === 'compact_boundary') {
       elements = [];
@@ -1219,7 +1256,7 @@ async function lireContexte(cheminTranscript, borne) {
       });
       continue;
     }
-    if (ligne.origin?.kind === 'human') {
+    if (estUneConsigne(ligne)) {
       elements.push({ instant: t, genre: 'humain', titre: 'requête d’Yves', texte: texteDe(contenu) });
       continue;
     }

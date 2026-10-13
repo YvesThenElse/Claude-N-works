@@ -282,9 +282,12 @@ function traiter(requete, reponse) {
   if (url.pathname === '/api/contexte') {
     const id = url.searchParams.get('id');
     const agent = url.searchParams.get('agent') || 'racine';
-    const borne = Number(url.searchParams.get('instant'));
+    // `Number('')` vaut 0, qui est fini : valider par `Number.isFinite` seul laissait
+    // passer un `instant` vide, et la borne devenait zéro sans que personne le dise.
+    const instantBrut = url.searchParams.get('instant');
+    const borne = Number(instantBrut);
     if (!id || !/^[A-Za-z0-9-]{1,64}$/.test(id) || !/^[A-Za-z0-9-]{1,64}$/.test(agent)
-        || !Number.isFinite(borne)) {
+        || !/^\d{1,16}$/.test(instantBrut || '') || !Number.isFinite(borne)) {
       reponse.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
       reponse.end(JSON.stringify({ erreur: 'paramètres absents ou mal formés' }));
       return;
