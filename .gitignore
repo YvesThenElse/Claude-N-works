@@ -1,0 +1,5 @@
+# Le dépôt n'avait rien à ignorer tant qu'il n'avait aucune dépendance. La coquille de
+# bureau en apporte : ce qui s'installe et ce qui se fabrique ne se versionne pas.
+node_modules/
+distribution/
+icones/

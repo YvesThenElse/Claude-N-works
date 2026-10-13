@@ -1,0 +1,111 @@
+# Fabrique les trois binaires et les attache à une Release.
+#
+# Déclenché par une étiquette `v…` — `git tag v1.0.0 && git push --tags` suffit. On peut
+# aussi le lancer à la main depuis l'onglet Actions pour éprouver la chaîne sans publier.
+#
+# Chaque plateforme se construit sur sa propre machine : un exécutable ne se compile pas
+# d'un système vers un autre, et un paquet macOS doit être scellé avec des outils macOS.
+# Les trois travaux sont indépendants (`fail-fast: false`) pour qu'une plateforme en panne
+# n'emporte pas les deux autres.
+
+name: Publier les binaires
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publier:
+        description: "Créer la Release (sinon : fabriquer seulement, pour éprouver)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write        # nécessaire pour créer la Release et y attacher les fichiers
+
+jobs:
+  construire:
+    name: ${{ matrix.nom }}
+    runs-on: ${{ matrix.machine }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Linux x64
+            machine: ubuntu-latest
+            cible: --linux
+            paquets: distribution/*.AppImage
+          # Le runner macOS est en Apple Silicon ; electron-builder y fabrique aussi le
+          # binaire Intel, parce que le projet n'a aucun module natif à recompiler.
+          - nom: macOS (Apple Silicon et Intel)
+            machine: macos-latest
+            cible: --mac
+            paquets: distribution/*.dmg
+          - nom: Windows x64
+            machine: windows-latest
+            cible: --win
+            paquets: distribution/*.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # `npm ci` et non `npm install` : il installe exactement ce que fige le
+      # package-lock.json, donc deux constructions à six mois d'écart donnent le même
+      # binaire.
+      - name: Installer les dépendances
+        run: npm ci
+
+      # Les icônes se fabriquent, elles ne se versionnent pas : le script est à la source
+      # de vérité, et on vérifie du même coup qu'il tourne sur les trois systèmes.
+      - name: Fabriquer les icônes
+        run: npm run icones
+
+      - name: Construire le paquet
+        run: npx electron-builder ${{ matrix.cible }} --publish never
+        env:
+          # Aucune signature : la décision est assumée, et le README dit le geste exact
+          # pour passer l'avertissement sur chaque système.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Lister ce qui a été produit
+        shell: bash
+        run: ls -lh distribution/ | grep -vE '^total|unpacked|builder-'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquets-${{ matrix.machine }}
+          path: ${{ matrix.paquets }}
+          if-no-files-found: error
+
+  publier:
+    name: Attacher les paquets à la Release
+    needs: construire
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.publier
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: paquets
+          merge-multiple: true
+
+      - name: Ce qui part dans la Release
+        run: ls -lh paquets/
+
+      # `gh` est préinstallé sur les runners : pas d'action tierce pour une commande.
+      - name: Créer ou compléter la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          etiquette="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then etiquette="essai-${GITHUB_RUN_NUMBER}"; fi
+          gh release view "$etiquette" >/dev/null 2>&1 \
+            || gh release create "$etiquette" \
+                 --title "Claude N Works $etiquette" \
+                 --notes "Téléchargez le fichier de votre système. Les binaires ne sont pas signés : le README dit comment passer l'avertissement du premier lancement."
+          gh release upload "$etiquette" paquets/* --clobber

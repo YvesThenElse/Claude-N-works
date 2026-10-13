@@ -1,0 +1,87 @@
+{
+  "name": "claude-n-works",
+  "productName": "Claude N Works",
+  "version": "1.0.0",
+  "description": "Observer ce que fait Claude Code : ses agents, ses sous-agents, ses skills, ses boucles et ses outils, dans le temps.",
+  "license": "MIT",
+  "author": "YvesThenElse",
+  "homepage": "https://github.com/YvesThenElse/Claude-N-works",
+  "main": "electron/principal.js",
+  "scripts": {
+    "start": "node serveur.js",
+    "bureau": "electron .",
+    "empaqueter": "npm run icones && electron-builder --publish never",
+    "icones": "node outils/fabriquer-les-icones.js"
+  },
+  "devDependencies": {
+    "electron": "^44.7.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "works.claudenworks.app",
+    "productName": "Claude N Works",
+    "copyright": "Claude N Works",
+    "directories": {
+      "output": "distribution",
+      "buildResources": "icones"
+    },
+    "files": [
+      "electron/**",
+      "public/**",
+      "serveur.js",
+      "lecture.js",
+      "suivi.js"
+    ],
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Development",
+      "icon": "icones/icone.png",
+      "syncDesktopName": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "icones/icone.png",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icones/icone.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "Claude-N-Works-${version}-windows-x64-installateur.${ext}"
+    },
+    "dmg": {
+      "artifactName": "Claude-N-Works-${version}-macos-${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "Claude-N-Works-${version}-linux-x64.${ext}",
+      "synopsis": "Observer les agents, les skills et les boucles de Claude Code dans le temps"
+    }
+  },
+  "desktopName": "claude-n-works.desktop"
+}

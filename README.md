@@ -11,13 +11,57 @@ ses outils, dans le temps.
   quelque chose. Le premier, [`cuisine/`](exemples/cuisine/LISEZ-MOI.md), met en scène une
   brigade : un chef qui ne cuisine pas, des postes en parallèle, une barrière avant l'envoi.
 
-## Lancer
+## Installer
+
+Téléchargez le fichier de votre système sur la **[page des versions][versions]**, et
+ouvrez-le. Rien d'autre à installer.
+
+| Système | Fichier | Ce qu'on en fait |
+|---|---|---|
+| **Linux** x64 | `Claude-N-Works-…-linux-x64.AppImage` | le rendre exécutable (`chmod +x`), puis double-cliquer |
+| **macOS** Apple Silicon | `Claude-N-Works-…-macos-arm64.dmg` | ouvrir, glisser dans Applications |
+| **macOS** Intel | `Claude-N-Works-…-macos-x64.dmg` | ouvrir, glisser dans Applications |
+| **Windows** x64 | `Claude-N-Works-…-windows-x64-installateur.exe` | lancer l'installateur |
+
+[versions]: https://github.com/YvesThenElse/Claude-N-works/releases/latest
+
+### Au premier lancement, votre système va se méfier
+
+**Les binaires ne sont pas signés**, et c'est assumé : une signature coûte un compte
+développeur Apple et un certificat Windows, pour une application qui lit un dossier local
+et ne parle à personne. Votre système ne sait donc pas qui l'a produite, et il le dit. Le
+geste pour passer outre, une seule fois :
+
+| Système | Ce que vous verrez | Le geste |
+|---|---|---|
+| **macOS** | « impossible d'ouvrir, le développeur ne peut pas être vérifié » | **clic droit** sur l'application → **Ouvrir** → *Ouvrir*. Ou, en terminal : `xattr -d com.apple.quarantine "/Applications/Claude N Works.app"` |
+| **Windows** | un écran bleu « Windows a protégé votre ordinateur » | **Informations complémentaires** → **Exécuter quand même** |
+| **Linux** | rien, l'AppImage se lance | — |
+
+Si cela vous gêne, la voie sans binaire reste entière : clonez le dépôt et lancez
+`node serveur.js`. Il n'y a rien à compiler et aucune dépendance.
+
+### Ce que l'application fait sur votre machine
+
+Elle lit `~/.claude`, le dossier que Claude Code écrit — et **rien d'autre**. Elle n'écrit
+jamais dedans, n'envoie rien sur le réseau, et n'écoute que sur `127.0.0.1`. Sans Claude
+Code installé, elle démarre mais n'a rien à montrer.
+
+## Lancer sans installer
 
 ```sh
 node serveur.js
 ```
 
-Puis <http://127.0.0.1:7420>. Node 22 ou plus, aucune dépendance à installer.
+Puis <http://127.0.0.1:7420>. Node 22 ou plus, **aucune dépendance à installer** — c'est
+toujours vrai, la coquille de bureau n'a rien changé au serveur.
+
+Pour la fenêtre d'application depuis les sources :
+
+```sh
+npm install        # electron, uniquement pour la coquille
+npm run bureau
+```
 
 | Variable | Défaut | Rôle |
 |---|---|---|

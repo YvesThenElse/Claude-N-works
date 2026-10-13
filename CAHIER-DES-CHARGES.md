@@ -372,6 +372,42 @@ Il n'y aura donc ni `package.json` de dépendances, ni `node_modules`, ni cadric
 navigateur. Le dessin se fait en HTML et SVG écrits à la main. Toute dépendance ajoutée
 plus tard devra se justifier contre ce paragraphe.
 
+### 8.1 La coquille de bureau — **décidé par Yves le 13 octobre 2026**
+
+**Demandé.** Une application téléchargeable et installable d'un clic, pour Windows, macOS
+et Linux, depuis le `README`. **Et, après discussion, une vraie fenêtre d'application
+plutôt qu'un onglet de navigateur.**
+
+**Décidé par Yves, contre le paragraphe ci-dessus et en connaissance de cause** : la
+coquille est **Electron**. Les trois autres voies lui ont été présentées avec leur prix —
+un manifeste installable à coût nul qui aurait laissé le §8 intact, Tauri à ~10 Mo mais
+avec une chaîne Rust, ou un simple onglet — et c'est Electron qui a été retenu pour avoir
+une coquille native au sens strict.
+
+Ce que cela coûte, mesuré : **222 paquets installés, 103 Mo de `node_modules`**, et un
+binaire de **120 Mo par plateforme**.
+
+Ce que cela ne coûte pas, et qui est la limite tenue :
+
+- **le serveur n'a toujours aucune dépendance de fonctionnement.** `package.json` ne
+  déclare que des `devDependencies` ; `node serveur.js` marche sur un dépôt fraîchement
+  cloné, sans rien installer. C'est la voie documentée pour qui ne veut pas du binaire ;
+- **la coquille ne contient aucune logique propre.** Elle démarre le serveur dans son
+  propre processus et ouvre une fenêtre dessus : ce qu'on voit est l'application web, à
+  l'identique. Il n'y a donc qu'une seule version du programme à corriger, et la fenêtre
+  ne peut pas diverger de la page ;
+- **elle n'écoute que sur la boucle locale**, quoi qu'en dise l'environnement. Une
+  application qu'on double-clique ne doit pas exposer ses transcripts au réseau sans qu'on
+  l'ait demandé ; l'ouverture au tailnet reste au lancement en ligne de commande.
+
+**Constaté.** Le port habituel est tenté d'abord, puis un port libre si celui-ci est pris
+— ce qui arrive dès qu'un `node serveur.js` tourne à côté. Vérifié sur pièce : la coquille
+s'est rabattue sur le port 41967 sans rien afficher d'alarmant, et a servi les trois
+sessions vivantes.
+
+**Décidé par Yves** également : **les binaires ne sont pas signés**. Le `README` documente
+le geste exact pour passer l'avertissement de macOS et celui de Windows.
+
 ---
 
 ## 9. Ce qui n'est pas vérifié, et les risques

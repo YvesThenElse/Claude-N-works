@@ -436,50 +436,90 @@ function adressesTailscale() {
   }
 }
 
-const serveurs = [];
-const adresses = [];
-const demandees = [];
-for (const demande of HOTES) {
-  if (demande !== 'tailscale') { demandees.push(demande); continue; }
-  const trouvees = adressesTailscale();
-  if (!trouvees.length) {
-    signaler(new Error('Tailscale ne donne aucune adresse : cette écoute est abandonnée'));
-    continue;
+/**
+ * Démarre l'écoute.
+ *
+ * Isolé dans une fonction depuis que l'application de bureau existe : la coquille
+ * Electron démarre le serveur **dans son propre processus** plutôt que d'en lancer un
+ * second, et elle a besoin de savoir sur quel port il a réellement pris. Lancé
+ * directement — `node serveur.js` — le comportement est exactement celui d'avant.
+ *
+ * `port` vaut 0 pour demander un port libre au système : c'est ce que fait la coquille
+ * quand le port habituel est déjà pris par un serveur lancé à la main.
+ */
+function demarrer({ port = PORT, hotes = HOTES, silencieux = false } = {}) {
+  const serveurs = [];
+  const adresses = [];
+  const demandees = [];
+  for (const demande of hotes) {
+    if (demande !== 'tailscale') { demandees.push(demande); continue; }
+    const trouvees = adressesTailscale();
+    if (!trouvees.length) {
+      signaler(new Error('Tailscale ne donne aucune adresse : cette écoute est abandonnée'));
+      continue;
+    }
+    demandees.push(...trouvees);
   }
-  demandees.push(...trouvees);
+
+  const prets = [];
+  for (const hote of demandees) {
+    if (adresses.includes(hote)) continue;
+    adresses.push(hote);
+    const s = http.createServer(traiter);
+    prets.push(new Promise((resoudre, rejeter) => {
+      s.on('error', (err) => {
+        // En mode silencieux, c'est l'appelant qui décide quoi faire d'un échec : la
+        // coquille de bureau essaie le port habituel puis se rabat, et afficher une
+        // erreur rattrapée ferait croire à une panne là où il n'y en a pas.
+        if (!silencieux) signaler(new Error(`écoute impossible sur ${hote} : ${err.code}`));
+        rejeter(err);
+      });
+      s.listen(port, hote, () => {
+        // Une adresse IPv6 se note entre crochets dans une URL.
+        const lisible = hote.includes(':') ? `[${hote}]` : hote;
+        const effectif = s.address().port;
+        if (!silencieux) {
+          process.stdout.write(`Claude N Works — http://${lisible}:${effectif}\n`);
+        }
+        resoudre({ hote, port: effectif, url: `http://${lisible}:${effectif}` });
+      });
+    }));
+    serveurs.push(s);
+  }
+
+  if (!serveurs.length) {
+    return Promise.reject(new Error('Aucune adresse d’écoute utilisable.'));
+  }
+
+  if (!silencieux) {
+    process.stdout.write(`  sessions  : ${DOSSIER_SESSIONS}\n`);
+    process.stdout.write(`  transcrits: ${DOSSIER_PROJETS}\n`);
+  }
+
+  // Surveillance du dossier pour réagir tout de suite, et relevé périodique pour voir les
+  // processus qui meurent sans toucher à leur fichier.
+  try {
+    fs.watch(DOSSIER_SESSIONS, () => diffuserBientot());
+  } catch (err) {
+    signaler(new Error(`surveillance impossible, on se contente du relevé : ${err.code}`));
+  }
+  const horloge = setInterval(() => { diffuser().catch(signaler); }, PERIODE_RELEVE_MS);
+  horloge.unref();
+
+  // Au moins une adresse suffit : qu'une des trois échoue ne doit pas tout emporter.
+  return Promise.any(prets).then((premiere) => ({
+    ...premiere, serveurs, fermer: () => { for (const s of serveurs) s.close(); },
+  }));
 }
 
-for (const hote of demandees) {
-  if (adresses.includes(hote)) continue;
-  adresses.push(hote);
-  const s = http.createServer(traiter);
-  s.on('error', (err) => signaler(new Error(`écoute impossible sur ${hote} : ${err.code}`)));
-  s.listen(PORT, hote, () => {
-    // Une adresse IPv6 se note entre crochets dans une URL.
-    const lisible = hote.includes(':') ? `[${hote}]` : hote;
-    process.stdout.write(`Claude N Works — http://${lisible}:${PORT}\n`);
+module.exports = { demarrer };
+
+// Lancé directement, le programme se comporte comme avant : il écoute et il reste.
+if (require.main === module) {
+  demarrer().then(({ fermer }) => {
+    process.on('SIGINT', () => { fermer(); process.exit(0); });
+  }).catch((err) => {
+    process.stderr.write(String(err.message || err) + '\n');
+    process.exit(1);
   });
-  serveurs.push(s);
 }
-
-if (!serveurs.length) {
-  process.stderr.write('Aucune adresse d’écoute utilisable. Rien à faire.\n');
-  process.exit(1);
-}
-
-process.stdout.write(`  sessions  : ${DOSSIER_SESSIONS}\n`);
-process.stdout.write(`  transcrits: ${DOSSIER_PROJETS}\n`);
-
-// Surveillance du dossier pour réagir tout de suite, et relevé périodique pour voir les
-// processus qui meurent sans toucher à leur fichier.
-try {
-  fs.watch(DOSSIER_SESSIONS, () => diffuserBientot());
-} catch (err) {
-  signaler(new Error(`surveillance impossible, on se contente du relevé : ${err.code}`));
-}
-setInterval(() => { diffuser().catch(signaler); }, PERIODE_RELEVE_MS).unref();
-
-process.on('SIGINT', () => {
-  for (const s of serveurs) s.close();
-  process.exit(0);
-});
