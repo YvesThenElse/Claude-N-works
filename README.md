@@ -115,8 +115,9 @@ surlignage de toutes les occurrences, compte, et saut de l'une à l'autre par le
 par Entrée. La lecture du contexte en a une qui porte sur **tout le contexte à la fois** :
 elle réduit la liste aux éléments contenant le terme et les ouvre déjà surlignés — par
 exemple 55 éléments sur 428 pour un mot donné. Les
-requêtes d'Yves — et elles seules, `origin.kind` valant `human` — traversent les voies en
-repères verticaux.
+requêtes d'Yves — et elles seules — traversent les voies en repères verticaux : la saisie
+interactive, reconnue à son `origin.kind` valant `human`, **et** la consigne d'une session
+lancée non interactivement, qui n'a pas d'`origin` du tout mais un `promptSource`.
 
 Cliquer un agent, un appel d'outil, une boucle, une requête ou une voie de contexte ouvre
 sa carte — dans l'arbre comme dans la piste. La carte s'ouvre en **modale au milieu de
