@@ -111,5 +111,11 @@ qu'elles n'ornent l'existant :
 1. **La boucle écrite exprès.** La voie existe et n'a jamais reçu une boucle propre.
 2. **Le renvoi en cuisine.** Rien ne montre un travail refait sur jugement, alors que
    c'est le cœur de ce qui distingue un agent d'un script.
-3. **Les hooks.** Entièrement aveugles aujourd'hui, et ils décident pourtant de ce qui a
-   le droit de se produire.
+3. ~~**Les hooks.**~~ **Fait le 13 octobre 2026** — et la priorité était mal posée : les
+   hooks n'étaient pas aveugles, ils étaient seulement non dessinés. Le transcript en
+   écrivait 32 609. Ce qui reste à combler est plus étroit et plus intéressant : **un hook
+   qui refuse**, dont aucune trace n'existe sur cette machine.
+4. **Un modèle qui n'est pas d'Anthropic.** Bedrock, Vertex et Foundry sont reconnus en
+   natif par le client ; OpenRouter et les modèles locaux parlent l'API d'OpenAI et non
+   `/v1/messages`, donc ils demandent un traducteur. Ce que la voie *appels au modèle*
+   écrirait alors n'a jamais été mesuré.
