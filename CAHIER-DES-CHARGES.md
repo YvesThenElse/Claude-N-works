@@ -459,3 +459,101 @@ se contrôlent sur trois sessions différentes.
 Les deux sessions de sondage du lot 1 sont conservées et servent de jeu d'essai : l'une
 donne deux sous-agents synchrones en parallèle, l'autre un agent d'arrière-plan. Les
 chemins sont dans `OBSERVATIONS-FORMAT.md`.
+
+---
+
+## 12. Le solde des critères — constaté le 13 octobre 2026
+
+**Constaté.** Les onze critères du §11 ont été contrôlés. **Dix passent, un échoue.**
+
+### L'instrument, et pourquoi il est séparé
+
+**Proposé, et appliqué.** Vérifier `lecture.js` avec `lecture.js` ne prouverait rien :
+le contrôle relit donc les `.jsonl` bruts **en Python**, sans importer une ligne du
+programme, et compare au modèle que le serveur sert sur `/api/session` — c'est-à-dire
+exactement ce que la page dessine.
+
+**Et l'instrument a été vu mordre avant de servir** : treize défauts lui ont été injectés
+un par un dans le modèle — un sous-agent escamoté, une profondeur fausse, un parent faux,
+un type inventé, un appel perdu, un appel compté deux fois, un appel au mauvais instant,
+un modèle deviné, un agent fini non grisé, une itération perdue, un `noop` retourné, des
+itérations désordonnées, une boucle inventée. **Les treize ont été détectés.** Sans cette
+épreuve, « zéro écart » n'aurait été qu'une absence de signal.
+
+Deux mesures ont dû être refaites parce que c'était l'instrument qu'elles mesuraient : un
+client qui lisait le flux **un octet à la fois** sur des trames de 112 ko, puis un client
+dont le `read(65536)` bloquait jusqu'à avoir 64 ko et restait une trame en retard. Les
+deux fabriquaient un retard de 3 s imputé à tort au serveur, qui rend son premier octet
+en **7,8 ms**.
+
+### Le choix des sessions, et ce qu'il a révélé
+
+**Constaté.** Le §11 demande « une session réelle contenant au moins deux sous-agents, un
+skill et une boucle ». Sur les 125 transcrits de la machine, **une seule** réunit les
+trois : `1652fc65` (8 sous-agents, 1 skill, 1 boucle). Les sessions riches en arbres
+(cuisine) n'ont pas de boucles, et les sessions riches en boucles (Litanie) n'ont pas de
+sous-agents. Les « trois sessions différentes » se lisent donc par critère :
+
+| | sessions | ce qu'elles portent |
+|---|---|---|
+| arbres (point 3) | `05eff5a4`, `1652fc65`, `d8f31ab5` | 10, 9 et 8 agents ; 123, 146 et 157 appels |
+| boucles (point 7) | `819d3fef`, `454ef787`, `1652fc65` | 10, 6 et 1 boucles ; 183, 78 et 2 itérations |
+
+### Le verdict, critère par critère
+
+| | Critère | Verdict | Ce qui a été mesuré |
+|---|---|---|---|
+| 1 | la session apparaît avec son nom et son état justes | ✅ | nom, `waiting` + `input needed`, début, version, 8 sous-agents comptés ; 2 fichiers de session mal formés ignorés et comptés, le `.key` ignoré en silence |
+| 2 | tout le passé, sans trou ni doublon | ❌ | aucun trou ni doublon sur les agents, les 555 appels d'outil et les 263 itérations des cinq sessions — **mais la requête de l'utilisateur est perdue** quand la session a été lancée non interactivement (défaut ① ci-dessous) |
+| 3 | l'arbre correspond au transcript | ✅ | ensemble des agents, parenté, profondeur et type recoupés agent par agent sur 3 sessions (27 agents) — 0 écart |
+| 4 | terminé grisé, en cours non | ✅ | mesuré **à l'écran** sur une session montée pour avoir les trois états : terminé = gris `rgb(74,81,112)` à 55 % d'opacité, plein ; en cours = bleu à 85 %, pointillé `3 2` ; interrompu = rose à 85 %, plein. Un style et un seul par état |
+| 5 | tous les appels, au bon instant | ✅ | 146 appels au modèle, **146 dessinés**, comptes par nom identiques, positions monotones, pente mesurée 2,641 px/s contre 2,6 annoncée |
+| 6 | modèle et liste d'outils tels qu'écrits | ✅ | modèle recoupé sur 5 sessions ; outils **employés** recomptés un par un ; outils **offerts** reconstruits depuis les `deferred_tools_delta` — 0 écart sur 27 agents |
+| 7 | la boucle : bon nombre, bon ordre, bon `noop` | ✅ | 263 itérations appariées par identifiant d'appel sur 3 sessions, ordre et `noop` compris — 0 écart |
+| 8 | un agent nouveau à l'écran en moins de 2 s | ✅ | **8 ms de médiane** sur dix échantillons (7 à 10 ms), pour une exigence à 2 000 ms |
+| 9 | rien écrit dans `~/.claude` | ✅ | toutes les routes exercées sur un faux dossier : horodatages, tailles **et sha256** inchangés, répertoires compris. Et aucun descripteur ouvert sur `~/.claude` côté serveur |
+| 10 | un format inconnu ignoré sans incident | ✅ | un `.jsonl` de deux lignes illisibles et un transcrit d'un autre client : HTTP 200, aucune exception, aucune ligne perdue ailleurs |
+| 11 | un sous-agent né après l'ouverture apparaît | ✅ | répertoire `subagents/` **absent à l'ouverture**, créé ensuite : l'agent paraît **84 ms** après l'écriture de son fichier |
+
+### Les défauts trouvés en chemin
+
+**① La requête est perdue quand la session n'a pas été lancée interactivement.**
+`lecture.js` ne retient une requête que si `origin.kind === 'human'`. Mesuré sur les 125
+transcrits : 308 lignes portent `origin.kind: human` (toutes `promptSource` `queued` ou
+`typed`), et **20 lignes de texte plat portent `promptSource: "sdk"` sans aucun `origin`**
+— ce sont de vraies consignes données à une session : les huit « prépare-moi… » du kit
+cuisine, les sondages du lot 1, deux réveils de boucle. Elles ne deviennent jamais un
+repère, et leur texte est compté en « système » dans la composition du contexte. L'écran
+de la session de cuisine affiche donc **« 0 requête »** alors que le service a bien été
+commandé — et c'est justement la seule session qui réunit les trois prémisses du §11.
+
+⚠️ **Ce défaut ne se corrige pas en acceptant tout `origin: null`** : 266 lignes `isMeta`
+(réinvocations de `/loop`) et 10 résumés de compactage le portent aussi, et le filtre
+actuel a raison de les écarter. Le discriminant mesuré est `promptSource`.
+
+**② `/api/contexte` rend tout le contexte quand la borne vaut zéro.** `lecture.js` teste
+`borne &&` là où il fallait tester la finitude, et `serveur.js` valide par
+`Number.isFinite`, qui accepte la chaîne vide puisque `Number('')` vaut `0`. Mesuré :
+`instant=` et `instant=0` rendent 137 éléments, un instant réel en rend 9. **Latent** :
+l'écran n'appelle cette route qu'avec des instants epoch, jamais nuls.
+
+**③ Le §3.2 et le §6.1 de ce document sont périmés.** Ils font venir la liste d'outils
+offerts de `prompt_snapshot`.`tools` ; le programme la construit en accumulant les
+`deferred_tools_delta`. Aucun des 27 agents contrôlés n'a de `prompt_snapshot`, et les
+listes n'en sont pas moins exactes. C'est le document qui a tort, pas le code.
+
+**④ Le compte d'itérations du `README` ne correspond pas à l'écran.** Il annonce « 173
+itérations » sur la session Litanie, l'écran en montre **183** — la case d'arrêt y compte
+comme une itération, marquée comme telle. Mesuré par ailleurs sur cette session : 173
+relances programmées, 10 arrêts, mais seulement **146 réveils réellement survenus**
+(`system/scheduled_task_fire`). **27 réveils demandés n'ont jamais eu lieu**, et rien à
+l'écran ne les distingue de ceux qui ont eu lieu.
+
+**⑤ Le risque R3 décrit mal ce qu'il décrit.** Il dit que les transcrits venant des
+worktrees Cline « n'écrivent pas la même chose ». Mesuré : ils sont au **même format** et
+se lisent sans incident. Ce qui les distingue est leur invite d'ouverture — `promptSource:
+"sdk"`, « You are Cline… » — c'est-à-dire exactement le défaut ①, pas un format étranger.
+
+**Une nuance sur le point 10, qui n'est pas un défaut mais un parti pris à connaître** :
+un `.jsonl` dont aucune ligne n'est lisible produit tout de même un agent racine à l'état
+« terminé ». Il n'y a aucun incident, mais cet état est affirmé sans preuve.
