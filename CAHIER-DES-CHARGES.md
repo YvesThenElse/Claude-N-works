@@ -543,7 +543,13 @@ sous-agents. Les « trois sessions différentes » se lisent donc par critère :
 Chacun porte ce qui a été mesuré, ce qui a été changé, et ce qui a été vérifié après.
 
 **① La requête est perdue quand la session n'a pas été lancée interactivement.**
-`lecture.js` ne retient une requête que si `origin.kind === 'human'`. Mesuré sur les 125
+`lecture.js` ne retient une requête que si `origin.kind === 'human'`.
+
+⚠️ **Et ce n'était pas une découverte** : `OBSERVATIONS-FORMAT.md` portait déjà, en §5 bis,
+la ligne de tableau « `origin` absent → le prompt initial d'une session non interactive
+(`promptSource: "sdk"`) ». Le constat était écrit, la référence de format avait raison, et
+le programme ne l'honorait pas. **Un constat écrit n'est pas un constat appliqué** — c'est
+la vraie leçon de ce défaut, et elle vaut pour tout le reste du document. Mesuré sur les 125
 transcrits : 308 lignes portent `origin.kind: human` (toutes `promptSource` `queued` ou
 `typed`), et **20 lignes de texte plat portent `promptSource: "sdk"` sans aucun `origin`**
 — ce sont de vraies consignes données à une session : les huit « prépare-moi… » du kit

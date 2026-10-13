@@ -203,10 +203,31 @@ il ne faut pas y dessiner celui-ci. Le champ qui les sépare est `origin.kind` :
 |---|---|
 | `"human"` | une vraie requête d'Yves — à dessiner |
 | `"task-notification"` | la fin d'un agent d'arrière-plan — à ne pas dessiner comme requête |
-| absent | le prompt initial d'une session non interactive (`promptSource: "sdk"`) |
+| absent | il faut regarder plus loin — voir le tableau complet ci-dessous |
 
 Relevé : les cinq prompts de la session interactive `1f21b1d5` portent tous
 `{"origin":{"kind":"human"},"promptSource":"queued"}`.
+
+**Complété le 13 octobre 2026, après le solde du §11.** « `origin` absent » recouvre
+quatre choses très différentes, et les confondre coûte cher dans les deux sens. Comptage
+sur les 125 transcripts de la machine, lignes `user` hors résultats d'outil :
+
+| `origin` | `promptSource` | forme du contenu | n | nature |
+|---|---|---|---|---|
+| `human` | `queued` / `typed` | texte ou blocs | 311 | **une consigne** — saisie interactive |
+| `task-notification` | `system` / `sdk` | texte | 199 | la fin d'une tâche d'arrière-plan |
+| absent | `sdk` | **texte simple** | 20 | **une consigne** — session lancée par `claude -p` ou le SDK |
+| absent | `sdk` | **tableau de blocs** | 24 | l'invite d'un autre client (Cline) : son invite système et le rejeu de ses résultats d'outils, jusqu'à 41 343 caractères. **Pas** une consigne |
+| absent | absent | `isMeta` | 266 | une réinvocation de `/loop` — pas une consigne |
+| absent | absent | `isCompactSummary` | 10 | le résumé d'un compactage — pas une consigne |
+| absent | absent | autre | 238 | rappels système, interruptions, sorties de commandes locales |
+
+⚠️ **La ligne qui a coûté un critère d'acceptation** : jusqu'au 13 octobre 2026,
+`lecture.js` ne retenait que `origin.kind === 'human'`, et les 20 consignes de la
+troisième ligne n'apparaissaient nulle part — les six sessions du kit cuisine affichaient
+« 0 requête ». Ce document le disait pourtant déjà, en une ligne de tableau ; c'est le
+programme qui ne l'honorait pas. La leçon tient en une phrase : **un constat écrit ici
+n'est pas un constat appliqué.**
 
 ---
 
