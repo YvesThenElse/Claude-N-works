@@ -63,7 +63,7 @@ document.
 déjà. Les hooks ne sont pas retenus pour la v1. Raisons retenues : ils n'existent que pour
 les sessions démarrées après leur configuration, ne montrent aucun passé, s'exécutent dans
 le chemin critique des sessions, et le `settings.json` global de la machine a déjà ses
-douze événements occupés par Orca.
+douze événements déjà occupés par un autre outil.
 
 ### 3.1 La liste des sessions ouvertes
 
@@ -71,7 +71,7 @@ douze événements occupés par Orca.
 observé :
 
 ```json
-{"pid":2219216,"sessionId":"704b4e7c-…","cwd":"/home/yves/projects",
+{"pid":2219216,"sessionId":"704b4e7c-…","cwd":"/home/moi/projets",
  "startedAt":1790192588641,"version":"2.1.236","kind":"interactive","entrypoint":"cli",
  "tmux":"atlas:@4.%4","messagingSocketPath":"/tmp/cc-socks/2219216.sock",
  "name":"Claude N Works","status":"busy","updatedAt":1791807115952,
@@ -86,7 +86,7 @@ la session. Ce répertoire suffit à l'écran 1, sans rien instrumenter.
 
 **Constaté.** `~/.claude/projects/<cwd-encodé>/<sessionId>.jsonl` : une ligne JSON par
 événement, en append. Le `cwd` est encodé en remplaçant les `/` par des `-`
-(`/home/yves/projects` → `-home-yves-projects`). Le suivi temps réel se fait en lisant la
+(`/home/moi/projets` → `-home-moi-projets`). Le suivi temps réel se fait en lisant la
 fin du fichier au fur et à mesure.
 
 **Constaté au lot 1.** Ce fichier ne contient **pas** l'activité des sous-agents. Chaque
@@ -141,8 +141,8 @@ transcript**, jamais déduite des appels observés.
 ### 3.3 Les skills
 
 **Constaté.** Un skill est un `tool_use` de nom `Skill`, dont l'`input` porte `skill` et
-`args`. Exemple relevé dans la session Litanie : `{"skill":"loop","args":"Mène le harnais
-de mesure du banc de Litanie jusqu'à …"}`.
+`args`. Exemple relevé, la consigne abrégée : `{"skill":"loop","args":"Mène la campagne
+de mesure jusqu'à …"}`.
 
 ### 3.4 Les boucles
 
@@ -150,7 +150,7 @@ de mesure du banc de Litanie jusqu'à …"}`.
 
 - son ouverture est **parfois** le `tool_use` `Skill` avec `skill:"loop"`, dont les `args`
   contiennent la consigne et la condition d'arrêt — mais seulement 3 des 10 boucles de la
-  session Litanie en ont un. Ce qui identifie une boucle à coup sûr est son **arrêt**, et
+  session `819d3fef` en ont un. Ce qui identifie une boucle à coup sûr est son **arrêt**, et
   la consigne se relit alors dans le champ `prompt` des réveils (§5 quinquies
   d'`OBSERVATIONS-FORMAT.md`) ;
 - chaque itération se referme par un `tool_use` `ScheduleWakeup` dont l'`input` donne
@@ -218,10 +218,10 @@ Le détail est en §5 bis d'`OBSERVATIONS-FORMAT.md`.
 **Les appels d'outils** — *décidé par Yves* : tous les appels, chacun comme une marque fine
 sur la voie de son agent, nom visible quand la place le permet, détail au survol. On doit
 voir la densité réelle du travail, y compris les 1436 appels `Bash` d'une session comme
-Litanie. Un appel en échec se distingue d'un appel réussi.
+`819d3fef`. Un appel en échec se distingue d'un appel réussi.
 
 **Le repli des temps morts** — *ajouté au lot 3, et non demandé*. Mesuré : la session
-Litanie s'étale sur **264 heures** pour 1710 appels, dont sept jours sans la moindre
+`819d3fef` s'étale sur **264 heures** pour 1710 appels, dont sept jours sans la moindre
 activité. À l'échelle linéaire, tout le travail se tasse en traits invisibles. L'axe replie
 donc les périodes sans aucun événement, à deux conditions : le seuil est proportionnel à la
 session — un quatre-centième de sa durée, et jamais moins d'une minute — et **chaque repli
@@ -514,7 +514,7 @@ en **7,8 ms**.
 **Constaté.** Le §11 demande « une session réelle contenant au moins deux sous-agents, un
 skill et une boucle ». Sur les 125 transcrits de la machine, **une seule** réunit les
 trois : `1652fc65` (8 sous-agents, 1 skill, 1 boucle). Les sessions riches en arbres
-(cuisine) n'ont pas de boucles, et les sessions riches en boucles (Litanie) n'ont pas de
+(cuisine) n'ont pas de boucles, et les sessions riches en boucles n'ont pas de
 sous-agents. Les « trois sessions différentes » se lisent donc par critère :
 
 | | sessions | ce qu'elles portent |
@@ -601,7 +601,7 @@ paragraphe qui suit dit ce qui a été mesuré (**256 `deferred_tools_delta` con
 rare.
 
 **④ Le compte d'itérations du `README` ne correspond pas à l'écran.** Il annonce « 173
-itérations » sur la session Litanie, l'écran en montre **183** — la case d'arrêt y compte
+itérations » sur la session `819d3fef`, l'écran en montre **183** — la case d'arrêt y compte
 comme une itération, marquée comme telle. Mesuré par ailleurs sur cette session : 173
 relances programmées, 10 arrêts, mais seulement **146 réveils réellement survenus**
 (`system/scheduled_task_fire`). **27 réveils demandés n'ont jamais eu lieu**, et rien à

@@ -37,7 +37,7 @@ du tailnet, à `http://<nom-de-la-machine>:7420`.
 
 Le mot `tailscale` se résout à l'exécution en **toutes** les adresses que `tailscale ip`
 rend, IPv4 et IPv6. Les deux sont nécessaires : MagicDNS résout le nom court d'une machine
-vers son adresse IPv6, donc n'écouter qu'en IPv4 rendrait `http://claude-server:7420`
+vers son adresse IPv6, donc n'écouter qu'en IPv4 rendrait `http://<nom-de-la-machine>:7420`
 injoignable alors que l'adresse numérique, elle, marcherait. Résoudre à l'exécution évite
 aussi d'écrire en dur une adresse qui peut changer.
 
@@ -46,8 +46,8 @@ réseau local. Le serveur n'ouvre que les adresses nommées, ce qui se vérifie 
 
 ```
 LISTEN  127.0.0.1:7420
-LISTEN  100.121.56.59:7420                 ← tailnet, IPv4
-LISTEN  [fd7a:115c:a1e0::272f:383c]:7420   ← tailnet, IPv6
+LISTEN  <adresse IPv4 du tailnet>:7420      ← tailnet, IPv4
+LISTEN  [<adresse IPv6 du tailnet>]:7420     ← tailnet, IPv6
 ```
 
 et l'adresse du réseau local refuse la connexion (`Could not connect to server`).
@@ -105,7 +105,7 @@ La forme de la signalétique vient d'une mesure, pas d'une intuition. Sur les **
 de l'ensemble des transcrits, 78 % sont suivis d'un appel **du même outil** — mais presque
 jamais à l'identique : seulement 5 cas de relance telle quelle, contre une large majorité
 d'entrées corrigées. Le geste à rendre visible n'est donc pas « il réessaie », c'est « il
-corrige et relance ». Sur la session Litanie : 28 échecs, dont **23 repris avec une entrée
+corrige et relance ». Sur la session `819d3fef` : 28 échecs, dont **23 repris avec une entrée
 corrigée** et 5 abandonnés au profit d'autre chose.
 
 ### Chercher dans un texte
@@ -256,7 +256,7 @@ marqués « contenu non conservé », pour qu'on sache qu'ils occupaient de la p
 
 **Ce que cette voie ne peut pas montrer, et le dit.** Le transcript ne contient pas
 l'invite système complète, les définitions d'outils ni la mémoire du projet. Mesuré sur la
-session Litanie : **1,37 caractère attribué par jeton de contexte**, là où du texte
+session `819d3fef` : **1,37 caractère attribué par jeton de contexte**, là où du texte
 ordinaire en compte environ quatre — le transcript ne nomme donc qu'**un tiers environ** du
 contexte. La carte porte une jauge qui donne cette part, appel par appel.
 
@@ -303,7 +303,7 @@ des événements, sinon le temps qu'il passe à réfléchir entre deux appels re
 l'attente. Mesuré : les compter élimine 59 fausses attentes sur une session et 106 sur une
 autre, pour seulement une heure et demie de différence — c'étaient bien des pauses courtes.
 
-Sur la session Litanie : **10,9 jours d'attente sur 11,1 jours** — dont 6,9 j de sommeil de
+Sur la session `819d3fef` : **10,9 jours d'attente sur 11,1 jours** — dont 6,9 j de sommeil de
 boucle, 3,1 j d'inoccupation et 21,6 h de questions posées.
 
 ### Les boucles
@@ -314,14 +314,14 @@ n'a changé. Cliquer une case donne son instant, le délai demandé pour le rév
 la raison écrite à ce moment-là. L'en-tête compte les itérations sans effet, et combien de
 suite à la fin — le signe d'une boucle qui tourne à vide.
 
-Sur la session Litanie : dix boucles, **183 cases**, retrouvées sans en perdre ni en
+Sur la session `819d3fef` : dix boucles, **183 cases**, retrouvées sans en perdre ni en
 compter deux fois — 173 relances et les **10 arrêts**, qui ont chacun leur case et leur
 marque. Sur la session `454ef787` : six boucles, 78 cases, dont 6 arrêts. *Ce passage
 annonçait 173 jusqu'au 13 octobre 2026 : il oubliait les cases d'arrêt que l'écran montre
 pourtant.*
 
 **Et un réveil programmé n'est pas un réveil survenu.** Sur les 173 relances de la session
-Litanie, le transcript n'enregistre que **146 réveils** (`system/scheduled_task_fire`) :
+`819d3fef`, le transcript n'enregistre que **146 réveils** (`system/scheduled_task_fire`) :
 27 n'ont jamais eu lieu. Un relevé de ce qui vient après chaque relance en donne le sens —
 128 fois le réveil lui-même, **35 fois la fin d'une tâche d'arrière-plan** qui reprend la
 main avant lui, 7 fois Yves, 3 sans rien d'identifiable. Ce relevé est approximatif : il ne
@@ -360,7 +360,7 @@ du contenu des boucles.
 Choisir ensuite une case dans la bande d'itérations **encadre ce tour précis** sur la ligne
 du temps, en pointillés — sa fenêtre allant de la fin du tour précédent à son propre
 réveil. Si le tour n'est pas dans la vue, la ligne du temps s'y transporte ; s'il y est
-déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur Litanie, on voit que la session est faite de
+déjà, elle ne bouge pas, pour ne pas faire sauter l'écran sous les doigts. D'un coup d'œil sur `819d3fef`, on voit que la session est faite de
 boucles presque de bout en bout.
 
 ### Les tours — et où passe vraiment le temps
@@ -374,7 +374,7 @@ La voie des tours se place juste sous l'agent : tout le reste — outils, appels
 se loge dedans, et ce qui sépare deux barres n'est pas du travail plus discret, c'est de
 l'attente. L'intensité d'une barre suit le nombre d'appels qu'elle contient.
 
-**Le chiffre que tout le reste laissait deviner** : sur la session Litanie, 299 tours,
+**Le chiffre que tout le reste laissait deviner** : sur la session `819d3fef`, 299 tours,
 **11,3 heures de travail cumulé sur 11,4 jours** — soit **4,1 %**. Les tours ne se
 chevauchent jamais. La médiane d'un tour est de 66 secondes, le plus long dure 84 minutes.
 
@@ -424,7 +424,7 @@ au nombre de jetons de réflexion — **à l'échelle de la racine**, parce que 
 barres contre la ligne de base. L'absence de barre est un signal aussi : ce tour-là, il a
 répondu sans réfléchir.
 
-Sur la session Litanie : **886 appels sur 2011 comportent une réflexion** (44 %), pour
+Sur la session `819d3fef` : **886 appels sur 2011 comportent une réflexion** (44 %), pour
 319 699 jetons — soit 18 % de tout ce que le modèle a produit. Et un contraste que la carte
 donne : il réfléchit **359 jetons en moyenne avant d'appeler un outil**, mais **517 avant de
 seulement parler**.
@@ -439,7 +439,7 @@ trois temps : un trait vertical à l'instant de l'**appel**, une ligne fine pour
 avant la réponse**, puis un rectangle plein pour la **réponse**, du premier bloc au
 dernier. Le décalage entre le trait et le rectangle est la latence.
 
-Mesuré sur la session Litanie, 2001 appels à `claude-opus-5` : attente avant réponse de
+Mesuré sur la session `819d3fef`, 2001 appels à `claude-opus-5` : attente avant réponse de
 **7,9 s en moyenne**, réponse de **6,4 s**. La répartition des attentes : 1086 sous 5 s,
 870 entre 5 et 30 s, 44 entre 30 s et 2 min, et **une seule** au-delà.
 
@@ -461,7 +461,7 @@ retraité chaque fois. L'entrée se décompose donc en trois :
 | **payés au prix fort** | ce qui n'a pas été mis en cache du tout |
 
 Une **jauge rouge → vert** porte la part réellement servie par le cache, pour l'appel
-regardé et pour l'ensemble des appels du modèle. Sur la session Litanie : **98,4 %** sur
+regardé et pour l'ensemble des appels du modèle. Sur la session `819d3fef` : **98,4 %** sur
 973 831 462 jetons d'entrée au total. L'appel le moins bien servi est à 0 % — c'est le tout
 premier de la session, quand rien n'est encore en cache — et la médiane est à 99,7 %.
 
@@ -622,7 +622,7 @@ croire à une activité continue qui n'existe pas.
 le dire que de bâtir une voie vide. Sur l'ensemble des transcrits : **2 enregistrements de
 permissions non vides sur 230**, **2 refus d'outil** en tout, et **un seul** changement de
 mode dans une seule session sur 106. Ce qui bouge réellement est le catalogue d'outils —
-89 outils offerts sur la session Litanie, en 10 changements. La carte en donne la
+89 outils offerts sur la session `819d3fef`, en 10 changements. La carte en donne la
 chronologie et la liste complète.
 
 ### Choisir les voies affichées
@@ -635,7 +635,7 @@ nombre de lignes. Une voie que la session ne produit pas reste listée mais gris
 
 Les voies d'agents, elles, ne se masquent pas : ce sont elles qu'on vient voir.
 
-**Le repli des temps morts.** La session Litanie s'étale sur 264 heures pour 1710 appels,
+**Le repli des temps morts.** La session `819d3fef` s'étale sur 264 heures pour 1710 appels,
 dont sept jours d'inactivité : à l'échelle linéaire, tout le travail devient invisible.
 L'axe replie donc les périodes vides, avec un seuil proportionnel à la durée de la session
 (un quatre-centième, jamais moins d'une minute). Chaque repli est **annoncé et compté** —

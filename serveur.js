@@ -52,8 +52,8 @@ function processusVivant(pid) {
 
 /**
  * Nom du dossier de projet pour un cwd donné : Claude Code remplace « / » et « . » par
- * des tirets. Observé : /home/yves/projects -> -home-yves-projects, et
- * /home/yves/.cline/worktrees/x -> -home-yves--cline-worktrees-x.
+ * des tirets. Observé : /home/moi/projets -> -home-moi-projets, et
+ * /home/moi/.cline/worktrees/x -> -home-moi--cline-worktrees-x.
  */
 function encoderCwd(cwd) {
   return cwd.replace(/[/.]/g, '-');
@@ -424,7 +424,7 @@ async function suivreSession(id, requete, reponse) {
  * Les adresses de cette machine sur le tailnet, IPv4 et IPv6.
  *
  * Les deux sont nécessaires : MagicDNS résout le nom court de la machine vers son adresse
- * IPv6, donc n'écouter qu'en IPv4 rendrait `http://claude-server:7420` injoignable depuis
+ * IPv6, donc n'écouter qu'en IPv4 rendrait `http://<nom-de-la-machine>:7420` injoignable depuis
  * les autres appareils, alors que l'adresse numérique, elle, marcherait.
  */
 function adressesTailscale() {

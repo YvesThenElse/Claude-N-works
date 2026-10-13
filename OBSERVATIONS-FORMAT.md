@@ -324,7 +324,7 @@ est mort doit s'afficher *interrompu, fin inconnue* — et non *en cours*. La de
 ## 5 quinquies. Une boucle ne laisse pas toujours d'acte de naissance
 
 Le §3.4 disait qu'une boucle s'ouvre par un `tool_use` `Skill` portant `skill: "loop"`.
-C'est vrai, mais incomplet. Compté sur la session Litanie : **183 appels `ScheduleWakeup`,
+C'est vrai, mais incomplet. Compté sur la session `819d3fef` : **183 appels `ScheduleWakeup`,
 dont 10 portant `stop: true`, pour seulement 3 appels du skill `loop`**. Les sept autres
 boucles n'ont aucun appel de skill — une boucle relancée par `/loop` tapé à la main ne
 produit pas de `tool_use`.
@@ -436,7 +436,7 @@ Deux choses en sont sorties, toutes deux fausses jusque-là.
 **Un arrêt est aussi un passage.** Le dernier tour d'une boucle se termine par un
 `ScheduleWakeup` portant `stop: true`, et non par un réveil ordinaire. Ne compter que les
 réveils perdait donc le dernier tour — trois itérations réelles affichées comme deux.
-Compter l'arrêt comme l'itération qui le décide donne, sur la session Litanie,
+Compter l'arrêt comme l'itération qui le décide donne, sur la session `819d3fef`,
 **183 itérations pour 183 appels `ScheduleWakeup`** : plus aucun passage ne se perd.
 
 **Une boucle sans appel de skill n'a pas d'instant de naissance évident.** Son premier
@@ -554,7 +554,7 @@ donc « succès » une information qu'on n'a pas. Trois états valent mieux que 
 succès, non renseigné — ce dernier s'omettant à l'affichage.
 
 **C9 — une boucle se reconnaît par sa mort, pas par sa naissance** (§5 quinquies). Le §3.4
-du cahier des charges est à amender : seules 3 des 10 boucles de la session Litanie
+du cahier des charges est à amender : seules 3 des 10 boucles de la session `819d3fef`
 commencent par un appel du skill.
 
 **C8 — un agent qui échoue de lui-même. Levé** (§5 sexies) : message `assistant` de modèle

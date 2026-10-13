@@ -117,7 +117,7 @@ async function* lignesDe(chemin) {
  * Ce qu'une pièce jointe ajoute **réellement** au contexte.
  *
  * Compter l'enregistrement entier serait un mensonge : un `hook_success` pèse 3 226
- * caractères en moyenne et douze millions au total sur la session Litanie, presque
+ * caractères en moyenne et douze millions au total sur la session `819d3fef`, presque
  * uniquement parce qu'il recopie la commande du hook — qui n'est jamais envoyée au
  * modèle. On ne retient donc que les champs dont on sait qu'ils sont injectés.
  */
@@ -185,7 +185,7 @@ function libelleDeclencheur(etat, ligne) {
   if (ligne.type !== 'user') return null;
   if (estUneConsigne(ligne)) return 'une requête d’Yves';
   // Une notification de tâche couvre aussi bien un sous-agent d'arrière-plan qu'une
-  // commande lancée en arrière-plan : la session Litanie en compte 77 sans avoir le
+  // commande lancée en arrière-plan : la session `819d3fef` en compte 77 sans avoir le
   // moindre sous-agent.
   if (ligne.origin?.kind === 'task-notification') return 'la fin d’une tâche d’arrière-plan';
   const contenu = ligne.message?.content;
@@ -818,7 +818,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
  * Les boucles d'un agent — §6.3 du cahier des charges.
  *
  * Une boucle `/loop` en allure libre ne laisse pas toujours d'acte de naissance : sur les
- * dix boucles de la session Litanie, trois seulement commencent par un `tool_use` `Skill`.
+ * dix boucles de la session `819d3fef`, trois seulement commencent par un `tool_use` `Skill`.
  * Ce qui est constant, c'est leur mort : un `ScheduleWakeup` portant `stop: true`. On
  * groupe donc les réveils en suites délimitées par ces arrêts, et on rattache le `Skill`
  * d'ouverture quand il y en a un. À défaut, la consigne se lit dans le champ `prompt` des
@@ -834,7 +834,7 @@ function construireBoucles(appels, idAgent, reveils = [], departsPossibles = [])
   let skillEnAttente = null;
   // Une boucle ne peut pas commencer avant que la précédente se soit arrêtée. Sans cette
   // borne, la remontée ci-dessous faisait démarrer une boucle vingt heures avant la fin
-  // de celle d'avant — mesuré sur la session Litanie.
+  // de celle d'avant — mesuré sur la session `819d3fef`.
   let finPrecedente = null;
 
   // Une boucle ouverte sans appel de skill n'a pas d'instant de naissance évident : son
