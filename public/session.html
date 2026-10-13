@@ -54,6 +54,7 @@
     --tours: #7aa2f7;
     --reflexion: #c4a7ff;
     --outillage: #ffd479;
+    --hook: #7dcfff;
     --modele: #d6a4ff;
     --modele-opus: #d6a4ff; --modele-sonnet: #6ee7d5;
     --modele-haiku: #ffd479; --modele-autre: #9aa5ce;
@@ -86,6 +87,7 @@
     --tours: #2563c9;
     --reflexion: #8b5cf6;
     --outillage: #a16207;
+    --hook: #0369a1;
     --modele: #7c3aed;
     --modele-opus: #7c3aed; --modele-sonnet: #0d9488;
     --modele-haiku: #a16207; --modele-autre: #64748b;
@@ -422,6 +424,7 @@
     <span><i class="puce" style="background:var(--outil-agent)"></i>appel d'agent</span>
     <span><i class="puce" style="background:var(--requete)"></i>requête</span>
     <span><i class="puce" style="background:var(--boucle);border-radius:50%"></i>boucle</span>
+    <span><i class="puce" style="background:var(--hook)"></i>hook</span>
     <span><i class="puce" style="background:var(--compact)"></i>compactage</span>
     <span><i class="puce" style="background:var(--panne);border-radius:50%"></i>panne</span>
     <span><i class="puce" style="background:var(--requete)"></i>question posée</span>
@@ -614,6 +617,7 @@ const VOIES_ANNEXES = [
   { cle: 'reflexion', nom: 'réflexion', teinte: 'var(--reflexion)' },
   { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, var(--outil), var(--outil-echec))' },
   { cle: 'outillage', nom: 'outillage', teinte: 'var(--outillage)' },
+  { cle: 'hooks', nom: 'hooks', teinte: 'var(--hook)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, var(--ramp-bon), var(--ramp-mauvais))' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, var(--en-cours), var(--outil))' },
   { cle: 'buffer', nom: 'Buffer CTX', teinte: 'linear-gradient(to right, var(--ramp-mauvais), var(--ramp-moyen), var(--ramp-bon))' },
@@ -622,7 +626,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: 'var(--modele)' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, hooks: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
 };
 
 // Ce que coûte un appel, en multiples du prix plein : écrire au cache coûte 1,25 fois, y
@@ -999,6 +1003,9 @@ function construireVoies() {
     if (voiesVisibles.fichiers && (a.outils || []).some((o) => o.fichier)) {
       voies.push({ genre: 'fichiers', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.hooks && (a.hooks || []).length) {
+      voies.push({ genre: 'hooks', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.outillage && (a.outillage || []).length) {
       voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
     }
@@ -1160,6 +1167,24 @@ const LEGENDE_VOIE = {
     'Le transcript ne contient aucun diff git. Ce qui est montré ici est',
     'ce que l’agent a demandé, ce qui est plus proche de la source.',
   ].join('\n'),
+  hooks: [
+    'Ce qui s’exécute autour de chaque geste, et qui décide de ce qui a',
+    'le droit de se produire :',
+    '   trait vers le haut    un hook AVANT l’appel (PreToolUse)',
+    '   trait vers le bas     un hook APRÈS l’appel (PostToolUse)',
+    '   trait traversant      une borne de cycle de vie (SessionStart,',
+    '                         SubagentStart, Stop)',
+    '   losange ambre         un hook qui INJECTE du texte dans la conversation',
+    '   rose                  un hook qui a échoué',
+    '',
+    'La durée n’est pas une largeur : la médiane d’un PreToolUse est de',
+    '41 ms, soit un dixième de pixel. C’est la carte qui donne les durées ;',
+    'ici on lit la densité — deux traits par appel d’outil.',
+    '',
+    'BLANC : aucun hook BLOQUANT n’a jamais été observé. Les 32 609',
+    'enregistrements de la machine ont tous un code de sortie nul, et on',
+    'ne sait donc pas ce qu’écrit un hook qui refuse.',
+  ].join('\n'),
   outillage: [
     'Ce que l’agent a le droit d’appeler, et quand cela change :',
     '   trait plein    des outils lui sont offerts',
@@ -1302,6 +1327,17 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = distincts + ' fich.';
       surLigne(() => carteFichiers(a));
+    } else if (v.genre === 'hooks') {
+      const total = (a.hooks || []).reduce((n2, h) => n2 + (h.dureeMs || 0), 0);
+      d.title = a.hooks.length + ' hook(s) déclenché(s), ' + Math.round(total) + ' ms en tout'
+        + '\n\n' + LEGENDE_VOIE.hooks;
+      icone.textContent = '⊣';
+      icone.style.color = 'var(--hook)';
+      puce.style.background = 'var(--hook)';
+      etiq.textContent = 'hooks';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = a.hooks.length + ' hk.';
+      surLigne(() => carteHooks(a));
     } else if (v.genre === 'outillage') {
       d.title = (a.outilsOfferts || []).length + ' outils offerts à la fin\n'
         + a.outillage.length + ' changement(s) d’outillage'
@@ -1684,6 +1720,10 @@ function dessinerPiste() {
       svg.append(dessinerVoieOutillage(v.agent, centre, axe, visible));
       return;
     }
+    if (v.genre === 'hooks') {
+      svg.append(dessinerVoieHooks(v.agent, centre, axe, visible));
+      return;
+    }
     if (v.genre === 'modele') {
       svg.append(dessinerVoieModele(v.agent, v.modele, centre, axe, visible));
       return;
@@ -1898,6 +1938,18 @@ function carteAgent(a) {
   ligne(dl, 'Durée', duree(a.dureeMs));
   ligne(dl, 'Modèle', a.modele, true);
   ligne(dl, 'Effort', a.effort);
+  // Le répertoire de travail. Il n'est pas une propriété fixe de la session : mesuré sur
+  // les 194 transcripts de la machine, il change en cours de route dans 44 d'entre eux, et
+  // 7 sous-agents sur 69 travaillent ailleurs que leur parent. On donne donc le dernier
+  // connu, et le nombre de fois où il a changé.
+  // ⚠️ On donne les répertoires DISTINCTS, pas le compte de changements : mesuré sur
+  // `454ef787`, 188 changements pour 6 répertoires — le cwd oscille entre un dossier et
+  // son sous-dossier à chaque appel, et le compte brut ne dirait rien de vrai.
+  const lieux = a.repertoires || [];
+  ligne(dl, 'Répertoire de travail', a.repertoire
+    ? a.repertoire + (lieux.length > 1 ? '   (' + lieux.length + ' répertoires distincts)' : '')
+    : null, true);
+  ligne(dl, 'Branche git', a.branche, true);
   ligne(dl, 'Jetons', a.jetons !== null && a.jetons !== undefined ? a.jetons.toLocaleString('fr-FR') : null);
   ligne(dl, 'Appels d’outils', String(a.outils.length));
   const enfants = deroule.agents.filter((x) => x.parent === a.id).length;
@@ -1905,6 +1957,14 @@ function carteAgent(a) {
   if (a.statutBrut && a.statutBrut !== 'completed') ligne(dl, 'Statut brut', a.statutBrut, true);
 
   const morceaux = [dl];
+  if ((a.repertoires || []).length > 1) {
+    morceaux.push(blocReplie(
+      'les ' + a.repertoires.length + ' répertoires où cet agent a travaillé',
+      a.repertoires.map((r) => r.chemin + '   —   ' + r.lignes + ' ligne(s)').join('\n')
+      + '\n\n' + a.changementsDeRepertoire + ' changements en tout : le répertoire oscille '
+      + 'entre un dossier et son sous-dossier au fil des appels, ce ne sont pas autant de '
+      + 'déplacements voulus.', false));
+  }
 
   // Né pendant une boucle : on le dit, et on y renvoie.
   if (a.neDansBoucle) {
@@ -2272,6 +2332,72 @@ function detaillerEntree(dl, j, nombre) {
 }
 
 /** Carte de l'outillage : ce que l'agent peut appeler, et ce qui a changé en route. */
+/**
+ * La carte des hooks. C'est elle qui porte les durées, puisque la voie ne peut pas les
+ * dessiner — un hook dure quelques dizaines de millisecondes, soit un dixième de pixel.
+ */
+function carteHooks(agent, visee) {
+  const hooks = agent.hooks || [];
+  const dl = document.createElement('dl');
+  if (visee) {
+    ligne(dl, 'Ce hook', visee.nom);
+    ligne(dl, 'Événement', visee.evenement);
+    ligne(dl, 'Instant', heure(visee.instant));
+    ligne(dl, 'Durée', visee.dureeMs !== null ? visee.dureeMs + ' ms' : null);
+    ligne(dl, 'Code de sortie', visee.code !== null ? String(visee.code) : null);
+    ligne(dl, 'Autour de l’appel', visee.idAppel);
+  }
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Hooks déclenchés', String(hooks.length));
+
+  // Par événement : le compte, le temps total, la médiane. C'est le chiffre qui dit ce
+  // que les hooks coûtent réellement à chaque geste.
+  const parEvenement = new Map();
+  for (const h of hooks) {
+    const cle = h.evenement || '(sans événement)';
+    if (!parEvenement.has(cle)) parEvenement.set(cle, []);
+    parEvenement.get(cle).push(h.dureeMs || 0);
+  }
+  const total = hooks.reduce((n2, h) => n2 + (h.dureeMs || 0), 0);
+  ligne(dl, 'Temps total', total + ' ms');
+  const rates = hooks.filter((h) => !h.ok).length;
+  ligne(dl, 'En échec', rates ? String(rates) : 'aucun');
+
+  const morceaux = [dl];
+
+  const table = document.createElement('dl');
+  for (const [ev, ds] of [...parEvenement.entries()].sort((x, y) => y[1].length - x[1].length)) {
+    const tri = [...ds].sort((x, y) => x - y);
+    const med = tri.length ? tri[Math.floor(tri.length / 2)] : 0;
+    ligne(table, ev, ds.length + ' × · médiane ' + med + ' ms · total '
+      + ds.reduce((x, y) => x + y, 0) + ' ms');
+  }
+  morceaux.push(table);
+
+  // Ceux qui parlent : leur contenu entre dans la conversation, il faut pouvoir le lire.
+  const parlants = hooks.filter((h) => h.injecte);
+  if (parlants.length) {
+    morceaux.push(blocReplie(parlants.length + ' hook(s) qui injectent du texte dans la conversation',
+      parlants.map((h) => h.nom + ' — ' + heure(h.instant) + '\n' + h.injecte).join('\n\n'), true));
+  }
+
+  if (visee && visee.commande) {
+    morceaux.push(blocReplie('la commande exécutée', visee.commande, false));
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Ce que cette voie ne peut pas montrer : un hook qui REFUSE. '
+    + 'Sur l’ensemble des transcrits de la machine, les 32 609 enregistrements de hook ont '
+    + 'un code de sortie nul — aucun n’a jamais échoué ni bloqué quoi que ce soit. On ne '
+    + 'sait donc pas ce qu’écrit un hook bloquant, et l’application ne prétend rien à son '
+    + 'sujet. La commande d’un hook, elle, n’est jamais envoyée au modèle : elle pèse '
+    + '3 226 caractères en moyenne et ne compte pas dans le contexte.';
+  morceaux.push(p);
+
+  ouvrirPanneau('hooks', agent.nom, morceaux);
+}
+
 function carteOutillage(agent, visee) {
   const dl = document.createElement('dl');
   if (visee) {
@@ -3163,6 +3289,58 @@ const NOM_OUTILLAGE = {
  * change. Les événements sont rares — une poignée par session — donc des marques, pas des
  * barres : une voie remplie laisserait croire à une activité continue qu'il n'y a pas.
  */
+/**
+ * La voie des hooks : ce qui s'exécute **autour** de chaque geste de l'agent, et qui
+ * décide de ce qui a le droit de se produire.
+ *
+ * Le transcript les écrit depuis toujours — 32 609 enregistrements sur cette machine —
+ * et ils n'étaient montrés nulle part. Chacun porte son `toolUseID`, donc chaque marque
+ * sait quel appel d'outil elle encadre.
+ *
+ * ⚠️ La durée ne peut pas être une largeur : la médiane d'un `PreToolUse` est de 41 ms,
+ * soit un dixième de pixel à l'échelle courante. Ce sont donc des **marques**, et c'est la
+ * carte qui donne les durées. Ce qui se lit à l'œil est la **densité** — deux traits par
+ * appel d'outil — et les événements de cycle de vie, qui traversent la voie.
+ */
+function dessinerVoieHooks(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const AVANT = new Set(['PreToolUse']);
+  const APRES = new Set(['PostToolUse', 'PostToolUseFailure']);
+  for (const h of agent.hooks || []) {
+    if (h.instant === null) continue;
+    const x = axe.x(h.instant);
+    if (!visible(x - 6, x + 6)) continue;
+    const couleur = !h.ok ? 'var(--outil-echec)' : h.injecte ? 'var(--requete)' : 'var(--hook)';
+    if (h.injecte) {
+      // Un hook qui parle : son contenu entre vraiment dans la conversation. Rare — cinq
+      // fois sur toute la machine — et c'est pour ça qu'il a une forme à lui.
+      g.append(el('path', {
+        d: `M ${x} ${centre - 7} L ${x + 5} ${centre} L ${x} ${centre + 7} L ${x - 5} ${centre} Z`,
+        fill: couleur, opacity: '.95',
+      }));
+    } else if (AVANT.has(h.evenement)) {
+      g.append(el('rect', { x: x - 0.9, y: centre - 8, width: 1.8, height: 8, fill: couleur, opacity: '.85' }));
+    } else if (APRES.has(h.evenement)) {
+      g.append(el('rect', { x: x - 0.9, y: centre, width: 1.8, height: 8, fill: couleur, opacity: '.85' }));
+    } else {
+      // SessionStart, SubagentStart, Stop : les bornes du cycle de vie, qui traversent.
+      g.append(el('rect', { x: x - 1.2, y: centre - 9, width: 2.4, height: 18, rx: 1, fill: couleur, opacity: '.9' }));
+    }
+    const prise = el('rect', { x: x - 6, y: centre - 11, width: 12, height: 22, fill: 'transparent' });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      h.nom + (h.ok ? '' : '  — ÉCHEC')
+      + '\n' + heure(h.instant)
+      + (h.dureeMs !== null ? '\ndurée ' + h.dureeMs + ' ms' : '')
+      + (h.code !== null ? '\ncode de sortie ' + h.code : '')
+      + (h.idAppel ? '\nautour de l’appel ' + h.idAppel.slice(0, 18) : '')
+      + (h.injecte ? '\n\ninjecte dans la conversation :\n' + h.injecte.slice(0, 200) : ''))));
+    prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteHooks(agent, h); });
+    g.append(prise);
+  }
+  return g;
+}
+
 function dessinerVoieOutillage(agent, centre, axe, visible) {
   const g = el('g', {});
   for (const e of agent.outillage) {
@@ -3837,6 +4015,7 @@ function remplirMenuVoies() {
       presentes.fichiers = (presentes.fichiers || 0) + 1;
     }
     if ((a.outillage || []).length) presentes.outillage = (presentes.outillage || 0) + 1;
+    if ((a.hooks || []).length) presentes.hooks = (presentes.hooks || 0) + 1;
     if ((a.requetesModele || []).length > 1) {
       presentes.contenu = (presentes.contenu || 0) + 1;
       presentes.buffer = (presentes.buffer || 0) + 1;

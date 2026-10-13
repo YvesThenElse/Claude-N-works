@@ -245,6 +245,18 @@ function etatVide() {
     reveils: [],      // les réveils de boucle vus du côté du système
     erreurs: [],      // les messages que Claude Code s'écrit à lui-même sur une panne
     skillsCharges: [],
+    // Les hooks. Ils décident de ce qui a le droit de se produire, et ils étaient
+    // entièrement invisibles alors que le transcript les écrit depuis toujours : 32 609
+    // enregistrements sur cette machine. Chacun dit quel hook, sur quel événement, pour
+    // quel appel d'outil, combien de temps il a pris et comment il s'est terminé.
+    hooks: [],
+    // Le répertoire de travail. Ce n'est pas une propriété fixe de la session : il change
+    // en cours de route dans 44 fichiers sur 194, jusqu'à six valeurs pour une seule
+    // session, et 7 sous-agents sur 69 travaillent ailleurs que leur parent.
+    repertoire: null,
+    branche: null,
+    repertoires: [],            // les répertoires DISTINCTS, avec le temps passé dans chacun
+    changementsDeRepertoire: 0, // le compte brut, qui dit le bruit
   };
 }
 
@@ -259,6 +271,26 @@ function avaler(etat, ligne) {
     if (etat.premier === null || t < etat.premier) etat.premier = t;
     if (etat.dernier === null || t > etat.dernier) etat.dernier = t;
   }
+
+  // Le répertoire de travail, et la branche git avec lui. Ce n'est pas une propriété fixe
+  // qu'on pourrait lire une fois : mesuré sur les 194 transcripts de la machine, il change
+  // en cours de session dans 44 d'entre eux, et 7 sous-agents sur 69 travaillent ailleurs
+  // que leur parent.
+  //
+  // ⚠️ Mais un changement n'est PAS un événement à marquer. Mesuré sur la session
+  // `454ef787` : **188 changements pour 6 répertoires distincts**. Le `cwd` oscille entre
+  // un dossier et son sous-dossier à presque chaque appel — ce n'est pas un déplacement
+  // voulu, et en faire des marques noyait les douze vraies marques d'outillage sous 187
+  // marques de bruit. On retient donc les répertoires **distincts**, avec le compte de
+  // lignes passées dans chacun.
+  if (ligne.cwd) {
+    if (ligne.cwd !== etat.repertoire) etat.changementsDeRepertoire += 1;
+    etat.repertoire = ligne.cwd;
+    const vu = etat.repertoires.find((r) => r.chemin === ligne.cwd);
+    if (vu) { vu.lignes += 1; vu.dernier = t; }
+    else etat.repertoires.push({ chemin: ligne.cwd, premier: t, dernier: t, lignes: 1 });
+  }
+  if (ligne.gitBranch) etat.branche = ligne.gitBranch;
 
   // Tout enregistrement qui n'est pas une réponse du modèle marque le moment où l'on s'est
   // mis à l'attendre. Un réveil de boucle en fait partie : sans lui, la latence d'un tour
@@ -289,6 +321,33 @@ function avaler(etat, ligne) {
   if (ligne.type === 'attachment') {
     const taille = tailleInjectee(ligne.attachment);
     if (taille > 0) { etat.composition.systeme += taille; etat.composition.n += 1; }
+  }
+
+  // Les hooks. Trois formes mesurées sur la machine : `hook_success` (32 609),
+  // `hook_system_message` (5 — et celle-là **injecte du texte** dans la conversation) et
+  // `hook_non_blocking_error` (1). Chacune porte le `toolUseID` de l'appel qu'elle
+  // encadre, ce qui les rattache directement à la ligne du temps.
+  //
+  // ⚠️ BLANC : aucun hook **bloquant** n'a jamais été observé ici — les 32 609 codes de
+  // sortie valent 0. On ne sait donc pas ce qu'écrit un hook qui refuse, et l'application
+  // ne doit rien prétendre à son sujet.
+  if (ligne.type === 'attachment' && String(ligne.attachment?.type || '').startsWith('hook')) {
+    const att = ligne.attachment;
+    const rate = att.type === 'hook_non_blocking_error' || (att.exitCode != null && att.exitCode !== 0);
+    etat.hooks.push({
+      instant: t,
+      nom: att.hookName || att.hookEvent || 'hook',
+      evenement: att.hookEvent || null,
+      dureeMs: typeof att.durationMs === 'number' ? att.durationMs : null,
+      code: att.exitCode != null ? att.exitCode : null,
+      idAppel: att.toolUseID || null,
+      // Un hook qui parle : son `content` entre vraiment dans la conversation.
+      injecte: (att.content || '').trim() ? att.content : null,
+      sortie: (att.stdout || '').trim() || null,
+      erreur: (att.stderr || '').trim() || null,
+      commande: att.command || null,
+      ok: !rate,
+    });
   }
 
   if (ligne.type === 'attachment') {
@@ -642,6 +701,11 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
+    hooks: racine.hooks,
+    repertoire: racine.repertoire,
+    branche: racine.branche,
+    repertoires: racine.repertoires,
+    changementsDeRepertoire: racine.changementsDeRepertoire,
   });
 
   for (const sa of sousAgents) {
@@ -690,6 +754,11 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,
+      hooks: d.hooks,
+      repertoire: d.repertoire,
+      branche: d.branche,
+      repertoires: d.repertoires,
+      changementsDeRepertoire: d.changementsDeRepertoire,
       statutBrut: typeof appelParent?.resultat === 'string'
         ? appelParent.resultat
         : (res?.status ?? null),

@@ -480,6 +480,79 @@ d'outils, des agents et des requêtes — pas ceux des messages de texte de l'ag
 peut donc commencer quelques secondes trop tôt, à la dernière action plutôt qu'à la
 dernière parole.
 
+## 5 nonies. Les hooks — mesurés le 13 octobre 2026
+
+**Constaté.** Les hooks n'ont jamais été invisibles : le transcript les écrit depuis
+toujours, et il y en a **32 609** sur cette machine. Ils sont des pièces jointes, sous
+**trois** types :
+
+| Type | Compte | Ce que c'est |
+|---|---|---|
+| `hook_success` | 32 609 | un hook qui s'est exécuté |
+| `hook_system_message` | 5 | un hook qui **injecte du texte** dans la conversation |
+| `hook_non_blocking_error` | 1 | un hook en erreur, sans conséquence |
+
+Un `hook_success` porte toujours les mêmes dix champs — forme unique sur les 32 609 :
+
+```json
+{"type":"hook_success","hookName":"PreToolUse:Bash","hookEvent":"PreToolUse",
+ "toolUseID":"toolu_01…","content":"","stdout":"{}\n","stderr":"","exitCode":0,
+ "durationMs":41,"command":"…"}
+```
+
+`toolUseID` **rattache le hook à l'appel d'outil qu'il encadre** : c'est ce qui permet de
+le poser au bon endroit sur la ligne du temps.
+
+**Six événements observés**, et non quatre :
+
+| Événement | Compte | Médiane | p95 | Total |
+|---|---|---|---|---|
+| `PreToolUse` | 15 875 | 41 ms | 244 ms | 19,4 min |
+| `PostToolUse` | 15 562 | 28 ms | 38 ms | 7,9 min |
+| `Stop` | 761 | 67 ms | 211 ms | 1,1 min |
+| `PostToolUseFailure` | 202 | 29 ms | 41 ms | 0,1 min |
+| `SubagentStart` | 71 | 29 ms | 37 ms | — |
+| `SessionStart` | 138 | 79 ms | 127 ms | 0,2 min |
+
+Soit **0,48 heure de hooks** cumulées sur toute la machine. Et un fait que seule la mise
+en regard donne : **l'agent racine paie un `PreToolUse` et un `PostToolUse` par appel
+d'outil, un sous-agent n'a qu'un seul hook, `SubagentStart`, à sa naissance.**
+
+> ⚠️ **BLANC — un hook qui BLOQUE.** Les 32 609 enregistrements ont un `exitCode` de **0** :
+> aucun hook n'a jamais échoué ni refusé quoi que ce soit sur cette machine. **On ne sait
+> donc pas ce qu'écrit un hook bloquant**, et l'application ne doit rien prétendre à son
+> sujet. C'est à un kit d'en produire un pour qu'on puisse le mesurer.
+
+**Et la commande d'un hook n'est pas envoyée au modèle.** Le champ `command` pèse 3 226
+caractères en moyenne — douze millions au total sur une seule session — et c'est
+précisément le piège que `tailleInjectee` évite : le compter dans le contexte donnait 85 %
+de « système ».
+
+## 5 decies. Le répertoire de travail — mesuré le 13 octobre 2026
+
+**Constaté.** `cwd` et `gitBranch` sont présents sur **100 153 lignes**. Le répertoire de
+travail n'est donc pas à deviner — mais il n'est pas non plus une propriété fixe :
+
+- il **change en cours de session dans 44 transcripts sur 194** ;
+- **7 sous-agents sur 69 travaillent ailleurs que leur parent** — le « plan de travail
+  isolé » existe pour de vrai dans les traces.
+
+> ⚠️ **Un changement de `cwd` n'est PAS un déplacement voulu.** Mesuré sur `454ef787` :
+> **188 changements pour 6 répertoires distincts**. Le `cwd` oscille entre un dossier et
+> son sous-dossier à presque chaque appel. Une première version de l'affichage en faisait
+> autant de marques d'événement : elles noyaient les douze vraies marques d'outillage sous
+> 187 marques de bruit. Ce qu'il faut retenir est donc l'**ensemble des répertoires
+> distincts**, avec le nombre de lignes passées dans chacun :
+
+```
+   202 lignes  /…/projects
+    22 lignes  /…/projects/Atlas
+ 14746 lignes  /…/projects/Digital-Twin-Alternative
+  1341 lignes  /…/projects/Digital-Twin-Alternative/calibration
+  1107 lignes  /…/projects/Digital-Twin-Alternative/web
+    10 lignes  /…/projects/Digital-Twin-Alternative/web/src
+```
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :

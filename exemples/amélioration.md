@@ -37,8 +37,11 @@ Rien n'oblige les suivants à y rester.
   Rien ne montre une conversation latérale entre deux agents.
 - **Agent tué et relancé** — ◐. Un commis qui tombe, et le chef qui repasse la commande à
   un autre : on verrait le travail perdu et le travail refait.
-- **Plan de travail isolé** (worktree) — ✗. Chaque commis son billot. Le répertoire de
-  travail d'un agent n'est affiché nulle part.
+- **Plan de travail isolé** (worktree) — ✔ **depuis le 13 octobre 2026**. La carte d'un
+  agent donne son répertoire de travail, sa branche git, et la liste des répertoires
+  distincts où il a travaillé avec le temps passé dans chacun. Mesuré : 7 sous-agents sur
+  69 travaillent déjà ailleurs que leur parent. Reste à le **mettre en scène** : chaque
+  commis son billot.
 
 ## Décision et contrôle
 
@@ -48,8 +51,12 @@ Rien n'oblige les suivants à y rester.
   le couteau à huîtres. J'avais écarté une voie permissions faute de matière à montrer ;
   un kit la fournirait.
 - **Mode plan** — ✗. Le chef propose son menu, attend l'accord, et n'exécute qu'après.
-- **Hook qui refuse** — ✗. Un chef de rang qui goûte chaque plat avant l'envoi et le
-  renvoie. Les hooks sont entièrement invisibles aujourd'hui.
+- **Hook qui refuse** — ◐ **depuis le 13 octobre 2026**. La voie *hooks* existe : elle
+  montre les `PreToolUse` et `PostToolUse` autour de chaque geste, les bornes de cycle de
+  vie, et les hooks qui injectent du texte. Ce marqueur disait « entièrement invisibles » —
+  c'était faux, le transcript en écrit 32 609. Ce qui manque vraiment est le hook **qui
+  refuse** : les 32 609 ont tous un code de sortie nul, donc on ne sait pas ce qu'un refus
+  écrit. Un chef de rang qui renvoie un plat le dirait.
 
 ## Mémoire et contexte
 
