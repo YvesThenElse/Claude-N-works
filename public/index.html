@@ -4,18 +4,50 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude N Works — sessions ouvertes</title>
+<script>
+  /* Avant le premier affichage : une page choisie en clair ne doit jamais paraître
+     sombre le temps d'une image. */
+  try {
+    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
+  } catch { /* stockage refusé : on reste au thème sombre */ }
+</script>
 <style>
+  /*
+   * La palette. Les mêmes rôles et les mêmes valeurs que `session.html` — le thème clair
+   * est celui qui a été validé là-bas, et les deux écrans doivent être du même monde.
+   */
   :root {
     --fond: #11131a;
     --fond-carte: #1a1d27;
     --fond-carte-active: #222634;
     --trait: #2b3040;
+    --trait-survol: #39405a;
     --texte: #e4e6ee;
     --texte-faible: #8d93a8;
     --accent: #7aa2f7;
     --occupe: #e0af68;
     --attente: #9ece6a;
     --mort: #565f89;
+    --halo-occupe: #e0af6820;
+    --halo-attente: #9ece6a20;
+  }
+
+  :root[data-theme="clair"] {
+    --fond: #eceef3;
+    --fond-carte: #ffffff;
+    --fond-carte-active: #f3f5fa;
+    --trait: #c9cedb;
+    --trait-survol: #9aa3bb;
+    --texte: #1b1f2e;
+    --texte-faible: #5c6479;
+    --accent: #2563c9;
+    --occupe: #b45309;
+    --attente: #15803d;
+    --mort: #7c8396;
+    --halo-occupe: #b4530922;
+    --halo-attente: #15803d22;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   body {
@@ -27,6 +59,20 @@
   }
   .page { max-width: 68rem; margin: 0 auto; }
   h1 { font-size: 1.3rem; font-weight: 600; margin: 0 0 .25rem; }
+  .tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+
+  /* La bascule dit où l'on va, pas où l'on est : en sombre, elle propose le clair. */
+  .bascule-theme {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--fond-carte); color: var(--texte-faible);
+    border: 1px solid var(--trait); border-radius: 999px;
+    padding: .35rem .8rem .35rem .6rem; cursor: pointer;
+    font: inherit; font-size: .8rem; white-space: nowrap;
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .bascule-theme:hover { color: var(--texte); border-color: var(--accent); }
+  .bascule-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bascule-theme .astre { font-size: .95rem; line-height: 1; }
   .sous-titre { color: var(--texte-faible); font-size: .85rem; margin: 0 0 2rem; }
   .sous-titre b { color: var(--texte); font-weight: 600; }
 
@@ -43,12 +89,12 @@
     align-items: center;
     transition: background .12s, border-color .12s;
   }
-  .carte:hover { background: var(--fond-carte-active); border-color: #39405a; }
+  .carte:hover { background: var(--fond-carte-active); border-color: var(--trait-survol); }
   .carte[aria-selected="true"] { border-color: var(--accent); background: var(--fond-carte-active); }
 
   .pastille { width: .6rem; height: .6rem; border-radius: 50%; grid-row: span 2; }
-  .pastille.busy { background: var(--occupe); box-shadow: 0 0 0 4px #e0af6820; }
-  .pastille.waiting { background: var(--attente); box-shadow: 0 0 0 4px #9ece6a20; }
+  .pastille.busy { background: var(--occupe); box-shadow: 0 0 0 4px var(--halo-occupe); }
+  .pastille.waiting { background: var(--attente); box-shadow: 0 0 0 4px var(--halo-attente); }
   .pastille.autre { background: var(--mort); }
 
   .nom { font-weight: 600; }
@@ -90,7 +136,12 @@
 </head>
 <body>
 <div class="page">
-  <h1>Claude N Works</h1>
+  <div class="tete">
+    <h1>Claude N Works</h1>
+    <button type="button" class="bascule-theme" id="bascule">
+      <svg class="astre" id="basculeAstre" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4"/></g></svg><span id="basculeTexte">thème clair</span>
+    </button>
+  </div>
   <p class="sous-titre">
     Sessions Claude Code ouvertes sur cette machine — <b id="compte">…</b>,
     <span id="releve">en attente du premier relevé</span>.
@@ -112,6 +163,73 @@ const elDetail = document.getElementById('detail');
 const elCompte = document.getElementById('compte');
 const elReleve = document.getElementById('releve');
 const elAlerte = document.getElementById('alerte');
+
+/*
+ * Le thème. La même clé de stockage que l'écran de session : le choix vaut pour toute
+ * l'application, et passer d'un écran à l'autre ne doit pas changer l'éclairage. Cet
+ * écran-ci n'a rien à redessiner — tout son dessin est du CSS, qui suit les variables
+ * de lui-même.
+ */
+const CLE_MEMOIRE = 'claude-n-works.reglages.v1';
+let themeCourant = document.documentElement.dataset.theme === 'clair' ? 'clair' : 'sombre';
+
+/**
+ * Les deux pictogrammes de la bascule, tracés plutôt que tapés : mesuré sur un Chromium
+ * sans police de symboles, le croissant « ☾ » sort en carré vide. Un bouton dont l'icône
+ * manque est un bouton qu'on ne comprend plus.
+ */
+function dessinerAstre(svg, soleil) {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const NS = 'http://www.w3.org/2000/svg';
+  const mettre = (nom, attrs) => {
+    const n = document.createElementNS(NS, nom);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+    return n;
+  };
+  if (soleil) {
+    mettre('circle', { cx: 8, cy: 8, r: 3.4, fill: 'currentColor' });
+    mettre('path', {
+      d: 'M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4'
+         + 'M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4',
+      stroke: 'currentColor', 'stroke-width': 1.4, 'stroke-linecap': 'round', fill: 'none',
+    });
+  } else {
+    // un croissant : un disque dont on retire un second, décalé
+    mettre('path', {
+      d: 'M11.2 1.9a6.6 6.6 0 1 0 3 9.6A5.3 5.3 0 0 1 11.2 1.9Z',
+      fill: 'currentColor',
+    });
+  }
+}
+
+function appliquerTheme(theme) {
+  themeCourant = theme === 'clair' ? 'clair' : 'sombre';
+  if (themeCourant === 'clair') document.documentElement.dataset.theme = 'clair';
+  else delete document.documentElement.dataset.theme;
+  const versLeClair = themeCourant === 'sombre';
+  dessinerAstre(document.getElementById('basculeAstre'), versLeClair);
+  const bouton = document.getElementById('bascule');
+  document.getElementById('basculeTexte').textContent = versLeClair ? 'thème clair' : 'thème sombre';
+  bouton.title = versLeClair
+    ? 'Passer au thème clair — le choix est retenu pour les deux écrans'
+    : 'Revenir au thème sombre — le choix est retenu pour les deux écrans';
+  bouton.setAttribute('aria-pressed', themeCourant === 'clair' ? 'true' : 'false');
+}
+
+function retenirTheme() {
+  let r = {};
+  try { r = JSON.parse(localStorage.getItem(CLE_MEMOIRE)) || {}; } catch { r = {}; }
+  r.theme = themeCourant;
+  // Navigation privée ou stockage plein : on se passe de mémoire et l'écran continue.
+  try { localStorage.setItem(CLE_MEMOIRE, JSON.stringify(r)); } catch { /* tant pis */ }
+}
+
+appliquerTheme(themeCourant);
+document.getElementById('bascule').addEventListener('click', () => {
+  appliquerTheme(themeCourant === 'clair' ? 'sombre' : 'clair');
+  retenirTheme();
+});
 
 function duree(ms) {
   if (!ms || ms < 0) return '—';

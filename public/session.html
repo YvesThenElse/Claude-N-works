@@ -4,10 +4,45 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Claude N Works — ligne du temps</title>
+<script>
+  /*
+   * Le thème est appliqué AVANT le premier affichage, et c'est pour cela que ce script
+   * est ici, en tête de document, plutôt qu'avec le reste : une page choisie en clair ne
+   * doit jamais paraître sombre le temps d'une image.
+   */
+  try {
+    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
+  } catch { /* stockage refusé : on reste au thème sombre, et l'écran fonctionne */ }
+</script>
 <style>
+  /*
+   * La palette, en entier et en un seul endroit.
+   *
+   * Tout ce que l'écran dessine passe par ces variables — y compris le SVG, dont les
+   * attributs de présentation acceptent `var(…)`. C'est ce qui permet au thème de
+   * basculer **sans redessiner** : seules les échelles calculées en JS (le Buffer CTX,
+   * la jauge de cache) doivent être relues, et `appliquerTheme` s'en charge.
+   *
+   * Le thème clair n'est pas une inversion du sombre : ce sont les **mêmes familles de
+   * teintes**, re-marchées pour un fond clair puis validées. Sur les paires adjacentes,
+   * fond #eceef3 : clarté, chroma, vision normale (pire paire ΔE 16,7) et contraste
+   * passent tous ; la séparation en déficience de vision est à ΔE 6,8 pour vert↔ambre,
+   * dans la bande tolérée parce que la couleur ne porte **jamais** seule l'identité ici
+   * — chaque voie est nommée dans l'arbre et chaque marque a son infobulle.
+   *
+   * ⚠️ Mesuré au passage : la palette **sombre** est moins bonne que ça. Vert et ambre
+   * y sont à ΔE 0,8 en deutéranopie et à 11,7 en vision normale, sous le plancher de 15.
+   * Elle n'a pas été touchée — c'eût été changer l'identité de l'application sans qu'on
+   * l'ait demandé — mais le fait est consigné.
+   */
   :root {
-    --fond: #11131a; --fond-carte: #1a1d27; --trait: #2b3040;
+    --fond: #11131a; --fond-carte: #1a1d27; --fond-carte-active: #222634;
+    --trait: #2b3040;
     --texte: #e4e6ee; --texte-faible: #8d93a8;
+    --sur-accent: #11131a;
+    --voile: #080a0ecc; --ombre-forte: #000a; --ombre-douce: #0009;
+    --surligne: #e0af6855;
     --accent: #7aa2f7;
     --en-cours: #7aa2f7; --termine: #4a5170; --interrompu: #f7768e; --inconnu: #e0af68;
     --outil: #9ece6a; --outil-echec: #f7768e; --outil-agent: #bb9af7;
@@ -16,13 +51,80 @@
     --compact: #bb9af7;
     --panne: #f7768e;
     --attente: #565f89;
+    --tours: #7aa2f7;
+    --reflexion: #c4a7ff;
+    --outillage: #ffd479;
+    --modele: #d6a4ff;
+    --modele-opus: #d6a4ff; --modele-sonnet: #6ee7d5;
+    --modele-haiku: #ffd479; --modele-autre: #9aa5ce;
+    --ctx-systeme: #565f89; --ctx-outil-sortie: #9ece6a; --ctx-outil-entree: #7aa2f7;
+    --ctx-modele: #d6a4ff; --ctx-humain: #e0af68; --ctx-reflexion: #9a7fd0;
+    --ctx-resume: #bb9af7;
+    --ramp-mauvais: #f7768e; --ramp-moyen: #e0af68; --ramp-bon: #9ece6a;
+    --jauge-haut: #73d393;
+  }
+
+  :root[data-theme="clair"] {
+    --fond: #eceef3; --fond-carte: #ffffff; --fond-carte-active: #f3f5fa;
+    --trait: #c9cedb;
+    --texte: #1b1f2e; --texte-faible: #5c6479;
+    --sur-accent: #ffffff;
+    --voile: #3a425699; --ombre-forte: #2a3a5526; --ombre-douce: #2a3a551f;
+    --surligne: #fde68a;
+    --accent: #2563c9;
+    /* #2563c9 et non #3b82f6 : mesuré, une barre d'agent en cours est peinte à 85 %
+       d'opacité, et le bleu plus clair n'y rendait que 2,64:1 contre le fond. Celui-ci
+       donne 3,75:1 — et la palette repasse tous les contrôles avec lui. */
+    --en-cours: #2563c9; --termine: #7c8396; --interrompu: #db2777; --inconnu: #b45309;
+    --outil: #15803d; --outil-echec: #db2777; --outil-agent: #6b21a8;
+    --requete: #b45309;
+    --boucle: #0891b2;
+    --compact: #6b21a8;
+    --panne: #db2777;
+    /* 3,32:1 contre le fond, là où #8b93a7 ne donnait que 2,65 — le sombre est à 3,00 */
+    --attente: #7a8294;
+    --tours: #2563c9;
+    --reflexion: #8b5cf6;
+    --outillage: #a16207;
+    --modele: #7c3aed;
+    --modele-opus: #7c3aed; --modele-sonnet: #0d9488;
+    --modele-haiku: #a16207; --modele-autre: #64748b;
+    --ctx-systeme: #7c8396; --ctx-outil-sortie: #15803d; --ctx-outil-entree: #2563c9;
+    --ctx-modele: #7c3aed; --ctx-humain: #b45309; --ctx-reflexion: #8b5cf6;
+    --ctx-resume: #6b21a8;
+    --ramp-mauvais: #db2777; --ramp-moyen: #b45309; --ramp-bon: #15803d;
+    --jauge-haut: #16a34a;
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--fond); color: var(--texte);
     font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
-  header { padding: 1.2rem 1.5rem .9rem; border-bottom: 1px solid var(--trait); }
+  header {
+    padding: 1.2rem 1.5rem .9rem; border-bottom: 1px solid var(--trait);
+    display: grid; grid-template-columns: 1fr auto; align-items: start;
+    column-gap: 1rem;
+  }
+  header > :not(.bascule-theme) { grid-column: 1; }
+
+  /*
+   * La bascule de thème. Elle dit **où l'on va**, pas où l'on est : en thème sombre on
+   * propose le clair. Un interrupteur qui annonce son état actuel se lit à contresens
+   * une fois sur deux.
+   */
+  .bascule-theme {
+    grid-column: 2; grid-row: 1 / span 4; align-self: center;
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: var(--fond-carte); color: var(--texte-faible);
+    border: 1px solid var(--trait); border-radius: 999px;
+    padding: .35rem .8rem .35rem .6rem; cursor: pointer;
+    font: inherit; font-size: .8rem; white-space: nowrap;
+    transition: color .12s, border-color .12s, background .12s;
+  }
+  .bascule-theme:hover { color: var(--texte); border-color: var(--accent); }
+  .bascule-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bascule-theme .astre { font-size: .95rem; line-height: 1; }
   header a { color: var(--texte-faible); text-decoration: none; font-size: .82rem; }
   header a:hover { color: var(--accent); }
   h1 { font-size: 1.15rem; margin: .4rem 0 .35rem; font-weight: 600; }
@@ -103,14 +205,14 @@
      d'un long résultat demande de la largeur, qu'un tiroir latéral ne donne pas. */
   .panneau {
     position: fixed; inset: 0; z-index: 40;
-    background: #080a0ecc;
+    background: var(--voile);
     display: none; align-items: center; justify-content: center;
     padding: 2.5vh 2vw;
   }
   .panneau.ouvert { display: flex; }
   .panneau .boite {
     background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 12px;
-    box-shadow: 0 22px 60px #000a;
+    box-shadow: 0 22px 60px var(--ombre-forte);
     width: min(62rem, 96vw); max-height: 95vh; overflow-y: auto;
     padding: 1.3rem 1.5rem 2.2rem;
   }
@@ -148,7 +250,7 @@
   .jauge { margin: .5rem 0 .2rem; }
   .jauge .piste-jauge {
     position: relative; height: 10px; border-radius: 5px;
-    background: linear-gradient(to right, #f7768e 0%, #e0af68 55%, #9ece6a 85%, #73d393 100%);
+    background: linear-gradient(to right, var(--ramp-mauvais) 0%, var(--ramp-moyen) 55%, var(--ramp-bon) 85%, var(--jauge-haut) 100%);
   }
   .jauge .curseur {
     position: absolute; top: -3px; width: 3px; height: 16px; border-radius: 2px;
@@ -204,8 +306,8 @@
   .recherche button:hover:not(:disabled) { border-color: var(--accent); }
   .recherche button:disabled { opacity: .35; cursor: default; }
   .recherche .compte { font-size: .75rem; color: var(--texte-faible); min-width: 6rem; }
-  mark { background: #e0af6855; color: var(--texte); border-radius: 2px; padding: 0 1px; }
-  mark.vise { background: var(--requete); color: #11131a; }
+  mark { background: var(--surligne); color: var(--texte); border-radius: 2px; padding: 0 1px; }
+  mark.vise { background: var(--requete); color: var(--sur-accent); }
 
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
@@ -230,7 +332,7 @@
     border-radius: 999px; padding: .1rem .55rem; font-size: .74rem; cursor: pointer;
     font-family: inherit;
   }
-  .nes button:hover { background: var(--outil-agent); color: #11131a; }
+  .nes button:hover { background: var(--outil-agent); color: var(--sur-accent); }
   .lien-boucle {
     background: none; border: 0; padding: 0; color: var(--boucle); cursor: pointer;
     font: inherit; text-align: left; text-decoration: underline;
@@ -269,7 +371,7 @@
   .menu-voies .menu {
     position: absolute; z-index: 20; top: calc(100% + .3rem); left: 0;
     background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 8px;
-    padding: .45rem .5rem; box-shadow: 0 10px 26px #0009; min-width: 13rem;
+    padding: .45rem .5rem; box-shadow: 0 10px 26px var(--ombre-douce); min-width: 13rem;
   }
   .menu-voies .menu label {
     display: flex; gap: .45rem; align-items: center; padding: .18rem .2rem;
@@ -291,6 +393,9 @@
   <h1 id="titre">…</h1>
   <div class="resume" id="resume"></div>
   <div class="resume"><span id="vivante" style="color:var(--en-cours)"></span></div>
+  <button type="button" class="bascule-theme" id="bascule">
+    <svg class="astre" id="basculeAstre" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4"/></g></svg><span id="basculeTexte">thème clair</span>
+  </button>
 </header>
 
 <div class="reglages">
@@ -369,6 +474,67 @@ let ordrePersonnalise = false;
 const CLE_MEMOIRE = 'claude-n-works.reglages.v1';
 const SESSIONS_RETENUES = 40;
 
+/**
+ * Le thème. Deux valeurs seulement, `sombre` et `clair` ; le sombre est celui d'origine
+ * et reste le défaut, donc il ne pose aucun attribut sur la racine.
+ *
+ * Presque tout suit sans qu'on redessine : les attributs SVG lisent `var(…)` et le
+ * navigateur les recalcule seul. Les exceptions sont les couleurs **interpolées** en JS
+ * — l'échelle du Buffer CTX — d'où le `dessiner()` final.
+ */
+let themeCourant = document.documentElement.dataset.theme === 'clair' ? 'clair' : 'sombre';
+
+/**
+ * Les deux pictogrammes de la bascule, tracés plutôt que tapés : mesuré sur un Chromium
+ * sans police de symboles, le croissant « ☾ » sort en carré vide. Un bouton dont l'icône
+ * manque est un bouton qu'on ne comprend plus.
+ */
+function dessinerAstre(svg, soleil) {
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  const NS = 'http://www.w3.org/2000/svg';
+  const mettre = (nom, attrs) => {
+    const n = document.createElementNS(NS, nom);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    svg.append(n);
+    return n;
+  };
+  if (soleil) {
+    mettre('circle', { cx: 8, cy: 8, r: 3.4, fill: 'currentColor' });
+    mettre('path', {
+      d: 'M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4'
+         + 'M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4',
+      stroke: 'currentColor', 'stroke-width': 1.4, 'stroke-linecap': 'round', fill: 'none',
+    });
+  } else {
+    // un croissant : un disque dont on retire un second, décalé
+    mettre('path', {
+      d: 'M11.2 1.9a6.6 6.6 0 1 0 3 9.6A5.3 5.3 0 0 1 11.2 1.9Z',
+      fill: 'currentColor',
+    });
+  }
+}
+
+function appliquerTheme(theme, redessiner) {
+  themeCourant = theme === 'clair' ? 'clair' : 'sombre';
+  if (themeCourant === 'clair') document.documentElement.dataset.theme = 'clair';
+  else delete document.documentElement.dataset.theme;
+  const versLeClair = themeCourant === 'sombre';
+  const astre = document.getElementById('basculeAstre');
+  const texte = document.getElementById('basculeTexte');
+  const bouton = document.getElementById('bascule');
+  if (astre) dessinerAstre(astre, versLeClair);
+  // Le bouton annonce où l'on va, pas où l'on est.
+  if (texte) texte.textContent = versLeClair ? 'thème clair' : 'thème sombre';
+  if (bouton) {
+    bouton.title = versLeClair
+      ? 'Passer au thème clair — le choix est retenu pour les deux écrans'
+      : 'Revenir au thème sombre — le choix est retenu pour les deux écrans';
+    bouton.setAttribute('aria-pressed', themeCourant === 'clair' ? 'true' : 'false');
+  }
+  oublierPalette();
+  if (redessiner) dessiner();
+}
+
 function lireReglages() {
   try { return JSON.parse(localStorage.getItem(CLE_MEMOIRE)) || {}; } catch { return {}; }
 }
@@ -376,6 +542,9 @@ function lireReglages() {
 function retenir() {
   const r = lireReglages();
   r.voies = { ...voiesVisibles };
+  // Le thème vaut pour toutes les sessions et pour les deux écrans : c'est un goût, au
+  // même titre que les voies affichées, et non un détail de telle trace.
+  r.theme = themeCourant;
   r.sessions = r.sessions || {};
   const s = r.sessions[idSession] || (r.sessions[idSession] = {});
   s.ordre = ordrePersonnalise ? ordreVoies : null;
@@ -393,6 +562,7 @@ function retenir() {
 
 function seSouvenir() {
   const r = lireReglages();
+  themeCourant = r.theme === 'clair' ? 'clair' : 'sombre';
   if (r.voies) {
     for (const cle of Object.keys(voiesVisibles)) {
       if (typeof r.voies[cle] === 'boolean') voiesVisibles[cle] = r.voies[cle];
@@ -439,17 +609,17 @@ const elListeVoies = document.getElementById('listeVoies');
 // Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
 // qu'on vient voir.
 const VOIES_ANNEXES = [
-  { cle: 'tours', nom: 'tours', teinte: '#7aa2f7' },
+  { cle: 'tours', nom: 'tours', teinte: 'var(--tours)' },
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
-  { cle: 'reflexion', nom: 'réflexion', teinte: '#c4a7ff' },
-  { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, #9ece6a, #f7768e)' },
-  { cle: 'outillage', nom: 'outillage', teinte: '#ffd479' },
-  { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, #9ece6a, #f7768e)' },
-  { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, #7aa2f7, #9ece6a)' },
-  { cle: 'buffer', nom: 'Buffer CTX', teinte: 'linear-gradient(to right, #f7768e, #e0af68, #9ece6a)' },
+  { cle: 'reflexion', nom: 'réflexion', teinte: 'var(--reflexion)' },
+  { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, var(--outil), var(--outil-echec))' },
+  { cle: 'outillage', nom: 'outillage', teinte: 'var(--outillage)' },
+  { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, var(--ramp-bon), var(--ramp-mauvais))' },
+  { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, var(--en-cours), var(--outil))' },
+  { cle: 'buffer', nom: 'Buffer CTX', teinte: 'linear-gradient(to right, var(--ramp-mauvais), var(--ramp-moyen), var(--ramp-bon))' },
   { cle: 'attente', nom: 'attente', teinte: 'var(--requete)' },
   { cle: 'boucles', nom: 'boucles', teinte: 'var(--boucle)' },
-  { cle: 'modele', nom: 'appels au modèle', teinte: '#d6a4ff' },
+  { cle: 'modele', nom: 'appels au modèle', teinte: 'var(--modele)' },
 ];
 const voiesVisibles = {
   tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
@@ -482,11 +652,35 @@ function economieCache(j) {
 // 50 % est le premier centile mesuré (52,4 %), si bien que le pour-cent d'appels les plus
 // coûteux sature en rouge au lieu d'écraser l'échelle. Entre les deux, les percentiles
 // mesurés se répartissent : p5 à 80,6 %, p25 à 88,4 %, médiane à 89,4 %.
+/**
+ * L'échelle du Buffer CTX — la seule couleur que le navigateur ne peut pas résoudre
+ * lui-même, puisqu'elle s'interpole entre deux paliers. Elle lit donc les variables de
+ * la palette au moment de dessiner, et suit le thème comme tout le reste. La lecture est
+ * mise en cache le temps d'un dessin : `getComputedStyle` coûte un calcul de style, et
+ * une session en demande plusieurs milliers.
+ */
 const PALIERS_BUFFER = [
-  { a: 0.50, rgb: [247, 118, 142] },
-  { a: 0.70, rgb: [224, 175, 104] },
-  { a: 0.90, rgb: [158, 206, 106] },
+  { a: 0.50, variable: '--ramp-mauvais' },
+  { a: 0.70, variable: '--ramp-moyen' },
+  { a: 0.90, variable: '--ramp-bon' },
 ];
+let paletteLue = null;
+
+function rvbDeLaPalette(variable) {
+  if (!paletteLue) paletteLue = new Map();
+  if (paletteLue.has(variable)) return paletteLue.get(variable);
+  const brut = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+  const h = brut.replace('#', '');
+  const rvb = h.length >= 6
+    ? [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
+    : [128, 128, 128]; // une variable absente ne doit pas faire planter un dessin
+  paletteLue.set(variable, rvb);
+  return rvb;
+}
+
+/** À appeler quand la palette change : la lecture mise en cache n'est plus valable. */
+function oublierPalette() { paletteLue = null; }
+
 function teinteBuffer(part) {
   const x = Math.max(PALIERS_BUFFER[0].a, Math.min(PALIERS_BUFFER.at(-1).a, part));
   for (let i = 1; i < PALIERS_BUFFER.length; i += 1) {
@@ -494,10 +688,12 @@ function teinteBuffer(part) {
     const d = PALIERS_BUFFER[i];
     if (x > d.a) continue;
     const k = (x - g.a) / (d.a - g.a);
-    const c = g.rgb.map((v, j) => Math.round(v + (d.rgb[j] - v) * k));
+    const gr = rvbDeLaPalette(g.variable);
+    const dr = rvbDeLaPalette(d.variable);
+    const c = gr.map((v, j) => Math.round(v + (dr[j] - v) * k));
     return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
-  return `rgb(${PALIERS_BUFFER.at(-1).rgb.join(',')})`;
+  return `rgb(${rvbDeLaPalette(PALIERS_BUFFER.at(-1).variable).join(',')})`;
 }
 
 /** L'économie d'un agent entier : les coûts et les totaux s'additionnent, pas les parts. */
@@ -515,22 +711,22 @@ function economieAgent(agent) {
 
 // De quoi le contexte est fait. L'ordre est celui de l'empilement, du bas vers le haut.
 const PARTS_CONTENU = [
-  { cle: 'systeme', nom: 'invite système, rappels, skills', teinte: '#565f89' },
-  { cle: 'outilSortie', nom: 'résultats d’outils', teinte: '#9ece6a' },
-  { cle: 'outilEntree', nom: 'appels d’outils', teinte: '#7aa2f7' },
-  { cle: 'modele', nom: 'paroles du modèle', teinte: '#d6a4ff' },
-  { cle: 'humain', nom: 'requêtes d’Yves', teinte: '#e0af68' },
+  { cle: 'systeme', nom: 'invite système, rappels, skills', teinte: 'var(--ctx-systeme)' },
+  { cle: 'outilSortie', nom: 'résultats d’outils', teinte: 'var(--ctx-outil-sortie)' },
+  { cle: 'outilEntree', nom: 'appels d’outils', teinte: 'var(--ctx-outil-entree)' },
+  { cle: 'modele', nom: 'paroles du modèle', teinte: 'var(--ctx-modele)' },
+  { cle: 'humain', nom: 'requêtes d’Yves', teinte: 'var(--ctx-humain)' },
 ];
 const totalComposition = (c) => PARTS_CONTENU.reduce((n, p) => n + (c?.[p.cle] || 0), 0);
 
 // Une teinte par modèle. Volontairement distincte des couleurs déjà employées ailleurs :
 // la voie d'un modèle ne doit pas se confondre avec un état d'agent ou une attente.
 const TEINTES_MODELE = {
-  'claude-opus-5': '#d6a4ff',
-  'claude-sonnet-5': '#6ee7d5',
-  'claude-haiku-4-5': '#ffd479',
+  'claude-opus-5': 'var(--modele-opus)',
+  'claude-sonnet-5': 'var(--modele-sonnet)',
+  'claude-haiku-4-5': 'var(--modele-haiku)',
 };
-const TEINTE_MODELE_AUTRE = '#9aa5ce';
+const TEINTE_MODELE_AUTRE = 'var(--modele-autre)';
 const teinteModele = (m) => TEINTES_MODELE[m] || TEINTE_MODELE_AUTRE;
 
 /** Les modèles qu'un agent a réellement appelés, dans l'ordre de première apparition. */
@@ -1081,8 +1277,8 @@ function dessinerArbre() {
         + 'réflexion\n' + total.toLocaleString('fr-FR') + ' jetons en tout, le plus long '
         + pic.toLocaleString('fr-FR') + '\n\n' + LEGENDE_VOIE.reflexion;
       icone.textContent = '∿';
-      icone.style.color = '#c4a7ff';
-      puce.style.background = '#c4a7ff';
+      icone.style.color = 'var(--reflexion)';
+      puce.style.background = 'var(--reflexion)';
       etiq.textContent = 'réflexion';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(total / 1000) + ' k jet.';
@@ -1096,8 +1292,8 @@ function dessinerArbre() {
         + '\n+' + plus.toLocaleString('fr-FR') + ' / −' + moins.toLocaleString('fr-FR')
         + ' lignes\n\n' + LEGENDE_VOIE.fichiers;
       icone.textContent = '⊟';
-      icone.style.color = '#9ece6a';
-      puce.style.background = 'linear-gradient(to bottom, #9ece6a, #f7768e)';
+      icone.style.color = 'var(--outil)';
+      puce.style.background = 'linear-gradient(to bottom, var(--outil), var(--outil-echec))';
       etiq.textContent = 'fichiers';
       if (a.courbeFichiers) {
         d.title = d.title.replace('\n\n', '\nà la fin, ' + a.courbeFichiers.finale
@@ -1111,8 +1307,8 @@ function dessinerArbre() {
         + a.outillage.length + ' changement(s) d’outillage'
         + '\n\n' + LEGENDE_VOIE.outillage;
       icone.textContent = '⊠';
-      icone.style.color = '#ffd479';
-      puce.style.background = '#ffd479';
+      icone.style.color = 'var(--outillage)';
+      puce.style.background = 'var(--outillage)';
       etiq.textContent = 'outillage';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = (a.outilsOfferts || []).length + ' out.';
@@ -1127,9 +1323,9 @@ function dessinerArbre() {
           : 'sur une fenêtre de taille inconnue')
         + '\n\n' + LEGENDE_VOIE.contexte;
       icone.textContent = '▥';
-      icone.style.color = '#e0af68';
+      icone.style.color = 'var(--requete)';
       puce.style.background = ref.fenetreConnue
-        ? 'linear-gradient(to top, #9ece6a, #e0af68, #f7768e)'
+        ? 'linear-gradient(to top, var(--ramp-bon), var(--ramp-moyen), var(--ramp-mauvais))'
         : 'var(--termine)';
       etiq.textContent = 'Taille CTX';
       etiq.style.color = 'var(--texte-faible)';
@@ -1142,8 +1338,8 @@ function dessinerArbre() {
         + ' sur ' + duree(etendue) + '  —  ' + (cumul * 100 / Math.max(1, etendue)).toFixed(1) + ' %'
         + '\n\n' + LEGENDE_VOIE.tours;
       icone.textContent = '⊟';
-      icone.style.color = '#7aa2f7';
-      puce.style.background = '#7aa2f7';
+      icone.style.color = 'var(--en-cours)';
+      puce.style.background = 'var(--en-cours)';
       etiq.textContent = 'tours';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = a.tours.length + ' · ' + duree(cumul);
@@ -1167,8 +1363,8 @@ function dessinerArbre() {
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
         + LEGENDE_VOIE.contenu;
       icone.textContent = '▤';
-      icone.style.color = '#7aa2f7';
-      puce.style.background = 'linear-gradient(to right, #7aa2f7, #9ece6a)';
+      icone.style.color = 'var(--en-cours)';
+      puce.style.background = 'linear-gradient(to right, var(--en-cours), var(--outil))';
       etiq.textContent = 'Contenu CTX';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round(totalComposition(derniere?.composition) / 1000) + ' k car.';
@@ -1186,7 +1382,7 @@ function dessinerArbre() {
         + '\n' + LEGENDE_VOIE.buffer;
       icone.textContent = '⊞';
       icone.style.color = teinteBuffer(e?.part ?? 0.9);
-      puce.style.background = 'linear-gradient(to right, #f7768e, #e0af68, #9ece6a)';
+      puce.style.background = 'linear-gradient(to right, var(--ramp-mauvais), var(--ramp-moyen), var(--ramp-bon))';
       etiq.textContent = 'Buffer CTX';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = Math.round((e?.part || 0) * 100) + ' %';
@@ -1293,9 +1489,9 @@ function dessinerPiste() {
     id: 'degrade-contexte', x1: '0', y1: '1', x2: '0', y2: '0',
   });
   degrade.append(
-    el('stop', { offset: '0%', 'stop-color': '#9ece6a' }),
-    el('stop', { offset: '55%', 'stop-color': '#e0af68' }),
-    el('stop', { offset: '100%', 'stop-color': '#f7768e' }),
+    el('stop', { offset: '0%', 'stop-color': 'var(--ramp-bon)' }),
+    el('stop', { offset: '55%', 'stop-color': 'var(--ramp-moyen)' }),
+    el('stop', { offset: '100%', 'stop-color': 'var(--ramp-mauvais)' }),
   );
   defs.append(degrade);
   svg.append(defs);
@@ -2043,7 +2239,7 @@ function jaugeCache(part, legende, bornes = ['tout au prix fort', '50 %', 'tout 
   valeur.className = 'valeur';
   const fort = document.createElement('b');
   fort.textContent = (part * 100).toFixed(1).replace('.', ',') + ' %';
-  fort.style.color = part > 0.9 ? '#9ece6a' : part > 0.6 ? '#e0af68' : '#f7768e';
+  fort.style.color = part > 0.9 ? 'var(--ramp-bon)' : part > 0.6 ? 'var(--ramp-moyen)' : 'var(--ramp-mauvais)';
   valeur.append(fort, document.createTextNode('  ' + legende));
   const piste = document.createElement('div');
   piste.className = 'piste-jauge';
@@ -2102,7 +2298,7 @@ function carteOutillage(agent, visee) {
       const s = document.createElement('summary');
       const m = document.createElement('i');
       m.className = 'marque';
-      m.style.background = '#ffd479';
+      m.style.background = 'var(--outillage)';
       const quoi = document.createElement('span');
       quoi.className = 'quoi';
       quoi.textContent = NOM_OUTILLAGE[e.genre];
@@ -2410,8 +2606,9 @@ function carteModele(agent, modele, visee) {
 }
 
 const TEINTE_GENRE = {
-  humain: '#e0af68', modele: '#d6a4ff', reflexion: '#9a7fd0',
-  outilEntree: '#7aa2f7', outilSortie: '#9ece6a', systeme: '#565f89', resume: '#bb9af7',
+  humain: 'var(--ctx-humain)', modele: 'var(--ctx-modele)', reflexion: 'var(--ctx-reflexion)',
+  outilEntree: 'var(--ctx-outil-entree)', outilSortie: 'var(--ctx-outil-sortie)',
+    systeme: 'var(--ctx-systeme)', resume: 'var(--ctx-resume)',
 };
 const NOM_GENRE = {
   humain: 'requêtes d’Yves', modele: 'paroles du modèle', reflexion: 'réflexions',
@@ -2978,19 +3175,19 @@ function dessinerVoieOutillage(agent, centre, axe, visible) {
         ? `M ${x} ${centre - 7} L ${x + 6} ${centre} L ${x} ${centre + 7} L ${x - 6} ${centre} Z`
         : `M ${x - 5} ${centre - 5} L ${x + 5} ${centre + 5} M ${x + 5} ${centre - 5} L ${x - 5} ${centre + 5}`;
       g.append(el('path', {
-        d, fill: forme === 'losange' ? '#ffd479' : 'none',
-        stroke: '#ffd479', 'stroke-width': forme === 'croix' ? 1.8 : 0, opacity: '.95',
+        d, fill: forme === 'losange' ? 'var(--outillage)' : 'none',
+        stroke: 'var(--outillage)', 'stroke-width': forme === 'croix' ? 1.8 : 0, opacity: '.95',
       }));
     } else if (forme === 'carré') {
       g.append(el('rect', {
         x: x - 4.5, y: centre - 4.5, width: 9, height: 9, rx: 1.5,
-        fill: 'none', stroke: '#ffd479', 'stroke-width': 1.6, opacity: '.95',
+        fill: 'none', stroke: 'var(--outillage)', 'stroke-width': 1.6, opacity: '.95',
       }));
     } else {
       g.append(el('rect', {
         x: x - 1.4, y: centre - 8, width: 2.8, height: 16, rx: 1,
-        fill: forme === 'plein' ? '#ffd479' : 'none',
-        stroke: '#ffd479', 'stroke-width': forme === 'creux' ? 1.4 : 0, opacity: '.9',
+        fill: forme === 'plein' ? 'var(--outillage)' : 'none',
+        stroke: 'var(--outillage)', 'stroke-width': forme === 'creux' ? 1.4 : 0, opacity: '.9',
       }));
     }
     const prise = el('rect', {
@@ -3052,7 +3249,7 @@ function dessinerVoieFichiers(agent, centre, axe, visible) {
     // partent de la même ligne de base. Un trait franc se distingue d'elles sans effort.
     g.append(el('polyline', {
       points: marches.join(' '), fill: 'none',
-      stroke: '#ffd479', 'stroke-width': 1.6, opacity: '.9',
+      stroke: 'var(--outillage)', 'stroke-width': 1.6, opacity: '.9',
       'stroke-linejoin': 'round',
     }));
     // Le compte courant, répété à gauche de la fenêtre pour rester lisible où qu'on soit.
@@ -3061,7 +3258,7 @@ function dessinerVoieFichiers(agent, centre, axe, visible) {
         x: ancre === depart ? depart + 4 : fin - 4,
         y: y(ancre === depart ? courbe.points[0].nombre : precedent) - 2,
         'text-anchor': ancre === depart ? 'start' : 'end',
-        fill: '#ffd479', 'font-size': '9', opacity: '.95',
+        fill: 'var(--outillage)', 'font-size': '9', opacity: '.95',
       });
       et.textContent = (ancre === depart ? courbe.points[0].nombre : precedent) + ' fich.';
       g.append(et);
@@ -3132,7 +3329,7 @@ function dessinerVoieReflexion(agent, centre, axe, visible) {
 
   g.append(el('line', {
     x1: axe.x(agent.debut), y1: bas, x2: axe.x(agent.fin ?? deroule.fin), y2: bas,
-    stroke: '#c4a7ff', 'stroke-width': 1, opacity: '.25',
+    stroke: 'var(--reflexion)', 'stroke-width': 1, opacity: '.25',
   }));
 
   for (const r of avec) {
@@ -3141,7 +3338,7 @@ function dessinerVoieReflexion(agent, centre, axe, visible) {
     const h = Math.max(2, Math.sqrt(r.jetons.reflexion / pic) * hauteurMax);
     g.append(el('rect', {
       x: x - 1.1, y: bas - h, width: 2.2, height: h, rx: 1,
-      fill: '#c4a7ff', opacity: '.85',
+      fill: 'var(--reflexion)', opacity: '.85',
     }));
     const prise = el('rect', {
       x: x - 3.5, y: bas - hauteurMax - 2, width: 7, height: hauteurMax + 6,
@@ -3189,13 +3386,13 @@ function dessinerVoieTours(agent, centre, axe, visible) {
     const part = Math.min(1, charges[i] / plafond);
     g.append(el('rect', {
       x: x0, y: centre - 7, width: x1 - x0, height: 14, rx: 2,
-      fill: '#7aa2f7', opacity: (0.35 + 0.55 * Math.sqrt(part)).toFixed(2),
+      fill: 'var(--en-cours)', opacity: (0.35 + 0.55 * Math.sqrt(part)).toFixed(2),
     }));
     const texte = duree(tr.dureeMs);
     if (x1 - x0 >= texte.length * 5.2 + 8) {
       const et = el('text', {
         x: (x0 + x1) / 2, y: centre + 16, 'text-anchor': 'middle',
-        fill: '#7aa2f7', 'font-size': '9', opacity: '.95',
+        fill: 'var(--en-cours)', 'font-size': '9', opacity: '.95',
       });
       et.textContent = texte;
       g.append(et);
@@ -3566,6 +3763,11 @@ const idSession = id;
 
 // Avant le premier dessin : on remet l'écran tel qu'Yves l'avait laissé.
 seSouvenir();
+appliquerTheme(themeCourant, false);   // le libellé du bouton, pas encore le dessin
+document.getElementById('bascule').addEventListener('click', () => {
+  appliquerTheme(themeCourant === 'clair' ? 'sombre' : 'clair', true);
+  retenir();
+});
 
 /**
  * Le suivi d'une session vivante. Le serveur n'envoie que lorsque le transcript a bougé ;

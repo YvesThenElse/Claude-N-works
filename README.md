@@ -542,6 +542,47 @@ elles passent d'une luminance de 60 à 127 sur un fond à 21, soit 2,7 fois plus
 Une commande qu'on ne voit pas est une commande qui n'existe pas. Elles s'éclaircissent
 encore au survol de la ligne, et prennent la couleur d'accent sous le pointeur.
 
+### Les deux thèmes
+
+Un bouton en haut à droite, sur les deux écrans, bascule entre le **thème sombre** — celui
+d'origine, qui reste le défaut — et un **thème clair**. Il annonce où l'on va, pas où l'on
+est : en sombre il propose le clair. Le choix est retenu avec le reste des réglages, vaut
+pour toute l'application, et il est appliqué **avant le premier affichage** — une page
+choisie en clair ne paraît jamais sombre le temps d'une image.
+
+**Le thème clair n'est pas une inversion.** Ce sont les mêmes familles de teintes — le vert
+reste l'outil, le cyan la boucle, l'ambre la requête — re-marchées pour un fond clair, puis
+validées :
+
+| Contrôle, sur fond `#eceef3` | Mesure |
+|---|---|
+| bande de clarté | les six teintes dedans |
+| plancher de chroma | les six au-dessus |
+| séparation en déficience de vision | pire paire adjacente **ΔE 6,8** (vert↔ambre) |
+| vision normale | pire paire adjacente **ΔE 16,7**, plancher à 15 |
+| contraste sur le fond | les six **au-dessus de 3:1** |
+
+La séparation à 6,8 est dans la bande tolérée, et elle n'est tolérable que parce que la
+couleur **ne porte jamais seule** l'identité ici : chaque voie est nommée dans l'arbre,
+chaque marque a son infobulle, chaque pastille de légende porte son mot.
+
+⚠️ **Et la palette sombre, elle, ne passerait pas ce contrôle** : vert et ambre y sont à
+**ΔE 0,8** en deutéranopie et à **11,7** en vision normale, sous le plancher. Elle n'a pas
+été touchée — changer l'identité de l'application n'avait pas été demandé — mais le fait
+est mesuré et consigné ici.
+
+Deux valeurs ont été choisies par la mesure plutôt qu'à l'œil. Le bleu « en cours » est
+`#2563c9` et non `#3b82f6` : une barre d'agent est peinte à 85 % d'opacité, et le bleu plus
+clair n'y rendait que **2,64:1** contre le fond, contre 3,75:1 pour celui-ci. Le gris de
+l'attente est passé de 2,65:1 à **3,32:1**. En revanche la barre d'un agent **terminé** n'a
+pas été retouchée : elle paraissait délavée, mais la mesure dit **1,80:1 en clair contre
+1,53 en sombre** — elle est en fait meilleure, et l'œil s'était trompé.
+
+Côté code, les **94 couleurs écrites en dur** dans `session.html` sont remontées en
+variables : le thème bascule donc **sans redessiner**, puisque les attributs SVG lisent
+`var(…)` et que le navigateur les recalcule seul. Une seule exception, l'échelle du Buffer
+CTX, qui s'interpole en JS entre deux paliers : elle relit la palette à chaque dessin.
+
 ### Ce dont l'écran se souvient
 
 Ce qu'on dispose soi-même survit au rechargement. Sans cela, chaque retour sur une session
@@ -552,6 +593,7 @@ Deux portées, parce que ce ne sont pas les mêmes choses :
 
 | | |
 |---|---|
+| **le thème** | pour toute l'application, les deux écrans compris — c'est un goût |
 | **les voies affichées** | pour **toutes** les sessions — c'est un goût, pas un détail de telle trace |
 | **l'ordre des lignes et les agents repliés** | pour **cette** session seulement : les identifiants d'agents ne veulent rien dire ailleurs |
 
