@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="fr" data-theme="">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude N Works — la chaîne des appels</title>
+<script>
+  // Le thème AVANT le premier affichage, comme sur les deux autres écrans : une page
+  // choisie en clair ne doit jamais paraître sombre le temps d'une image.
+  try {
+    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
+  } catch { /* stockage refusé : on garde le défaut */ }
+</script>
+<style>
+  :root {
+    --fond: #11131a; --fond-carte: #1a1d27; --fond-carte-active: #222634;
+    --trait: #2b3040;
+    --texte: #e4e6ee; --texte-faible: #8d93a8;
+    --accent: #7aa2f7;
+    --voile: #080a0ecc; --ombre-forte: #000a;
+    --entree: #7aa2f7;      /* ce qui arrive */
+    --dedans: #c4a7ff;      /* ce qui se passe */
+    --sortie: #9ece6a;      /* ce qui sort */
+    --echec: #f7768e;
+    --agent: #bb9af7;
+    --humain: #e0af68;
+    --console-fond: #0c0e14; --console-trait: #232838; --console-texte: #d7dae3;
+  }
+  :root[data-theme="clair"] {
+    --fond: #eceef3; --fond-carte: #ffffff; --fond-carte-active: #f3f5fa;
+    --trait: #d2d7e2;
+    --texte: #1b1f2a; --texte-faible: #5c6475;
+    --accent: #2563c9;
+    --voile: #4a5568aa; --ombre-forte: #1b1f2a33;
+    --entree: #2563c9;
+    --dedans: #7c3aed;
+    --sortie: #15803d;
+    --echec: #db2777;
+    --agent: #6b21a8;
+    --humain: #b45309;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fond); color: var(--texte);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  header { padding: 1.1rem 1.5rem .5rem; }
+  header a { color: var(--accent); text-decoration: none; font-size: .85rem; }
+  header a:hover { text-decoration: underline; }
+  h1 { margin: .3rem 0 .2rem; font-size: 1.35rem; }
+  .resume { color: var(--texte-faible); font-size: .83rem; }
+  .resume b { color: var(--texte); font-weight: 600; }
+
+  .reglages {
+    display: flex; gap: 1.1rem; align-items: center; flex-wrap: wrap;
+    padding: .7rem 1.5rem; border-bottom: 1px solid var(--trait);
+    font-size: .85rem; color: var(--texte-faible);
+  }
+  .reglages label { display: flex; gap: .4rem; align-items: center; }
+  .legende { display: flex; gap: .9rem; align-items: center; margin-left: auto; }
+  .legende i {
+    width: .6rem; height: .6rem; border-radius: 2px; display: inline-block;
+    margin-right: .3rem; vertical-align: -1px;
+  }
+
+  /* Le plan. Les boîtes sont posées au pixel par le script ; les flèches sont un SVG
+     derrière elles, pour qu'un lien ne passe jamais par-dessus un texte. */
+  #plan { position: relative; padding: 1.4rem 1.5rem 4rem; overflow: auto; }
+  #liens { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+  .colonne-titre {
+    position: absolute; font-size: .78rem; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--texte-faible); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .colonne-titre b { color: var(--texte); font-weight: 600; text-transform: none;
+    letter-spacing: 0; font-size: .9rem; }
+
+  .boite {
+    position: absolute; background: var(--fond-carte);
+    border: 1px solid var(--trait); border-radius: 9px;
+    padding: .5rem .6rem; cursor: pointer; overflow: hidden;
+    display: flex; flex-direction: column; gap: .28rem;
+  }
+  .boite:hover { background: var(--fond-carte-active); border-color: var(--accent); }
+  .boite .numero {
+    font-size: .7rem; color: var(--texte-faible); letter-spacing: .06em;
+    display: flex; justify-content: space-between; gap: .5rem;
+  }
+  .boite .zone { display: flex; gap: .4rem; align-items: baseline; font-size: .78rem; }
+  .boite .zone i {
+    width: .42rem; height: .42rem; border-radius: 50%; flex: none;
+    margin-top: .42rem;
+  }
+  .boite .zone span {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+  }
+  .boite .entree i { background: var(--entree); }
+  .boite .dedans i { background: var(--dedans); }
+  .boite .sortie i { background: var(--sortie); }
+  .boite .entree span { color: var(--texte-faible); }
+  .boite .dedans span { color: var(--texte-faible); }
+  .boite .sortie span { color: var(--texte); }
+  .boite.echoue { border-color: var(--echec); }
+  /* La boîte d'où part un sous-agent : on doit la repérer sans suivre la flèche. */
+  .boite.essaime { border-color: var(--agent); }
+  .boite .puces { display: flex; gap: .25rem; flex-wrap: wrap; }
+  .boite .puce {
+    font-size: .68rem; border: 1px solid var(--trait); border-radius: 999px;
+    padding: 0 .35rem; color: var(--texte-faible); white-space: nowrap;
+  }
+  .boite .puce.agent { border-color: var(--agent); color: var(--agent); }
+
+  /* La consigne d'Yves : le point de départ d'une chaîne, et elle n'est pas un appel. */
+  .boite.consigne { border-color: var(--humain); background: transparent; }
+  .boite.consigne .numero { color: var(--humain); }
+
+  /* Le panneau de détail, copié de la ligne du temps pour que les deux écrans se
+     ressemblent — même voile, même fiche, même croix. */
+  .panneau {
+    position: fixed; inset: 0; background: var(--voile); display: none;
+    place-items: center; z-index: 50; padding: 1rem;
+  }
+  .panneau.ouvert { display: grid; }
+  .boite-detail {
+    background: var(--fond-carte); border: 1px solid var(--trait); border-radius: 12px;
+    box-shadow: 0 22px 60px var(--ombre-forte);
+    width: min(60rem, 96vw); max-height: 92vh; overflow-y: auto;
+    padding: 1.3rem 1.5rem 2rem;
+  }
+  .boite-detail .fermer {
+    float: right; background: none; border: 0; color: var(--texte-faible);
+    font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
+  }
+  .boite-detail h2 { margin: .2rem 0 .9rem; font-size: 1.1rem; }
+  .boite-detail .genre {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--texte-faible);
+  }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+  dt { color: var(--texte-faible); font-size: .85rem; }
+  dd { margin: 0; font-size: .9rem; }
+  dd.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; }
+  details.bloc { margin-top: .9rem; border-top: 1px solid var(--trait); padding-top: .5rem; }
+  details.bloc > summary {
+    cursor: pointer; font-size: .78rem; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--texte-faible);
+  }
+  details.bloc pre {
+    background: var(--console-fond); color: var(--console-texte);
+    border: 1px solid var(--console-trait); border-radius: 7px;
+    padding: .6rem .7rem; margin: .5rem 0 0; max-height: 26rem; overflow: auto;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .8rem;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .message { padding: 2rem 1.5rem; color: var(--texte-faible); }
+</style>
+
+<header>
+  <a id="retour" href="/">← la ligne du temps</a>
+  <h1 id="titre">…</h1>
+  <div class="resume" id="resume"></div>
+</header>
+
+<div class="reglages">
+  <label><input type="checkbox" id="toutMontrer"> montrer tous les agents</label>
+  <span id="compte"></span>
+  <span class="legende">
+    <span><i style="background:var(--entree)"></i>ce qui entre</span>
+    <span><i style="background:var(--dedans)"></i>ce qui se passe</span>
+    <span><i style="background:var(--sortie)"></i>ce qui sort</span>
+    <span><i style="background:var(--agent)"></i>lance un agent</span>
+  </span>
+</div>
+
+<div id="plan"><p class="message">lecture…</p></div>
+
+<div class="panneau" id="panneau"><div class="boite-detail" id="detail"></div></div>
+
+<script>
+'use strict';
+
+const params = new URLSearchParams(location.search);
+const idSession = params.get('id') || '';
+const agentVise = params.get('agent') || null;
+const appelVise = params.get('appel') || null;
+
+const elPlan = document.getElementById('plan');
+const elTitre = document.getElementById('titre');
+const elResume = document.getElementById('resume');
+const elCompte = document.getElementById('compte');
+const elPanneau = document.getElementById('panneau');
+const elDetail = document.getElementById('detail');
+const elTout = document.getElementById('toutMontrer');
+document.getElementById('retour').href = '/session.html?id=' + encodeURIComponent(idSession);
+
+let deroule = null;
+
+// La géométrie du plan. Aucune notion de temps : les boîtes se suivent parce qu'elles
+// s'enchaînent, pas parce qu'elles durent. C'est tout l'intérêt de cette page — sur la
+// ligne du temps, un appel de trois secondes et un de trois minutes n'ont pas la même
+// largeur et on ne compare plus rien.
+const LARGEUR = 260;
+const HAUTEUR = 96;
+const ECART_Y = 34;
+const ECART_X = 56;
+const HAUT_COLONNE = 40;
+
+const heure = (t) => (t ? new Date(t).toLocaleTimeString('fr-FR') : '—');
+const duree = (ms) => {
+  if (ms === null || ms === undefined || !Number.isFinite(ms)) return '—';
+  if (ms < 1000) return Math.round(ms) + ' ms';
+  if (ms < 60000) return (ms / 1000).toFixed(1) + ' s';
+  return Math.floor(ms / 60000) + ' min ' + Math.round((ms % 60000) / 1000) + ' s';
+};
+const nombre = (n) => (n || 0).toLocaleString('fr-FR');
+
+function el(nom, classe, texte) {
+  const n = document.createElement(nom);
+  if (classe) n.className = classe;
+  if (texte !== undefined) n.textContent = texte;
+  return n;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(nom, attrs) {
+  const n = document.createElementNS(SVGNS, nom);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  return n;
+}
+
+/**
+ * Rattacher chaque appel d'outil à la réponse qui l'a émis.
+ *
+ * Un appel d'outil naît d'une réponse du modèle : c'est elle qui l'a demandé. La trace ne
+ * le dit pas en toutes lettres, mais l'ordre suffit — un appel appartient à la dernière
+ * réponse close avant lui. C'est ce rattachement qui permet de dire « cette boîte a lancé
+ * ces trois outils, dont un agent », et de tracer la flèche vers le sous-agent.
+ */
+function rattacherLesOutils(agent) {
+  const reponses = (agent.requetesModele || [])
+    .filter((r) => Number.isFinite(r.fin))
+    .slice().sort((a, b) => a.fin - b.fin);
+  const parReponse = new Map(reponses.map((r) => [r, []]));
+  for (const o of (agent.outils || [])) {
+    if (o.debut === null) continue;
+    let choisie = null;
+    for (const r of reponses) {
+      if (r.fin > o.debut) break;
+      choisie = r;
+    }
+    if (choisie) parReponse.get(choisie).push(o);
+  }
+  return { reponses, parReponse };
+}
+
+/** Les agents, rangés par profondeur puis par naissance : l'ordre des colonnes. */
+function agentsDuPlan() {
+  const tous = deroule.agents.slice();
+  if (elTout.checked) return tous.sort((a, b) => a.profondeur - b.profondeur || a.debut - b.debut);
+  // Par défaut : l'agent visé et sa descendance directe, pour que le plan reste lisible.
+  const racine = agentVise ? tous.find((a) => a.id === agentVise) || tous[0] : tous[0];
+  const gardes = [racine];
+  for (const a of tous) if (a.parent === racine.id) gardes.push(a);
+  return gardes.sort((a, b) => a.profondeur - b.profondeur || a.debut - b.debut);
+}
+
+function construire() {
+  elPlan.replaceChildren();
+  const agents = agentsDuPlan();
+  const liens = svgEl('svg', { id: 'liens' });
+  elPlan.append(liens);
+
+  const boites = [];          // { x, y, agent, reponse, outils, el }
+  const parAppelOutil = new Map();  // id d'appel d'outil -> la boîte qui l'a émis
+  // Une colonne de sous-agent démarre EN FACE de la boîte qui l'a lancé. C'est ce qui
+  // fait lire « cette boîte appelle celle-là » plutôt que « deux colonnes côte à côte ».
+  // Les agents sont rangés par profondeur, donc un parent est toujours posé avant son
+  // enfant et sa position est connue quand on en a besoin.
+  const departParAgent = new Map();
+  let x = 0;
+  let largeurTotale = 0;
+  let hauteurTotale = 0;
+
+  for (const a of agents) {
+    const { reponses, parReponse } = rattacherLesOutils(a);
+    const source = a.idAppelParent ? parAppelOutil.get(a.idAppelParent) : null;
+    let y = source ? source.y : HAUT_COLONNE;
+    departParAgent.set(a.id, y);
+
+    const titre = el('div', 'colonne-titre');
+    titre.style.left = x + 'px';
+    titre.style.top = Math.max(0, y - 24) + 'px';
+    titre.style.width = LARGEUR + 'px';
+    titre.append(el('b', null, a.nom), document.createTextNode(
+      '  ·  ' + reponses.length + ' appel' + (reponses.length > 1 ? 's' : '')));
+    elPlan.append(titre);
+
+    // La consigne ouvre la chaîne de l'agent racine : c'est elle qui met tout en marche.
+    const consignes = a.profondeur === 0 ? (deroule.requetes || []) : [];
+    if (consignes.length) {
+      const b = el('div', 'boite consigne');
+      b.style.cssText += `left:${x}px;top:${y}px;width:${LARGEUR}px`;
+      b.append(el('div', 'numero', 'la consigne'));
+      const z = el('div', 'zone sortie');
+      z.append(el('i'), el('span', null, consignes[0].texte.slice(0, 160)));
+      b.append(z);
+      b.addEventListener('click', () => carteConsigne(consignes));
+      elPlan.append(b);
+      y += 58 + ECART_Y;
+    } else if (a.profondeur > 0 && a.prompt) {
+      const b = el('div', 'boite consigne');
+      b.style.cssText += `left:${x}px;top:${y}px;width:${LARGEUR}px`;
+      b.append(el('div', 'numero', 'ce qu’on lui a demandé'));
+      const z = el('div', 'zone sortie');
+      z.append(el('i'), el('span', null, a.prompt.slice(0, 160)));
+      b.append(z);
+      b.addEventListener('click', () => carteAgent(a));
+      elPlan.append(b);
+      y += 58 + ECART_Y;
+    }
+
+    let precedente = null;
+    reponses.forEach((r, i) => {
+      const outils = parReponse.get(r) || [];
+      const lanceAgent = outils.some((o) => o.nom === 'Agent' || o.nom === 'Task');
+      const echoue = outils.some((o) => o.ok === false);
+      const b = el('div', 'boite' + (lanceAgent ? ' essaime' : '') + (echoue ? ' echoue' : ''));
+      b.style.cssText += `left:${x}px;top:${y}px;width:${LARGEUR}px`;
+
+      const num = el('div', 'numero');
+      num.append(el('span', null, 'appel ' + (i + 1) + ' / ' + reponses.length),
+        el('span', null, (r.modele || '').replace(/^claude-/, '')));
+      b.append(num);
+
+      const zE = el('div', 'zone entree');
+      zE.append(el('i'), el('span', null, r.declencheur || 'rien de neuf'));
+      b.append(zE);
+
+      const zD = el('div', 'zone dedans');
+      const dedans = [];
+      if (r.latenceMs) dedans.push('attend ' + duree(r.latenceMs));
+      if (r.jetons && r.jetons.reflexion) dedans.push(nombre(r.jetons.reflexion) + ' jet. de réflexion');
+      dedans.push(nombre(r.jetons ? r.jetons.sortie : 0) + ' jet. écrits');
+      zD.append(el('i'), el('span', null, dedans.join(' · ')));
+      b.append(zD);
+
+      const zS = el('div', 'zone sortie');
+      const dit = (r.dit || '').trim().replace(/\s+/g, ' ');
+      zS.append(el('i'), el('span', null,
+        dit ? dit.slice(0, 120) : (outils.length ? 'il appelle, sans rien dire' : 'fin de tour')));
+      b.append(zS);
+
+      if (outils.length) {
+        const p = el('div', 'puces');
+        const comptes = new Map();
+        for (const o of outils) comptes.set(o.nom, (comptes.get(o.nom) || 0) + 1);
+        for (const [nom, n] of comptes) {
+          p.append(el('span', 'puce' + (nom === 'Agent' || nom === 'Task' ? ' agent' : ''),
+            nom + (n > 1 ? ' × ' + n : '')));
+        }
+        b.append(p);
+      }
+
+      b.addEventListener('click', () => carteAppel(a, r, i + 1, reponses.length, outils));
+      elPlan.append(b);
+
+      const hauteur = b.getBoundingClientRect().height || HAUTEUR;
+      const fiche = { x, y, h: hauteur, agent: a, reponse: r, el: b };
+      boites.push(fiche);
+      for (const o of outils) parAppelOutil.set(o.id, fiche);
+
+      if (precedente) liens.append(...flecheVerticale(precedente, fiche));
+      precedente = fiche;
+      y += hauteur + ECART_Y;
+    });
+
+    largeurTotale = Math.max(largeurTotale, x + LARGEUR);
+    hauteurTotale = Math.max(hauteurTotale, y);
+    x += LARGEUR + ECART_X;
+    void departParAgent;
+  }
+
+  // Les flèches de naissance : d'une boîte vers la première d'un sous-agent. Elles sont
+  // dessinées en dernier pour passer au-dessus des liens verticaux, jamais des textes.
+  for (const a of agents) {
+    if (!a.idAppelParent) continue;
+    const source = parAppelOutil.get(a.idAppelParent);
+    const cible = boites.find((b) => b.agent === a);
+    if (!source || !cible) continue;
+    liens.append(...flecheDeNaissance(source, cible));
+  }
+
+  liens.setAttribute('width', largeurTotale + 40);
+  liens.setAttribute('height', hauteurTotale + 40);
+  elPlan.style.height = (hauteurTotale + 60) + 'px';
+  elCompte.textContent = boites.length + ' appel(s) au modèle, ' + agents.length + ' agent(s)';
+
+  if (appelVise) {
+    const vis = boites.find((b) => String(Math.round(b.reponse.appel)) === appelVise);
+    if (vis) {
+      vis.el.style.borderColor = 'var(--accent)';
+      vis.el.style.boxShadow = '0 0 0 2px var(--accent)';
+      vis.el.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }
+}
+
+/** Un trait d'enchaînement : cette réponse a mené à la suivante. */
+function flecheVerticale(de, vers) {
+  const x = de.x + LARGEUR / 2;
+  const y0 = de.y + de.h;
+  const y1 = vers.y;
+  return [
+    svgEl('path', {
+      d: `M ${x} ${y0} L ${x} ${y1 - 7}`,
+      stroke: 'var(--trait)', 'stroke-width': 1.6, fill: 'none',
+    }),
+    svgEl('path', {
+      d: `M ${x - 4} ${y1 - 8} L ${x} ${y1 - 1} L ${x + 4} ${y1 - 8} Z`,
+      fill: 'var(--trait)',
+    }),
+  ];
+}
+
+/** Une flèche de naissance : cette boîte a lancé cet agent. */
+function flecheDeNaissance(de, vers) {
+  const x0 = de.x + LARGEUR;
+  const y0 = de.y + de.h / 2;
+  const x1 = vers.x;
+  const y1 = vers.y + vers.h / 2;
+  const m = (x0 + x1) / 2;
+  return [
+    svgEl('path', {
+      d: `M ${x0} ${y0} C ${m} ${y0} ${m} ${y1} ${x1 - 8} ${y1}`,
+      stroke: 'var(--agent)', 'stroke-width': 1.6, fill: 'none', opacity: '.9',
+    }),
+    svgEl('path', {
+      d: `M ${x1 - 9} ${y1 - 4} L ${x1 - 1} ${y1} L ${x1 - 9} ${y1 + 4} Z`,
+      fill: 'var(--agent)',
+    }),
+  ];
+}
+
+// ------------------------------------------------------------------ les cartes
+
+function ligne(dl, cle, valeur, mono) {
+  if (valeur === null || valeur === undefined || valeur === '') return;
+  dl.append(el('dt', null, cle), el('dd', mono ? 'mono' : null, String(valeur)));
+}
+
+function bloc(titre, texte, ouvert) {
+  if (!texte) return null;
+  const d = el('details', 'bloc');
+  if (ouvert) d.open = true;
+  d.append(el('summary', null, titre + '  (' + texte.length + ' caractères)'),
+    el('pre', null, texte));
+  return d;
+}
+
+function ouvrir(genre, titre, morceaux) {
+  elDetail.replaceChildren();
+  const fermer = el('button', 'fermer', '×');
+  fermer.addEventListener('click', fermerPanneau);
+  elDetail.append(fermer, el('div', 'genre', genre), el('h2', null, titre),
+    ...morceaux.filter(Boolean));
+  elPanneau.classList.add('ouvert');
+  elDetail.scrollTop = 0;
+}
+function fermerPanneau() { elPanneau.classList.remove('ouvert'); elDetail.replaceChildren(); }
+elPanneau.addEventListener('click', (e) => { if (e.target === elPanneau) fermerPanneau(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
+
+function carteAppel(agent, r, rang, total, outils) {
+  const dl = el('dl');
+  ligne(dl, 'Appel', rang + ' sur ' + total);
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Modèle', r.modele, true);
+  ligne(dl, 'Ce qui l’a déclenché', r.declencheur);
+  ligne(dl, 'Attente avant réponse', duree(r.latenceMs));
+  ligne(dl, 'Durée de réponse', r.reponseMs ? duree(r.reponseMs) : 'réponse d’un seul bloc');
+  ligne(dl, 'Fin de réponse', r.arret, true);
+  if (r.jetons) {
+    ligne(dl, 'Jetons d’entrée', nombre(r.jetons.entree + r.jetons.cacheLu + r.jetons.cacheEcrit));
+    ligne(dl, '— lus du cache', nombre(r.jetons.cacheLu));
+    ligne(dl, 'Jetons écrits', nombre(r.jetons.sortie)
+      + (r.jetons.reflexion ? ' dont ' + nombre(r.jetons.reflexion) + ' de réflexion' : ''));
+  }
+  const morceaux = [dl];
+
+  if (outils.length) {
+    const d = el('details', 'bloc');
+    d.open = true;
+    d.append(el('summary', null, 'ce qu’il a appelé  (' + outils.length + ')'));
+    const liste = el('dl');
+    for (const o of outils) {
+      const dt = el('dt', null, o.nom + (o.ok === false ? '  — échec' : ''));
+      const dd = el('dd', 'mono', (o.resume || '').slice(0, 220) || '—');
+      dd.style.cursor = 'pointer';
+      dd.title = 'voir le détail de cet appel';
+      dd.addEventListener('click', () => carteOutil(o, agent));
+      liste.append(dt, dd);
+    }
+    d.append(liste);
+    morceaux.push(d);
+  }
+
+  morceaux.push(bloc('ce que le modèle a dit', r.dit, true));
+  ouvrir('appel au modèle', (r.modele || '').replace(/^claude-/, '') + ' — appel ' + rang, morceaux);
+}
+
+function carteOutil(o, agent) {
+  const dl = el('dl');
+  ligne(dl, 'Outil', o.nom, true);
+  ligne(dl, 'Appelé par', agent.nom);
+  ligne(dl, 'Instant', heure(o.debut));
+  ligne(dl, 'Durée', duree(o.dureeMs));
+  ligne(dl, 'Issue', o.ok === false ? 'échec' : o.ok === true ? 'succès' : null);
+  ouvrir('appel d’outil', o.nom, [dl,
+    bloc('entrée', typeof o.entree === 'string' ? o.entree : JSON.stringify(o.entree, null, 2), true),
+    bloc('résultat', o.sortie, false)]);
+}
+
+function carteConsigne(consignes) {
+  const dl = el('dl');
+  ligne(dl, 'Consignes', String(consignes.length));
+  ligne(dl, 'La première', heure(consignes[0].instant));
+  ouvrir('la consigne', 'ce qu’Yves a demandé',
+    [dl, ...consignes.map((c, i) => bloc('consigne ' + (i + 1) + ' — ' + heure(c.instant), c.texte, i === 0))]);
+}
+
+function carteAgent(a) {
+  const dl = el('dl');
+  ligne(dl, 'Agent', a.nom);
+  ligne(dl, 'Type', a.type, true);
+  ligne(dl, 'État', a.etat);
+  ligne(dl, 'Modèle', a.modele, true);
+  ligne(dl, 'Durée', duree(a.dureeMs));
+  ouvrir('sous-agent', a.nom, [dl,
+    bloc('ce qu’on lui a demandé', a.prompt, true),
+    bloc('ce qu’il a rendu', a.sortie, false)]);
+}
+
+// ------------------------------------------------------------------ la lecture
+
+elTout.addEventListener('change', () => { if (deroule) construire(); });
+addEventListener('resize', () => { if (deroule) construire(); });
+
+fetch('/api/session?id=' + encodeURIComponent(idSession))
+  .then((r) => r.json())
+  .then((d) => {
+    if (d.erreur) throw new Error(d.erreur);
+    deroule = d;
+    elTitre.textContent = (d.session && d.session.nom) || d.agents[0]?.nom || idSession;
+    const appels = d.agents.reduce((n, a) => n + (a.requetesModele || []).length, 0);
+    elResume.replaceChildren(
+      el('b', null, String(appels)), document.createTextNode(' appels au modèle · '),
+      el('b', null, String(d.agents.length)), document.createTextNode(' agent(s) · '),
+      document.createTextNode('la chaîne, sans le temps'));
+    construire();
+  })
+  .catch((e) => {
+    elPlan.replaceChildren(el('p', 'message', 'Impossible de lire cette session : ' + e.message));
+  });
+</script>
+</html>

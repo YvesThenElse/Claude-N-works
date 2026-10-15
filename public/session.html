@@ -290,6 +290,16 @@
     font-size: .76rem; color: var(--texte-faible); opacity: .8;
   }
   .panneau .volet { margin-top: .4rem; }
+  /* Le passage vers la chaîne des appels. C'est un lien, pas un bouton de commande : il
+     mène ailleurs, et le dire d'un trait souligné évite de le confondre avec un réglage. */
+  .vers-chaine {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: none; border: 1px solid var(--accent); border-radius: 999px;
+    color: var(--accent); font: inherit; font-size: .78rem;
+    padding: .1rem .6rem; cursor: pointer; text-decoration: none;
+    margin-left: .6rem; vertical-align: middle;
+  }
+  .vers-chaine:hover { background: var(--accent); color: var(--sur-accent); }
   /* Le premier bloc d'un volet n'a pas besoin de l'écart qui le sépare du titre. */
   .panneau .volet > :first-child { margin-top: .6rem; }
   .panneau h2 { font-size: 1.05rem; margin: .25rem 0 .9rem; font-weight: 600; }
@@ -2415,7 +2425,12 @@ function estUnTexte(e) {
   return e.tagName === 'DETAILS' && e.classList.contains('bloc');
 }
 
-function ouvrirPanneau(genre, titre, elements) {
+/**
+ * `chapeau` : ce qui se pose SOUS le titre et AU-DESSUS des onglets. C'est la place d'un
+ * lien de navigation — il n'appartient ni au contenu ni aux propriétés, et le ranger dans
+ * l'un des deux le cacherait derrière l'onglet qu'on n'a pas choisi.
+ */
+function ouvrirPanneau(genre, titre, elements, chapeau) {
   if (genre !== 'boucle') iterationVisee = null;
   elBoite.replaceChildren();
   const fermer = document.createElement('button');
@@ -2426,6 +2441,7 @@ function ouvrirPanneau(genre, titre, elements) {
   const g = document.createElement('div'); g.className = 'genre'; g.textContent = genre;
   const h = document.createElement('h2'); h.textContent = titre;
   elBoite.append(fermer, g, h);
+  if (chapeau) elBoite.append(chapeau);
 
   const tous = elements.filter(Boolean);
   const textes = tous.filter(estUnTexte);
@@ -3520,8 +3536,15 @@ function carteModele(agent, modele, visee) {
   // pouvoir lire son contexte ici aussi.
   const lecture = blocLireContexte(agent, visee);
 
+  // Le passage vers la chaîne : c'est depuis un appel qu'on veut voir ce qui l'a amené
+  // et ce qu'il a déclenché, et la ligne du temps ne le montre pas.
+  const nav = document.createElement('p');
+  nav.style.cssText = 'margin:.1rem 0 .6rem;color:var(--texte-faible);font-size:.86rem';
+  nav.append(document.createTextNode('Où cet appel se place dans la suite : '),
+    lienVersLaChaine(agent, visee, 'la chaîne des appels'));
+
   ouvrirPanneau('modèle', modele.replace(/^claude-/, ''),
-    [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p]);
+    [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p], nav);
 }
 
 const TEINTE_GENRE = {
@@ -3638,6 +3661,27 @@ const NOM_MOMENT = {
  * élément par élément. C'est servi à la demande : plusieurs centaines de milliers de
  * caractères, qu'on ne regarde qu'un appel à la fois.
  */
+/**
+ * L'appel au modèle qui PRÉCÈDE celui-ci, chez le même agent.
+ *
+ * C'est lui qui borne le delta : tout ce qui est arrivé après sa dernière ligne écrite est
+ * l'apport du nôtre — les résultats des outils qu'il avait demandés, les réflexions, puis
+ * ce qu'il a répondu. Le tout premier appel n'en a pas, et rend donc le contexte entier :
+ * pour lui, ce qui est « neuf » est bien tout ce qu'il y a.
+ */
+function appelPrecedent(agent, requete) {
+  const rs = (agent.requetesModele || [])
+    .filter((r) => Number.isFinite(r.fin))
+    .sort((a, b) => a.fin - b.fin);
+  let avant = null;
+  for (const r of rs) {
+    if (r === requete) break;
+    if (Number.isFinite(requete.appel) && r.fin > requete.appel) break;
+    avant = r;
+  }
+  return avant;
+}
+
 async function montrerContenuContexte(agent, requete, hote) {
   hote.replaceChildren();
   const attente = document.createElement('p');
@@ -3646,9 +3690,17 @@ async function montrerContenuContexte(agent, requete, hote) {
   hote.append(attente);
   let data;
   try {
+    // La borne HAUTE est la fin de l'appel et non son départ : `appel` s'arrête juste
+    // avant la réponse, si bien qu'un delta borné là ne contient jamais ce que le modèle
+    // a dit ni ce qu'il a demandé — mesuré, il ressortait vide. Jusqu'à `fin`, il porte
+    // les quatre choses qui font un appel : ce qui est entré, la réflexion, la réponse,
+    // et les outils appelés.
+    const avant = appelPrecedent(agent, requete);
+    const haut = Number.isFinite(requete.fin) ? requete.fin : requete.appel;
     const r = await fetch('/api/contexte?id=' + encodeURIComponent(idSession)
       + '&agent=' + encodeURIComponent(agent.id)
-      + '&instant=' + requete.appel);
+      + '&instant=' + Math.round(haut)
+      + (avant ? '&depuis=' + Math.round(avant.fin) : ''));
     data = await r.json();
     if (data.erreur) throw new Error(data.erreur);
   } catch (e) {
@@ -3753,6 +3805,8 @@ async function montrerContenuContexte(agent, requete, hote) {
       const t = document.createElement('div');
       t.className = 'titre';
       t.textContent = NOM_MOMENT[m.genre] || m.genre;
+      // Là où la consigne d'Yves paraît, on offre d'aller voir ce qu'elle a déclenché.
+      if (m.genre === 'consigne') t.append(lienVersLaChaine(agent, requete, 'voir la chaîne'));
       bloc.append(t, ...m.elements.map(faireElement));
       blocs.push(bloc);
     }
@@ -3800,10 +3854,16 @@ async function montrerContenuContexte(agent, requete, hote) {
   entete.className = 'avert';
   entete.style.fontStyle = 'normal';
   entete.style.color = 'var(--texte-faible)';
-  entete.textContent = data.elements.length + ' éléments, '
-    + data.caracteres.toLocaleString('fr-FR') + ' caractères'
-    + (data.compactages ? '  —  reconstruit depuis le dernier des ' + data.compactages
-      + ' compactage(s) qui précèdent' : '');
+  entete.textContent = data.entier
+    ? data.elements.length + ' élément(s) pour cet appel, '
+      + data.caracteres.toLocaleString('fr-FR') + ' caractères'
+      + '  —  le contexte entier en portait ' + data.entier.elements.toLocaleString('fr-FR')
+      + ' et ' + data.entier.caracteres.toLocaleString('fr-FR') + ' caractères'
+    : data.elements.length + ' éléments, '
+      + data.caracteres.toLocaleString('fr-FR') + ' caractères'
+      + '  —  premier appel : tout le contexte est neuf'
+      + (data.compactages ? ', reconstruit depuis le dernier des ' + data.compactages
+        + ' compactage(s) qui précèdent' : '');
 
   hote.replaceChildren(entete, barreCtx, filtres, liste);
   dessinerListe();
@@ -3900,7 +3960,7 @@ function blocLireContexte(agent, requete) {
   const details = document.createElement('details');
   details.className = 'bloc';
   const s = document.createElement('summary');
-  s.textContent = 'lire le contexte envoyé à cet appel';
+  s.textContent = 'ce que cet appel a apporté au contexte';
   const hote = document.createElement('div');
   details.append(s, hote);
   let charge = false;
@@ -3996,8 +4056,34 @@ function carteAttentes(agent, visee) {
   ouvrirPanneau('attente', agent.nom, [dl, p]);
 }
 
+/**
+ * Le passage vers la chaîne des appels — §6.11.
+ *
+ * La ligne du temps répond à « quand », et elle le fait bien ; elle répond mal à « quoi a
+ * mené à quoi », parce qu'un appel de trois secondes et un de trois minutes n'y ont pas la
+ * même largeur et qu'on ne compare plus rien. La chaîne répond à cela, et à rien d'autre :
+ * elle n'a pas de temps du tout.
+ */
+function lienVersLaChaine(agent, requete, mot) {
+  const a = document.createElement('a');
+  a.className = 'vers-chaine';
+  a.href = '/chaine.html?id=' + encodeURIComponent(idSession)
+    + (agent ? '&agent=' + encodeURIComponent(agent.id) : '')
+    + (requete && Number.isFinite(requete.appel) ? '&appel=' + Math.round(requete.appel) : '');
+  a.title = 'voir l’enchaînement des appels, sans le temps';
+  const svg = el('svg', { viewBox: '0 0 12 12', width: '10', height: '10',
+    fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4', 'aria-hidden': 'true' });
+  svg.append(el('path', { d: 'M1.5 3h3v3h-3z M7.5 6h3v3h-3z M4.5 4.5h1.5v3h1.5' }));
+  a.append(svg, document.createTextNode(mot || 'la chaîne des appels'));
+  return a;
+}
+
 function carteRequete(r) {
-  ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)]);
+  const p = document.createElement('p');
+  p.style.cssText = 'margin:.1rem 0 .6rem;color:var(--texte-faible);font-size:.86rem';
+  p.append(document.createTextNode('Ce que cette consigne a déclenché : '),
+    lienVersLaChaine(deroule.agents[0], null, 'voir la chaîne'));
+  ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)], p);
 }
 
 // Les pas d'une règle du temps, du plus fin au plus large. On choisit le premier qui

@@ -850,6 +850,9 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       profondeur: sa.meta.spawnDepth ?? 1,
       // §5 ter : parentAgentId n'existe qu'à partir de la profondeur 2.
       parent: sa.meta.parentAgentId || 'racine',
+      // L'appel d'outil qui l'a lancé. Sans lui, relier un agent au geste exact qui le
+      // fait naître demande de deviner par les instants ; avec, c'est une égalité.
+      idAppelParent: sa.meta.toolUseId || null,
       debut,
       fin,
       etat,
@@ -1403,7 +1406,20 @@ function nettoyerAppel(a) {
  * être reconstruit : l'invite système complète, les définitions d'outils et la mémoire du
  * projet, que le transcript n'enregistre pas.
  */
-async function lireContexte(cheminTranscript, borne) {
+/**
+ * Le contexte jusqu'à `borne`, et — si `depuis` est donné — restreint à ce qui s'y est
+ * AJOUTÉ depuis l'appel précédent.
+ *
+ * Les deux lectures sont vraies et ne disent pas la même chose. Le contexte entier est ce
+ * que le modèle reçoit : tout y est renvoyé à chaque appel. Le delta est ce que CET appel
+ * apporte de neuf, et c'est ce qu'on vient lire quand on clique une marque — sur une
+ * session un peu longue, l'entier fait 425 éléments et noie les cinq qui concernent
+ * l'appel qu'on regarde.
+ *
+ * Le compte entier est rendu quand même, pour que la carte puisse dire « 5 sur 425 » et
+ * ne laisse pas croire que le modèle n'a reçu que cela.
+ */
+async function lireContexte(cheminTranscript, borne, depuis) {
   let elements = [];
   let compactages = 0;
   const nomDe = new Map(); // id d'appel -> nom d'outil, pour nommer les résultats
@@ -1494,7 +1510,18 @@ async function lireContexte(cheminTranscript, borne) {
   }
 
   const caracteres = elements.reduce((n, e) => n + (e.texte || '').length, 0);
-  return { elements, caracteres, compactages, borne };
+  if (!Number.isFinite(depuis)) return { elements, caracteres, compactages, borne };
+  // Un élément sans instant appartient à la mise en place : il est là depuis toujours et
+  // n'est donc l'apport d'aucun appel.
+  const propres = elements.filter((e) => e.instant !== null && e.instant > depuis);
+  return {
+    elements: propres,
+    caracteres: propres.reduce((n, e) => n + (e.texte || '').length, 0),
+    compactages,
+    borne,
+    depuis,
+    entier: { elements: elements.length, caracteres },
+  };
 }
 
 /** Le texte qu'une pièce jointe injecte, pour pouvoir le relire. */

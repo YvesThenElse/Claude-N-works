@@ -319,7 +319,10 @@ function traiter(requete, reponse) {
         const chemin = agent === 'racine'
           ? transcript
           : path.join(cheminSousAgents(transcript), 'agent-' + agent + '.jsonl');
-        const contenu = await lireContexte(chemin, borne);
+        // `depuis` restreint à ce que CET appel a ajouté ; absent, on rend tout.
+        const depuisBrut = url.searchParams.get('depuis');
+        const depuis = /^\d{1,16}$/.test(depuisBrut || '') ? Number(depuisBrut) : undefined;
+        const contenu = await lireContexte(chemin, borne, depuis);
         reponse.writeHead(200, {
           'content-type': 'application/json; charset=utf-8',
           'cache-control': 'no-store',
@@ -331,6 +334,24 @@ function traiter(requete, reponse) {
         reponse.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
         reponse.end(JSON.stringify({ erreur: String(err) }));
       });
+    return;
+  }
+
+  // La chaîne des appels : la même session, vue comme un enchaînement et non comme une
+  // durée. Servie exactement comme la ligne du temps.
+  if (url.pathname === '/chaine.html') {
+    fs.readFile(path.join(__dirname, 'public', 'chaine.html'), (err, contenu) => {
+      if (err) {
+        reponse.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        reponse.end('page de la chaîne introuvable\n');
+        return;
+      }
+      reponse.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+      });
+      reponse.end(contenu);
+    });
     return;
   }
 

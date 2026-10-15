@@ -274,6 +274,38 @@ ligne peut être incomplète, donc on ne traite que jusqu'au dernier saut de lig
 garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-agent n'a
 été lancé, donc on le cherche à chaque passage et pas une seule fois à l'ouverture.
 
+### La chaîne des appels — le même travail, sans le temps
+
+Un second écran, `chaine.html`, montre **ce qui a mené à quoi**. La ligne du temps répond
+à « quand », et elle le fait bien ; elle répond mal à « quoi a déclenché quoi », parce
+qu'un appel de trois secondes et un de trois minutes n'y ont pas la même largeur et qu'on
+ne compare plus rien. Cette page n'a donc **aucune notion de temps** : les boîtes se
+suivent parce qu'elles s'enchaînent, pas parce qu'elles durent.
+
+**Une boîte par appel au modèle**, et trois zones dans chacune :
+
+| | |
+|---|---|
+| **ce qui entre** | ce qui a déclenché l'appel — le résultat d'un outil, une consigne d'Yves, la fin d'une tâche d'arrière-plan |
+| **ce qui se passe** | l'attente, les jetons de réflexion, les jetons écrits |
+| **ce qui sort** | ce que le modèle a dit, et les outils qu'il a appelés |
+
+**Une colonne par agent**, et une colonne de sous-agent **démarre en face de la boîte qui
+l'a lancée** : c'est ce qui fait lire « cette boîte appelle celle-là » plutôt que « deux
+colonnes côte à côte ». Le lien est exact et non deviné — chaque agent porte l'identifiant
+de l'appel d'outil qui l'a fait naître, et chaque appel d'outil est rattaché à la réponse
+qui l'a émis. Sur la session d'exemple, l'appel 9 de l'agent racine émet un `Write` et
+**trois `Agent` d'un coup** : les trois postes partent de la même boîte.
+
+Un clic sur une boîte ouvre son détail ; de là, un clic sur un outil ouvre le sien, avec
+son entrée et son résultat. Par défaut la page montre l'agent visé et ses enfants directs,
+et une case ouvre la vue entière — 87 appels sur 6 agents, ou 122 sur 9.
+
+**On y arrive depuis la ligne du temps** : la carte d'une consigne d'Yves et celle d'un
+appel au modèle portent toutes deux un lien, posé au-dessus des onglets parce qu'il
+n'appartient ni au contenu ni aux propriétés. Le lien porte l'appel d'où l'on vient, et la
+chaîne s'ouvre en l'encadrant.
+
 ### Mettre le suivi en pause
 
 Une session vivante se redessine à chaque ligne écrite, et le repère *maintenant* glisse
@@ -883,6 +915,17 @@ et **ce qui décrit l'appel** : ses champs, ses durées, ses jauges. Elles se di
 même colonne, si bien qu'il fallait faire défiler une liste de vingt lignes pour atteindre
 la phrase qu'on venait lire. Deux onglets les séparent, *contenu* et *propriétés*, chacun
 annonçant combien de blocs il tient.
+
+**La carte d'un appel ne montre que CET appel.** Elle donnait tout le contexte accumulé —
+425 éléments sur une session un peu longue — et les quatre qui concernaient l'appel qu'on
+regardait s'y noyaient. Elle montre maintenant ce que l'appel a **apporté** : ce qui est
+entré depuis l'appel précédent, la réflexion, ce qui est sorti. Le compte entier reste dit
+en une ligne — « 4 éléments pour cet appel, 1 170 caractères — le contexte entier en
+portait 75 et 50 267 » — pour qu'on ne croie pas que le modèle n'a reçu que cela.
+
+> La borne haute est la **fin** de l'appel et non son départ. Mesuré : bornée au départ,
+> comme le faisait la première version, la liste ne contenait jamais ce que le modèle avait
+> dit ni ce qu'il avait demandé — elle ressortait **vide**.
 
 **Le lecteur de contexte s'ouvre d'emblée.** Replié, il était souvent la seule chose de
 l'onglet *contenu* — sur un appel qui se termine par un outil, le modèle n'a rien dit — et
