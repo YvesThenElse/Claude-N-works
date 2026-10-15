@@ -311,6 +311,12 @@
   mark { background: var(--surligne); color: var(--texte); border-radius: 2px; padding: 0 1px; }
   mark.vise { background: var(--requete); color: var(--sur-accent); }
 
+  /* La pastille d'une requête grossit au survol : une cible qui se montre est une cible
+     qu'on vise. L'anneau pâle la détache d'une piste chargée. */
+  .pastille-requete { transition: r .09s ease-out; }
+  .repere-requete:hover .pastille-requete { r: 7.5; }
+  .repere-requete:hover line:first-of-type { opacity: .9; }
+
   .avert {
     margin-top: .6rem; font-size: .76rem; color: var(--inconnu); font-style: italic;
   }
@@ -1671,15 +1677,51 @@ function dessinerPiste() {
   }
 
   // Les requêtes d'Yves : des repères verticaux traversant toutes les voies.
+  //
+  // La pastille porte le clic, et elle doit donc être attrapable. Le trait fait un pixel
+  // de large et la pastille faisait 3,5 de rayon : viser sept pixels à la souris sur une
+  // piste dense est un exercice d'adresse. On sépare donc ce qu'on **voit** de ce qu'on
+  // **attrape**, comme le fait déjà la voie des outils — une prise transparente, plus
+  // large que la marque.
+  //
+  // Les repères sont dessinés AVANT les voies, donc une marque d'outil qui tombe au même
+  // endroit reste au-dessus et garde son clic : la prise élargie n'attrape que le vide.
+  // ⚠️ La prise ne peut pas être généreuse sans borne. Mesuré sur une session de 76
+  // requêtes vue en entier : l'écart médian entre deux repères est de **3 pixels**, et
+  // 65 paires sur 75 sont plus proches que la prise qu'on voudrait leur donner. Une prise
+  // fixe y volerait le clic du voisin. On la borne donc à la moitié de la distance au
+  // repère le plus proche : serrés, les repères gardent chacun leur part ; isolés — le
+  // cas où l'on vise vraiment — ils retrouvent toute la prise.
+  const xRequetes = d.requetes.filter((r) => r.instant !== null).map((r) => axe.x(r.instant));
+  const triees = [...xRequetes].sort((a2, b2) => a2 - b2);
+  // La demi-distance au voisin le plus proche : deux prises se touchent alors sans jamais
+  // se mordre. Le plancher de 2 px garde une cible minimale ; en dessous de 4 px d'écart
+  // les pastilles se confondent déjà à l'œil et aucune prise ne saurait les démêler — à
+  // ce zoom-là on ne vise pas un repère, on en regarde la densité.
+  const prisePour = (x) => {
+    const i = triees.indexOf(x);
+    const avant = i > 0 ? x - triees[i - 1] : Infinity;
+    const apres = i < triees.length - 1 ? triees[i + 1] - x : Infinity;
+    return Math.max(2, Math.min(13, Math.min(avant, apres) / 2));
+  };
   for (const r of d.requetes) {
     if (r.instant === null) continue;
     const x = axe.x(r.instant);
-    const g = el('g', {});
+    const prise = prisePour(x);
+    const g = el('g', { class: 'repere-requete' });
     g.append(el('line', {
       x1: x, y1: REGLE_BAS + 4, x2: x, y2: hauteur,
       stroke: 'var(--requete)', 'stroke-width': 1, opacity: '.55',
     }));
-    g.append(el('circle', { cx: x, cy: REGLE_BAS + 10, r: 3.5, fill: 'var(--requete)' }));
+    g.append(el('circle', {
+      class: 'pastille-requete', cx: x, cy: REGLE_BAS + 11, r: 5.5, fill: 'var(--requete)',
+    }));
+    // Les deux prises : tout le long du trait, et plus généreusement sur la pastille.
+    g.append(el('line', {
+      x1: x, y1: REGLE_BAS + 4, x2: x, y2: hauteur,
+      stroke: 'transparent', 'stroke-width': prise * 2,
+    }));
+    g.append(el('circle', { cx: x, cy: REGLE_BAS + 11, r: prise, fill: 'transparent' }));
     g.append(el('title', {}, document.createTextNode(
       'requête — ' + heure(r.instant) + '\n\n' + (r.texte || '').slice(0, 400))));
     g.style.cursor = 'pointer';

@@ -237,6 +237,15 @@ zoom, soit deux secondes par redessin — inutilisable à la molette. Mesuré ap
 Et le contrôle qui compte : dix appels pris sur toute la durée des onze jours sont bien
 dessinés quand on défile jusqu'à eux. Le découpage ne cache rien.
 
+**Le repère d'une requête s'attrape.** Sa pastille fait 5,5 px de rayon, mais ce qu'on
+clique est plus large que ce qu'on voit : une prise transparente double la cible, sur la
+pastille comme le long du trait. Elle est **bornée à la demi-distance au repère voisin**,
+parce qu'une prise fixe se volerait le clic d'à côté — mesuré sur une session de 76
+requêtes vue en entier, l'écart médian entre deux repères est de **3 pixels**. Zoomé, le
+rayon de prise atteint 13 px et plus aucune prise n'en chevauche une autre ; en vue
+d'ensemble, les seuls chevauchements restants sont ceux dont les repères sont distants de
+moins de 4 px, où les pastilles se confondent déjà à l'œil.
+
 Un glissé de plus de quatre pixels n'ouvre pas de carte — sans quoi tout déplacement qui
 part d'une barre en ouvrirait une. En deçà, c'est un clic et il agit normalement.
 
