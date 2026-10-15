@@ -25,12 +25,12 @@
     --trait-survol: #39405a;
     --texte: #e4e6ee;
     --texte-faible: #8d93a8;
-    --accent: #7aa2f7;
+    --accent: #7aa2f7; --accent-vif: #8fb3ff; --sur-accent: #11131a;
     --occupe: #e0af68;
     --attente: #9ece6a;
     --mort: #565f89;
     --halo-occupe: #e0af6820;
-    --halo-attente: #9ece6a20;
+    --halo-attente: #9ece6a20; --halo-accent: #7aa2f733;
   }
 
   :root[data-theme="clair"] {
@@ -41,12 +41,12 @@
     --trait-survol: #9aa3bb;
     --texte: #1b1f2e;
     --texte-faible: #5c6479;
-    --accent: #2563c9;
+    --accent: #2563c9; --accent-vif: #1d4ed8; --sur-accent: #ffffff;
     --occupe: #b45309;
     --attente: #15803d;
     --mort: #7c8396;
     --halo-occupe: #b4530922;
-    --halo-attente: #15803d22;
+    --halo-attente: #15803d22; --halo-accent: #2563c940;
     color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -125,11 +125,28 @@
     margin: 1.1rem 0 0; padding-top: .9rem; border-top: 1px solid var(--trait);
     color: var(--texte-faible); font-size: .83rem; font-style: italic;
   }
+  /*
+   * Le bouton qui mène à la ligne du temps. C'est la seule action de cette page, et
+   * l'unique raison d'avoir sélectionné une session : il doit se voir comme un bouton et
+   * non comme un lien de plus au milieu d'une fiche d'identité.
+   */
   .detail .bouton {
-    display: inline-block; color: var(--accent); text-decoration: none;
-    font-style: normal; font-size: .88rem; font-weight: 500;
+    display: inline-flex; align-items: center; gap: .5rem;
+    background: var(--accent); color: var(--sur-accent);
+    text-decoration: none; font-style: normal;
+    font-size: .92rem; font-weight: 600; letter-spacing: .01em;
+    padding: .62rem 1.15rem; border-radius: 8px; border: 1px solid transparent;
+    transition: background .12s, transform .08s, box-shadow .12s;
   }
-  .detail .bouton:hover { text-decoration: underline; }
+  .detail .bouton:hover {
+    background: var(--accent-vif);
+    box-shadow: 0 2px 10px var(--halo-accent);
+  }
+  .detail .bouton:active { transform: translateY(1px); }
+  .detail .bouton:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  /* La flèche avance au survol : le bouton dit où il mène. */
+  .detail .bouton .fleche { transition: transform .12s; }
+  .detail .bouton:hover .fleche { transform: translateX(3px); }
   .vide { color: var(--texte-faible); padding: 2rem 0; }
   .alerte { color: var(--occupe); font-size: .83rem; margin-top: 1rem; }
 </style>
@@ -348,7 +365,12 @@ function dessinerDetail() {
     const lien = document.createElement('a');
     lien.className = 'bouton';
     lien.href = '/session.html?id=' + encodeURIComponent(s.sessionId);
-    lien.textContent = 'Voir la ligne du temps de ses agents →';
+    lien.append(document.createTextNode('Voir la ligne du temps de ses agents'));
+    const fleche = document.createElement('span');
+    fleche.className = 'fleche';
+    fleche.textContent = '→';
+    fleche.setAttribute('aria-hidden', 'true');
+    lien.append(fleche);
     suite.append(lien);
   } else {
     suite.textContent = "Le transcript de cette session n'a pas été trouvé sur disque — la ligne du temps ne pourra rien montrer.";
