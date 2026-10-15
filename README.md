@@ -366,8 +366,18 @@ réellement injectés sont comptés.
 
 ### Le contexte, les compactages et les pannes
 
-La taille du contexte a sa propre voie, en aire remplie d'un dégradé vertical du vert au
-rouge — la hauteur de la courbe décide de la couleur, donc une fenêtre qui sature rougit.
+La taille du contexte a sa propre voie, dessinée **en courbe simple** — une grandeur qui
+monte et descend n'est pas une quantité accumulée, et la remplir donnait à l'œil une masse
+qui ne voulait rien dire. Trois repères très pâles marquent le **0, la moitié et le
+plafond** : sans graduation, une courbe ne dit que « ça monte et ça descend » ; avec, on
+lit sa hauteur d'un coup d'œil. Le trait porte un dégradé vertical du vert au rouge — la
+hauteur décide de la couleur, donc une fenêtre qui sature rougit.
+
+⚠️ **Et le dégradé dit enfin ce qu'il prétend.** Tant qu'il peignait une aire, il
+s'étirait sur la boîte de ce polygone, pas sur la hauteur de la voie : une courbe qui ne
+montait qu'à mi-hauteur rougissait quand même à son sommet. Il est désormais tracé en
+coordonnées de la voie (`gradientUnits="userSpaceOnUse"`, du bas au haut de la voie),
+avec un dégradé par voie.
 Elle se lit dans `message.usage` : entrée + lecture de cache + création de cache. Le
 `total_tokens_reminder` du transcript, lui, est un budget de jetons et non la fenêtre : il
 ne répond pas à la question.

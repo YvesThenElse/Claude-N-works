@@ -239,11 +239,13 @@ donc une seule voie suffit.
 **Le contexte, les compactages et les pannes** — *demandés après le lot 5*. Trois ajouts
 au-delà du périmètre initial, tous lus dans des données déjà présentes :
 
-- **la taille du contexte** prend sa propre voie sous l'agent, en aire remplie d'un dégradé
-  vertical du vert au rouge : la hauteur de la courbe décide de la couleur, donc une
-  fenêtre qui sature se voit rougir. La référence est commune à toute la session, et le
-  dégradé ne sort **que si un compactage a révélé la fenêtre** — sinon l'échelle reste
-  relative et la couleur neutre, parce qu'on ignore le plafond ;
+- **la taille du contexte** prend sa propre voie sous l'agent. *Demandé par Yves le
+  15 octobre 2026 : une **courbe simple**, sans aire remplie, et trois repères très pâles
+  au 0, à la moitié et au plafond.* Le trait porte un dégradé vertical du vert au rouge :
+  la hauteur décide de la couleur, donc une fenêtre qui sature se voit rougir. La référence
+  est commune à toute la session, et le dégradé ne sort **que si un compactage a révélé la
+  fenêtre** — sinon l'échelle reste relative et la couleur neutre, parce qu'on ignore le
+  plafond ;
 - **les compactages** sont des repères verticaux en pointillés. Mesuré sur la session
   `454ef787` : le contexte monte à 996 455 jetons, un compactage survient, il retombe à
   52 151. C'est le fait le moins intuitif du fonctionnement d'un agent, et il devient

@@ -3339,15 +3339,41 @@ function dessinerVoieContexte(agent, centre, axe, ref) {
 
   const x0 = axe.x(points[0].instant);
   const x1 = axe.x(points[points.length - 1].instant);
-  g.append(el('polygon', {
-    points: `${x0.toFixed(1)},${bas} ${chemin.join(' ')} ${x1.toFixed(1)},${bas}`,
-    // Le dégradé ne sort que lorsqu'on sait ce qu'il mesure.
-    fill: ref.fenetreConnue ? 'url(#degrade-contexte)' : 'var(--termine)',
-    opacity: ref.fenetreConnue ? '.8' : '.75',
-  }));
+
+  // Trois repères très pâles : le bas de la voie vaut 0, le haut vaut le plafond, et la
+  // ligne du milieu la moitié. Sans eux, une courbe sans graduation ne dit que « ça monte
+  // et ça descend » ; avec, on lit sa hauteur d'un coup d'œil.
+  for (const [part, force] of [[0, .10], [0.5, .16], [1, .10]]) {
+    const yr = bas - part * (bas - haut);
+    g.append(el('line', {
+      x1: x0, y1: yr, x2: x1, y2: yr,
+      stroke: 'var(--texte)', 'stroke-width': 1, opacity: force,
+      ...(part === 0.5 ? {} : { 'stroke-dasharray': '3 4' }),
+    }));
+  }
+
+  // ⚠️ Le dégradé est tracé en coordonnées de la VOIE, et non de la boîte de l'objet.
+  // Tant qu'il peignait un polygone, il s'étirait sur la boîte de ce polygone : une
+  // courbe qui ne montait qu'à mi-hauteur rougissait quand même à son sommet. Posé sur
+  // la voie, il dit enfin ce qu'il prétend — la hauteur décide de la couleur.
+  const idDegrade = 'ctx-' + agent.id.replace(/[^A-Za-z0-9_-]/g, '');
+  const degrade = el('linearGradient', {
+    id: idDegrade, gradientUnits: 'userSpaceOnUse',
+    x1: 0, y1: bas, x2: 0, y2: haut,
+  });
+  degrade.append(
+    el('stop', { offset: '0%', 'stop-color': 'var(--ramp-bon)' }),
+    el('stop', { offset: '55%', 'stop-color': 'var(--ramp-moyen)' }),
+    el('stop', { offset: '100%', 'stop-color': 'var(--ramp-mauvais)' }),
+  );
+  g.append(degrade);
+
+  // La courbe seule, sans aire remplie : c'est une grandeur qui monte et descend, pas une
+  // quantité accumulée, et la remplir donnait à l'œil une masse qui ne veut rien dire.
   g.append(el('polyline', {
     points: chemin.join(' '), fill: 'none',
-    stroke: 'var(--texte)', 'stroke-width': .7, opacity: '.45',
+    stroke: ref.fenetreConnue ? `url(#${idDegrade})` : 'var(--termine)',
+    'stroke-width': 1.6, 'stroke-linejoin': 'round', opacity: '.95',
   }));
 
   // Une prise par dixième de la largeur, pour lire une valeur au survol sans surcharger.
