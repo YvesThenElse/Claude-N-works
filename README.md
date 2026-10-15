@@ -274,6 +274,30 @@ ligne peut être incomplète, donc on ne traite que jusqu'au dernier saut de lig
 garde le reste ; et le répertoire `subagents/` n'existe pas tant qu'aucun sous-agent n'a
 été lancé, donc on le cherche à chaque passage et pas une seule fois à l'ouverture.
 
+### Mettre le suivi en pause
+
+Une session vivante se redessine à chaque ligne écrite, et le repère *maintenant* glisse
+chaque seconde. C'est ce qu'on veut en la regardant travailler ; c'est insupportable quand
+on cherche à lire quelque chose de précis, parce que l'écran bouge sous les doigts.
+
+Un bouton **pause** paraît à côté de la mention « en direct », et seulement là : sur une
+session finie, rien ne bouge et il n'y aurait rien à arrêter.
+
+**En pause, rien n'est perdu.** Ce qui arrive est mis de côté, et le bouton dit combien de
+fois la session a avancé pendant ce temps — « 3 avancées en attente ». Reprendre applique
+le **dernier** état connu d'un coup : seul le dernier décrit la session telle qu'elle est,
+rejouer tous ceux qu'on a laissés passer ne montrerait rien de plus. C'est la différence
+entre une pause et une déconnexion : on ne rate rien, on le regarde plus tard.
+
+Vérifié sur une session réellement vivante : **4 redessins** en trois secondes et demie
+quand le suivi court, **zéro** en pause, et 4 de nouveau après reprise. L'écran est resté
+figé à 1 003 appels d'outil pendant que la session en écrivait quatre de plus, qui sont
+tous apparus d'un coup à la reprise.
+
+Le bouton prend la couleur de ce qu'il retient quand il est enfoncé, et ses deux
+pictogrammes sont **tracés** et non tapés : sur cette machine, `⏸` et `▶` sortiraient en
+carré vide, faute de police — comme sept des anciens pictogrammes de voie.
+
 ### Se déplacer dans la ligne du temps
 
 | Geste | Effet |

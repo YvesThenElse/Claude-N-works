@@ -45,6 +45,7 @@
     --surligne: #e0af6855;
     --accent: #7aa2f7;
     --en-cours: #7aa2f7; --termine: #4a5170; --interrompu: #f7768e; --inconnu: #e0af68;
+    --pause-actif: #e0af68;   /* 9,28 : 1 sur le fond sombre */
     --outil: #9ece6a; --outil-echec: #f7768e; --outil-agent: #bb9af7;
     --requete: #e0af68;
     --boucle: #2ac3de;
@@ -94,6 +95,9 @@
        d'opacité, et le bleu plus clair n'y rendait que 2,64:1 contre le fond. Celui-ci
        donne 3,75:1 — et la palette repasse tous les contrôles avec lui. */
     --en-cours: #2563c9; --termine: #7c8396; --interrompu: #db2777; --inconnu: #b45309;
+    /* 5,15 : 1, là où l'ambre d'état ne rendait que 4,33 — sous le seuil de 4,5
+       exigé d'un texte ordinaire, et ce bouton en est un. */
+    --pause-actif: #a3490a;
     --outil: #15803d; --outil-echec: #db2777; --outil-agent: #6b21a8;
     --requete: #b45309;
     --boucle: #0891b2;
@@ -156,6 +160,23 @@
   h1 { font-size: 1.15rem; margin: .4rem 0 .35rem; font-weight: 600; }
   .resume { color: var(--texte-faible); font-size: .83rem; }
   .resume b { color: var(--texte); font-weight: 600; }
+
+  /* Le bouton de pause du suivi en direct. Il ne paraît que sur une session vivante :
+     sur une session finie, rien ne bouge et il n'y aurait rien à arrêter. */
+  .pause {
+    background: none; border: 1px solid var(--trait); border-radius: 999px;
+    color: var(--texte-faible); font: inherit; font-size: .78rem;
+    padding: .12rem .6rem; margin-left: .5rem; cursor: pointer;
+    display: inline-flex; align-items: center; gap: .35rem; vertical-align: middle;
+  }
+  .pause:hover { color: var(--texte); border-color: var(--texte-faible); }
+  /* En pause, le bouton prend la couleur de ce qu'il retient : on voit d'un coup d'œil
+     que l'écran ne dit plus le présent. */
+  .pause[aria-pressed="true"] {
+    color: var(--pause-actif); border-color: var(--pause-actif);
+  }
+  .pause svg { display: block; }
+  .en-attente { margin-left: .5rem; color: var(--inconnu); font-size: .78rem; }
 
   .reglages {
     display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap;
@@ -519,7 +540,11 @@
   <a href="/">← toutes les sessions</a>
   <h1 id="titre">…</h1>
   <div class="resume" id="resume"></div>
-  <div class="resume"><span id="vivante" style="color:var(--en-cours)"></span></div>
+  <div class="resume">
+    <span id="vivante" style="color:var(--en-cours)"></span>
+    <button type="button" class="pause" id="pause" hidden></button>
+    <span id="enAttente" class="en-attente" hidden></span>
+  </div>
   <button type="button" class="bascule-theme" id="bascule">
     <svg class="astre" id="basculeAstre" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4"/></g></svg><span id="basculeTexte">thème clair</span>
   </button>
@@ -790,6 +815,8 @@ const elZoom = document.getElementById('zoom');
 const elZoomTexte = document.getElementById('zoomTexte');
 const elReplier = document.getElementById('replier');
 const elVivante = document.getElementById('vivante');
+const elPause = document.getElementById('pause');
+const elEnAttente = document.getElementById('enAttente');
 const elMenuVoies = document.getElementById('menuVoies');
 const elResumeVoies = document.getElementById('resumeVoies');
 const elListeVoies = document.getElementById('listeVoies');
@@ -5292,6 +5319,63 @@ document.getElementById('bascule').addEventListener('click', () => {
  * on redessine alors en conservant la position de défilement et la carte ouverte, sans
  * quoi l'écran sauterait sous les doigts à chaque ligne écrite.
  */
+/**
+ * La pause du suivi en direct — §6.10.
+ *
+ * Une session vivante se redessine à chaque ligne écrite, et le repère « maintenant »
+ * glisse chaque seconde. C'est ce qu'on veut en la regardant travailler ; c'est insupportable
+ * quand on cherche à lire quelque chose de précis, parce que l'écran bouge sous les doigts.
+ *
+ * En pause, **rien n'est perdu** : ce qui arrive est mis de côté et le bouton dit combien
+ * de fois la session a avancé. Reprendre applique le dernier état connu d'un coup. C'est la
+ * différence entre une pause et une déconnexion — on ne rate rien, on le regarde plus tard.
+ */
+let enPause = false;
+let enAttente = null;      // le dernier déroulé reçu pendant la pause
+let avancesIgnorees = 0;   // combien de fois la session a bougé pendant ce temps
+
+function dessinerLaPause() {
+  const vivante = Boolean(deroule && deroule.sessionVivante);
+  elPause.hidden = !vivante;
+  elEnAttente.hidden = !(vivante && enPause && avancesIgnorees);
+  if (!vivante) return;
+  elPause.setAttribute('aria-pressed', String(enPause));
+  elPause.title = enPause
+    ? 'reprendre le suivi — l’écran se remettra au présent'
+    : 'mettre le suivi en pause — l’écran cesse de bouger, et rien n’est perdu';
+  // Les deux pictogrammes sont tracés : mesuré sur cette machine, ⏸ et ▶ sortent en carré
+  // vide faute de police, comme sept des anciens pictogrammes de voie.
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 12 12');
+  svg.setAttribute('width', '10'); svg.setAttribute('height', '10');
+  svg.setAttribute('fill', 'currentColor');
+  svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', enPause ? 'M2.5 1.5 10 6l-7.5 4.5z' : 'M2.5 1.5h2.6v9H2.5z M6.9 1.5h2.6v9H6.9z');
+  svg.append(p);
+  const mot = document.createElement('span');
+  mot.textContent = enPause ? 'reprendre' : 'pause';
+  elPause.replaceChildren(svg, mot);
+  elEnAttente.textContent = avancesIgnorees
+    + (avancesIgnorees > 1 ? ' avancées en attente' : ' avancée en attente');
+}
+
+function basculerLaPause() {
+  enPause = !enPause;
+  if (!enPause && enAttente) {
+    // Reprendre, c'est rattraper : on applique le dernier état connu, pas tous ceux qu'on
+    // a laissés passer — seul le dernier décrit la session telle qu'elle est.
+    const d = enAttente;
+    enAttente = null;
+    avancesIgnorees = 0;
+    appliquerDeroule(d);
+    return;
+  }
+  if (!enPause) avancesIgnorees = 0;
+  dessinerLaPause();
+}
+
 function appliquerDeroule(d) {
   const premiereFois = deroule === null;
   const defil = elPiste.scrollLeft;
@@ -5301,6 +5385,7 @@ function appliquerDeroule(d) {
     elTitre.textContent = (d.session && d.session.nom) || d.agents[0]?.nom || id;
   }
   elVivante.textContent = d.sessionVivante ? '· en direct' : '';
+  dessinerLaPause();
   resumer(d);
   listerBoucles();
   remplirMenuVoies();
@@ -5322,6 +5407,14 @@ fluxSession.addEventListener('message', (e) => {
   try {
     const d = JSON.parse(e.data);
     if (d.erreur) { echouer(d.erreur); return; }
+    // La première arrivée passe toujours : sans elle il n'y aurait rien à l'écran, et
+    // mettre en pause un écran vide n'a pas de sens.
+    if (enPause && deroule) {
+      enAttente = d;
+      avancesIgnorees += 1;
+      dessinerLaPause();
+      return;
+    }
     appliquerDeroule(d);
   } catch (err) { console.error(err); }
 });
@@ -5331,9 +5424,11 @@ fluxSession.addEventListener('error', () => {
 
 // Même quand rien ne se produit, le temps passe : le repère « maintenant » doit glisser.
 setInterval(() => {
+  if (enPause) return;   // le repère « maintenant » s'arrête aussi : c'est tout le propos
   if (deroule && deroule.sessionVivante) dessinerPiste();
 }, 1000);
 
+elPause.addEventListener('click', basculerLaPause);
 elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);
 addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
