@@ -31,6 +31,7 @@
     --mort: #565f89;
     --halo-occupe: #e0af6820;
     --halo-attente: #9ece6a20; --halo-accent: #7aa2f733;
+    --voile: #080a0ecc; --ombre-forte: #000a;
   }
 
   :root[data-theme="clair"] {
@@ -47,6 +48,7 @@
     --mort: #7c8396;
     --halo-occupe: #b4530922;
     --halo-attente: #15803d22; --halo-accent: #2563c940;
+    --voile: #3a425699; --ombre-forte: #2a3a5526;
     color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -109,9 +111,30 @@
   .droite .etat.busy { color: var(--occupe); }
   .droite .etat.waiting { color: var(--attente); }
 
+  /*
+   * La fiche d'une session s'ouvre en modale, comme les cartes de l'écran de session :
+   * les deux écrans doivent parler la même langue. Posée sous la liste, elle obligeait à
+   * défiler pour lire ce qu'on venait de demander, et le bouton tombait hors de l'écran.
+   */
+  .panneau {
+    position: fixed; inset: 0; z-index: 40; background: var(--voile);
+    display: none; align-items: center; justify-content: center; padding: 2.5vh 2vw;
+  }
+  .panneau.ouvert { display: flex; }
   .detail {
-    margin-top: 1.5rem; background: var(--fond-carte); border: 1px solid var(--trait);
-    border-radius: 10px; padding: 1.1rem 1.3rem;
+    background: var(--fond-carte); border: 1px solid var(--trait);
+    border-radius: 12px; box-shadow: 0 22px 60px var(--ombre-forte);
+    width: min(48rem, 96vw); max-height: 92vh; overflow-y: auto;
+    padding: 1.3rem 1.5rem 1.6rem;
+  }
+  .detail .fermer {
+    float: right; background: none; border: 0; color: var(--texte-faible);
+    font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
+  }
+  .detail .fermer:hover { color: var(--texte); }
+  .detail .fermer:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .detail .finie {
+    margin: .9rem 0 0; color: var(--occupe); font-size: .83rem;
   }
   .detail h2 { font-size: 1rem; margin: 0 0 .9rem; font-weight: 600; }
   .detail dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1.2rem; margin: 0; }
@@ -165,7 +188,7 @@
   </p>
 
   <div class="liste" id="liste"></div>
-  <div id="detail"></div>
+  <div class="panneau" id="panneau"><div class="detail" id="detail"></div></div>
   <div class="alerte" id="alerte"></div>
 </div>
 
@@ -177,6 +200,24 @@ let choisie = null;
 
 const elListe = document.getElementById('liste');
 const elDetail = document.getElementById('detail');
+const elPanneau = document.getElementById('panneau');
+
+// ⚠️ L'ouverture est un état à part de la sélection. Le relevé rafraîchit la page toutes
+// les 500 ms : si l'affichage de la fiche se déduisait de `choisie`, une modale fermée se
+// rouvrirait d'elle-même au relevé suivant.
+let modaleOuverte = false;
+// La dernière session connue, gardée telle quelle : un processus peut mourir pendant
+// qu'on lit sa fiche, et une modale qui se vide sous les yeux est plus déroutante qu'une
+// fiche figée qui dit que la session s'est terminée.
+let derniereConnue = null;
+
+function fermerPanneau() {
+  modaleOuverte = false;
+  elPanneau.classList.remove('ouvert');
+}
+
+elPanneau.addEventListener('click', (e) => { if (e.target === elPanneau) fermerPanneau(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
 const elCompte = document.getElementById('compte');
 const elReleve = document.getElementById('releve');
 const elAlerte = document.getElementById('alerte');
@@ -321,7 +362,11 @@ function dessinerListe() {
     ));
 
     carte.append(pastille, nom, droite, chemin);
-    const choisir = () => { choisie = s.sessionId; dessiner(); };
+    const choisir = () => {
+      choisie = s.sessionId;
+      modaleOuverte = true;
+      dessiner();
+    };
     carte.addEventListener('click', choisir);
     carte.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choisir(); }
@@ -331,8 +376,11 @@ function dessinerListe() {
 }
 
 function dessinerDetail() {
-  const s = (etatCourant.sessions || []).find((x) => x.sessionId === choisie);
-  if (!s) { elDetail.replaceChildren(); return; }
+  if (!modaleOuverte) { elPanneau.classList.remove('ouvert'); return; }
+  const vivante = (etatCourant.sessions || []).find((x) => x.sessionId === choisie);
+  if (vivante) derniereConnue = vivante;
+  const s = vivante || derniereConnue;
+  if (!s) { fermerPanneau(); return; }
 
   const champs = [
     ['Identifiant de session', s.sessionId],
@@ -355,8 +403,14 @@ function dessinerDetail() {
     dl.append(dt, dd);
   }
 
-  const bloc = document.createElement('div');
-  bloc.className = 'detail';
+  const fermer = document.createElement('button');
+  fermer.type = 'button';
+  fermer.className = 'fermer';
+  fermer.textContent = '×';
+  fermer.title = 'fermer (Échap)';
+  fermer.setAttribute('aria-label', 'fermer');
+  fermer.addEventListener('click', fermerPanneau);
+
   const titre = document.createElement('h2');
   titre.textContent = s.nom;
   const suite = document.createElement('p');
@@ -375,8 +429,18 @@ function dessinerDetail() {
   } else {
     suite.textContent = "Le transcript de cette session n'a pas été trouvé sur disque — la ligne du temps ne pourra rien montrer.";
   }
-  bloc.append(titre, dl, suite);
-  elDetail.replaceChildren(bloc);
+  const morceaux = [fermer, titre, dl, suite];
+  if (!vivante) {
+    const finie = document.createElement('p');
+    finie.className = 'finie';
+    finie.textContent = 'Cette session s’est terminée pendant que vous la regardiez. '
+      + 'Les champs ci-dessus sont ceux du dernier relevé ; son transcript, lui, reste '
+      + 'lisible en entier.';
+    morceaux.push(finie);
+  }
+  elDetail.replaceChildren(...morceaux);
+  elPanneau.classList.add('ouvert');
+  elDetail.scrollTop = 0;
 }
 
 function dessiner() { dessinerListe(); dessinerDetail(); }

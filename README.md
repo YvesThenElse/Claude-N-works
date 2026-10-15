@@ -127,11 +127,21 @@ complète, le chemin de son transcript, et sa version de Claude Code.
 
 La liste se tient à jour toute seule, par flux d'événements, sans rechargement.
 
-Sélectionner une session ouvre sa fiche d'identité, et **un bouton plein** y mène à sa
-ligne du temps. C'est la seule action de cet écran et l'unique raison d'avoir choisi une
+Sélectionner une session ouvre sa fiche d'identité **en modale**, comme les cartes de
+l'écran de session — les deux écrans parlent la même langue, et le fond ou la touche
+d'échappement la referment. Posée sous la liste, elle obligeait à défiler pour lire ce
+qu'on venait de demander, et son bouton tombait hors de l'écran. **Un bouton plein** y mène
+à la ligne du temps. C'est la seule action de cet écran et l'unique raison d'avoir choisi une
 session : elle doit se voir comme un bouton, et non comme un lien de plus au milieu d'une
 liste de champs. Mesuré : le texte rend **7,4 : 1** sur le bouton en thème sombre et
 5,7 : 1 en clair, et le bouton lui-même 6,7 : 1 contre la fiche.
+
+Deux précautions, imposées par le fait que la liste se rafraîchit toutes les 500 ms.
+L'ouverture est un **état à part de la sélection** : déduite de la session choisie, une
+modale fermée se serait rouverte d'elle-même au relevé suivant — vérifié, elle reste
+fermée sur deux relevés. Et **une session peut mourir pendant qu'on lit sa fiche** : la
+modale garde alors ses champs, ceux du dernier relevé, et le dit en toutes lettres plutôt
+que de se vider sous les yeux.
 
 ### Ce que fait la ligne du temps
 
