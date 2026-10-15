@@ -1,7 +1,7 @@
 {
   "name": "claude-n-works",
   "productName": "Claude N Works",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Observer ce que fait Claude Code : ses agents, ses sous-agents, ses skills, ses boucles et ses outils, dans le temps.",
   "license": "MIT",
   "author": "YvesThenElse",
