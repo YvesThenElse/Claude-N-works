@@ -2862,8 +2862,12 @@ function carteModele(agent, modele, visee) {
   if (partCet !== null) jauges.push(jaugeCache(partCet, 'de cet appel vient du cache'));
   jauges.push(jaugeCache(partTotale, 'de tous les appels de ce modèle viennent du cache'));
 
+  // La carte d'un modèle devient la carte d'UN appel quand on en vise un : on doit alors
+  // pouvoir lire son contexte ici aussi.
+  const lecture = blocLireContexte(agent, visee);
+
   ouvrirPanneau('modèle', modele.replace(/^claude-/, ''),
-    [dl, ...jauges, explication, ...morceauxEnTete, p]);
+    [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p]);
 }
 
 const TEINTE_GENRE = {
@@ -3067,7 +3071,38 @@ function carteBuffer(agent, visee) {
     + 'à relire avant de l’avoir écrit.';
   morceaux.push(avert);
 
+  // Quand la carte parle d'UN appel, on doit pouvoir lire le contexte de cet appel-là
+  // sans passer par une autre voie : c'est le même appel, la question est la même.
+  const lecture = blocLireContexte(agent, visee);
+  if (lecture) morceaux.push(lecture);
+
   ouvrirPanneau('buffer', visee ? 'Buffer CTX — un appel' : 'Buffer CTX — ' + agent.nom, morceaux);
+}
+
+/**
+ * Le bloc « lire le contexte envoyé à cet appel ».
+ *
+ * Servi à la demande, parce que c'est gros : 623 ko en 0,4 s pour un contexte de 428
+ * éléments. Le mettre dans la page coûterait ce poids à chaque rafraîchissement, pour
+ * quelque chose qu'on ne regarde qu'un appel à la fois.
+ *
+ * Posé sur toutes les cartes qui parlent d'UN appel au modèle — contenu, buffer, appel au
+ * modèle. Il n'était que sur celle du contenu, et on ne le trouvait donc pas depuis les
+ * deux autres, alors qu'elles désignent exactement le même appel.
+ */
+function blocLireContexte(agent, requete) {
+  if (!requete) return null;
+  const details = document.createElement('details');
+  details.className = 'bloc';
+  const s = document.createElement('summary');
+  s.textContent = 'lire le contexte envoyé à cet appel';
+  const hote = document.createElement('div');
+  details.append(s, hote);
+  let charge = false;
+  details.addEventListener('toggle', () => {
+    if (details.open && !charge) { charge = true; montrerContenuContexte(agent, requete, hote); }
+  });
+  return details;
 }
 
 function carteContenu(agent, requete) {
@@ -3108,19 +3143,8 @@ function carteContenu(agent, requete) {
   }
 
   // La lecture du contexte lui-même, chargée après coup.
-  if (requete) {
-    const details = document.createElement('details');
-    details.className = 'bloc';
-    const s = document.createElement('summary');
-    s.textContent = 'lire le contexte envoyé à cet appel';
-    const hote = document.createElement('div');
-    details.append(s, hote);
-    let charge = false;
-    details.addEventListener('toggle', () => {
-      if (details.open && !charge) { charge = true; montrerContenuContexte(agent, requete, hote); }
-    });
-    morceaux.push(details);
-  }
+  const lecture = blocLireContexte(agent, requete);
+  if (lecture) morceaux.push(lecture);
 
   ouvrirPanneau('contenu du contexte', agent.nom, morceaux);
 }
@@ -3964,11 +3988,26 @@ function dessinerVoieBuffer(agent, centre, axe, visible) {
     groupes.push({ x, fin: x + largeur, parts: [e.part], n: 1, r, e, premier: i === 0 });
   });
 
-  groupes.forEach((gr) => {
+  // Le pourcentage écrit à côté de la marque, quand la place le permet — même règle que
+  // le nom d'un outil : la place se mesure jusqu'à la marque suivante, donc l'étiquette
+  // ne peut jamais mordre sur sa voisine, et elle n'apparaît qu'une fois assez zoomé.
+  const TAILLE_PART = 9;
+  const LARGEUR_PAR_CARACTERE = 5.3;
+
+  groupes.forEach((gr, k) => {
     const { x, r, e } = gr;
     const largeur = Math.max(1, gr.fin - gr.x);
     const moyenne = gr.parts.reduce((p, q) => p + q, 0) / gr.parts.length;
     if (!visible(x, x + largeur)) return;
+    const suivante = k + 1 < groupes.length ? groupes[k + 1].x : Infinity;
+    const texte = Math.round(moyenne * 100) + ' %';
+    const dispo = Math.min(suivante - (x + largeur), 120) - 5;
+    if (dispo >= texte.length * LARGEUR_PAR_CARACTERE) {
+      g.append(el('text', {
+        x: x + largeur + 3, y: centre + 3.5, fill: 'var(--texte-faible)',
+        'font-size': TAILLE_PART, opacity: '.85',
+      }, document.createTextNode(texte)));
+    }
     const marque = el('rect', {
       x, y: haut, width: largeur, height: hauteur,
       fill: teinteBuffer(moyenne), opacity: '.9',

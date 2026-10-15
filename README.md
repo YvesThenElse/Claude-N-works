@@ -334,8 +334,9 @@ le contexte était fait — en parts empilées sur toute la hauteur, puisque la 
 donnée par la voie du dessus : invite système et rappels, résultats d'outils, appels
 d'outils, paroles du modèle, requêtes d'Yves. Cliquer un appel en donne la recette chiffrée.
 
-**On peut lire le contexte lui-même.** La carte d'un appel porte un bloc « lire le contexte
-envoyé à cet appel » : il va chercher au serveur, à la demande, la suite exacte des éléments
+**On peut lire le contexte lui-même.** Les trois cartes qui parlent d'**un** appel au
+modèle — *Contenu CTX*, *Buffer CTX* et celle d'un appel au modèle — portent un bloc
+« lire le contexte envoyé à cet appel » : il va chercher au serveur, à la demande, la suite exacte des éléments
 qui composaient le contexte à cet instant — le résumé du dernier compactage, les skills
 chargés, chaque appel d'outil avec sa commande, chaque résultat avec son contenu, les
 rappels, les paroles du modèle. Chaque élément se déplie, et des filtres par genre
@@ -592,6 +593,11 @@ entièrement relu, un contexte coûte encore un dixième. 50 % est le premier ce
 (52,4 %), ce qui fait saturer en rouge le pour-cent d'appels les plus coûteux au lieu
 d'écraser l'échelle. Entre les deux, les percentiles mesurés se répartissent — p5 à 80,6 %,
 p25 à 88,4 %, médiane à 89,4 %, minimum absolu **−25 %** quand tout est réécrit au cache.
+
+**Le pourcentage est écrit à côté de la marque** dès qu'il y a la place, selon la même
+règle que le nom d'un outil : la place se mesure jusqu'à la marque suivante, donc une
+étiquette ne peut jamais mordre sur sa voisine — vérifié à trois niveaux de zoom, zéro
+chevauchement par voie.
 
 **La voie est verte presque partout, et c'est la vérité** : seuls 2,1 % des appels tombent
 sous 70 %. Son travail est de montrer ces exceptions-là, pas de noircir un tableau qui va
