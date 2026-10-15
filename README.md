@@ -923,6 +923,25 @@ entré depuis l'appel précédent, la réflexion, ce qui est sorti. Le compte en
 en une ligne — « 4 éléments pour cet appel, 1 170 caractères — le contexte entier en
 portait 75 et 50 267 » — pour qu'on ne croie pas que le modèle n'a reçu que cela.
 
+**Rien n'a été perdu, mais deux choses ont changé de place.** Vérifié d'abord : sur la
+session d'exemple, les 137 éléments du contexte entier apparaissent chacun dans exactement
+un appel — aucun n'est devenu inatteignable. Ce qui a changé, ce sont les usages :
+
+- **chercher dans tout le contexte** ne marchait plus que sur un appel. Une bascule
+  *cet appel* / *tout le contexte* est posée à côté du compte : elle élargit la liste, les
+  filtres et la recherche à l'ensemble. Mesuré : 4 éléments et 3 genres d'un côté,
+  75 éléments et 6 genres de l'autre, et « ratatouille » retrouve ses 21 éléments.
+- **la mise en place** — la consigne, le listing des skills, les instructions des serveurs
+  MCP, le rappel de jetons — n'était plus visible que sur le tout premier appel, qu'il
+  fallait aller chercher. Elle est une propriété de l'**agent** et non d'un de ses appels :
+  la carte d'un agent la porte maintenant, dépliable, avec la même recherche et les mêmes
+  filtres. Elle pèse **12 314 caractères en moyenne** sur dix sessions mesurées, dont le
+  listing des skills fait l'essentiel.
+
+> Sa borne est l'instant où le modèle commence à répondre, **moins une milliseconde**.
+> `appel` est trop bas — mesuré, il précède les pièces jointes elles-mêmes et rendait la
+> liste vide — et `debut` ferait entrer la première réflexion, qui est déjà du travail.
+
 > La borne haute est la **fin** de l'appel et non son départ. Mesuré : bornée au départ,
 > comme le faisait la première version, la liste ne contenait jamais ce que le modèle avait
 > dit ni ce qu'il avait demandé — elle ressortait **vide**.

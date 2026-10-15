@@ -290,6 +290,20 @@
     font-size: .76rem; color: var(--texte-faible); opacity: .8;
   }
   .panneau .volet { margin-top: .4rem; }
+  /* La portée du lecteur de contexte : cet appel, ou tout ce que le modèle a reçu.
+     Restreindre par défaut était juste — 4 éléments valent mieux que 425 — mais la
+     recherche et les comptes, eux, veulent parfois porter sur l'ensemble. */
+  .portee { display: inline-flex; gap: .15rem; margin-left: .6rem; vertical-align: middle; }
+  .portee button {
+    background: none; border: 1px solid var(--trait); color: var(--texte-faible);
+    font: inherit; font-size: .74rem; padding: .05rem .5rem; cursor: pointer;
+  }
+  .portee button:first-child { border-radius: 999px 0 0 999px; }
+  .portee button:last-child { border-radius: 0 999px 999px 0; border-left: 0; }
+  .portee button:hover { color: var(--texte); }
+  .portee button[aria-pressed="true"] {
+    color: var(--sur-accent); background: var(--accent); border-color: var(--accent);
+  }
   /* Le passage vers la chaîne des appels. C'est un lien, pas un bouton de commande : il
      mène ailleurs, et le dire d'un trait souligné évite de le confondre avec un réglage. */
   .vers-chaine {
@@ -2658,6 +2672,12 @@ function carteAgent(a) {
   }
   morceaux.push(blocReplie('entrée — le prompt reçu', a.prompt));
   morceaux.push(blocReplie('sortie — sa réponse finale', a.sortie));
+  // Ce que l'agent avait sous les yeux AVANT d'avoir rien fait. Depuis que la carte d'un
+  // appel ne montre que son propre apport, la mise en place n'était plus visible que sur
+  // le tout premier appel — et il faut le trouver. Elle est une propriété de l'agent, pas
+  // d'un de ses appels : elle appartient donc ici. Mesurée sur dix sessions : 12 314
+  // caractères en moyenne, dont le listing des skills fait l'essentiel.
+  morceaux.push(blocMiseEnPlace(a));
 
   if (a.etat === 'fin inconnue') {
     const p = document.createElement('p');
@@ -3087,6 +3107,47 @@ function carteSkills(agent, visee) {
   }
 
   ouvrirPanneau('skill', sk.nom + ' — ' + agent.nom, morceaux);
+}
+
+/**
+ * La mise en place d'un agent — §6.12.
+ *
+ * Tout ce qui était dans son contexte avant son premier appel : la consigne reçue, le
+ * listing des skills qu'on lui offre, les instructions des serveurs MCP, le rappel de
+ * jetons. C'est lourd — 12 314 caractères en moyenne, mesuré sur dix sessions — et c'est
+ * la part du contexte que personne ne regarde jamais, jusqu'au jour où l'on cherche
+ * pourquoi un agent connaissait telle chose.
+ *
+ * La borne est l'instant du PREMIER appel et non sa fin : au-delà, ce n'est plus la mise
+ * en place, c'est déjà du travail.
+ */
+function blocMiseEnPlace(agent) {
+  const premier = (agent.requetesModele || [])
+    .filter((r) => Number.isFinite(r.debut))
+    .sort((a, b) => a.debut - b.debut)[0];
+  if (!premier) return null;
+  // La borne est l'instant où le modèle COMMENCE à répondre, moins une milliseconde :
+  // `appel` est trop bas — il précède les pièces jointes elles-mêmes et rendait la liste
+  // vide, mesuré — et `debut` ferait entrer la première réflexion, qui est déjà du travail.
+  // À `debut - 1` il reste exactement les quatre choses qu'on cherche : la consigne, les
+  // instructions des serveurs MCP, le listing des skills, le rappel de jetons.
+  const borne = premier.debut - 1;
+  const d = document.createElement('details');
+  d.className = 'bloc';
+  const s = document.createElement('summary');
+  s.textContent = 'la mise en place — ce qu’il avait sous les yeux avant son premier appel';
+  const hote = document.createElement('div');
+  d.append(s, hote);
+  let charge = false;
+  d.addEventListener('toggle', () => {
+    if (!d.open || charge) return;
+    charge = true;
+    // On réutilise le lecteur de contexte tel quel, borné au premier appel : même
+    // découpage en moments, même recherche, mêmes filtres.
+    montrerContenuContexte(agent, { appel: borne, fin: borne }, hote, true,
+      'ce qu’il avait en contexte avant d’avoir rien fait');
+  });
+  return d;
 }
 
 /** Carte des tâches de fond : l'une d'elles, et le compte de toutes. */
@@ -3682,7 +3743,7 @@ function appelPrecedent(agent, requete) {
   return avant;
 }
 
-async function montrerContenuContexte(agent, requete, hote) {
+async function montrerContenuContexte(agent, requete, hote, toutLeContexte, libelle) {
   hote.replaceChildren();
   const attente = document.createElement('p');
   attente.className = 'avert';
@@ -3695,7 +3756,7 @@ async function montrerContenuContexte(agent, requete, hote) {
     // a dit ni ce qu'il a demandé — mesuré, il ressortait vide. Jusqu'à `fin`, il porte
     // les quatre choses qui font un appel : ce qui est entré, la réflexion, la réponse,
     // et les outils appelés.
-    const avant = appelPrecedent(agent, requete);
+    const avant = toutLeContexte ? null : appelPrecedent(agent, requete);
     const haut = Number.isFinite(requete.fin) ? requete.fin : requete.appel;
     const r = await fetch('/api/contexte?id=' + encodeURIComponent(idSession)
       + '&agent=' + encodeURIComponent(agent.id)
@@ -3854,16 +3915,46 @@ async function montrerContenuContexte(agent, requete, hote) {
   entete.className = 'avert';
   entete.style.fontStyle = 'normal';
   entete.style.color = 'var(--texte-faible)';
+  const nEl = data.elements.length.toLocaleString('fr-FR');
+  const nCar = data.caracteres.toLocaleString('fr-FR');
+  const suiteCompact = data.compactages
+    ? '  —  reconstruit depuis le dernier des ' + data.compactages + ' compactage(s)' : '';
   entete.textContent = data.entier
-    ? data.elements.length + ' élément(s) pour cet appel, '
-      + data.caracteres.toLocaleString('fr-FR') + ' caractères'
-      + '  —  le contexte entier en portait ' + data.entier.elements.toLocaleString('fr-FR')
-      + ' et ' + data.entier.caracteres.toLocaleString('fr-FR') + ' caractères'
-    : data.elements.length + ' éléments, '
-      + data.caracteres.toLocaleString('fr-FR') + ' caractères'
-      + '  —  premier appel : tout le contexte est neuf'
-      + (data.compactages ? ', reconstruit depuis le dernier des ' + data.compactages
-        + ' compactage(s) qui précèdent' : '');
+    // portée « cet appel » : on dit aussi ce qu'on ne montre pas, pour qu'on ne croie
+    // jamais que le modèle n'a reçu que cela.
+    ? nEl + ' élément(s) pour cet appel, ' + nCar + ' caractères'
+      + '  —  le contexte entier en portait '
+      + data.entier.elements.toLocaleString('fr-FR') + ' et '
+      + data.entier.caracteres.toLocaleString('fr-FR') + ' caractères'
+    : toutLeContexte
+      ? (libelle || 'tout ce que le modèle a reçu à cet appel') + ' : ' + nEl + ' éléments, '
+        + nCar + ' caractères' + suiteCompact
+      : nEl + ' éléments, ' + nCar + ' caractères'
+        + '  —  premier appel : tout le contexte est neuf' + suiteCompact;
+
+  // La bascule de portée. Elle ne paraît que s'il y a autre chose à voir : sur le premier
+  // appel, le delta EST tout le contexte, et offrir de « tout voir » ne mènerait nulle part.
+  const avantCelui = appelPrecedent(agent, requete);
+  if (avantCelui) {
+    const portee = document.createElement('span');
+    portee.className = 'portee';
+    for (const [cle, mot, aide] of [
+      ['appel', 'cet appel', 'ce que cet appel a apporté au contexte'],
+      ['tout', 'tout le contexte', 'tout ce que le modèle a reçu à cet appel — pour chercher dedans'],
+    ]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = mot;
+      b.title = aide;
+      b.setAttribute('aria-pressed', String((cle === 'tout') === Boolean(toutLeContexte)));
+      b.addEventListener('click', () => {
+        if ((cle === 'tout') === Boolean(toutLeContexte)) return;
+        montrerContenuContexte(agent, requete, hote, cle === 'tout');
+      });
+      portee.append(b);
+    }
+    entete.append(portee);
+  }
 
   hote.replaceChildren(entete, barreCtx, filtres, liste);
   dessinerListe();
