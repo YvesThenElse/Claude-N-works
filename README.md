@@ -637,8 +637,20 @@ L'indentation se fait au pixel, avec un filet vertical par niveau, et les voies 
 d'un agent s'indentent d'un cran sous lui.
 
 Chaque voie porte un pictogramme dans sa couleur : ◆ l'agent racine, ◈ un sous-agent,
-⊞ les outils, ▥ la taille du contexte, ▤ son contenu, ⊝ l'attente, ⟳ les boucles,
-◇ un modèle.
+⊡ le travail, ⊝ l'attente, ∿ la réflexion, ◇ un modèle, ⊞ les outils, ⊠ l'outillage,
+⊣ les hooks, ⊟ les fichiers, ⟳ les boucles, ▥ la taille du contexte, ▤ son contenu.
+
+**L'ordre naturel suit une lecture.** D'abord le **rythme** — quand la machine a travaillé,
+quand elle a attendu, quand elle a réfléchi, à quel modèle elle a parlé. Puis **ce qu'elle
+a fait** — ses outils, l'outillage qui change, les hooks qui les encadrent, les fichiers
+qu'ils touchent, les boucles qui les répètent. Puis le **contexte**, ses trois voies
+ensemble à la fin.
+
+*travail* et *attente* sont volontairement voisines : elles partagent le même temps et se
+lisent en vis-à-vis — ce qui n'est pas dans l'une est dans l'autre. La voie s'appelait
+*tours* jusqu'au 15 octobre 2026 ; la carte, elle, disait déjà « travail cumulé » et « du
+temps, la machine travaillait ». C'était l'étiquette qui était le mot isolé. **Le tour
+reste l'unité** — la voie se mesure en tours, elle s'appelle travail.
 
 ### Ranger les voies
 

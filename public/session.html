@@ -51,7 +51,7 @@
     --compact: #bb9af7;
     --panne: #f7768e;
     --attente: #565f89;
-    --tours: #7aa2f7;
+    --travail: #7aa2f7;
     --reflexion: #c4a7ff;
     --outillage: #ffd479;
     --hook: #7dcfff;
@@ -94,7 +94,7 @@
     --panne: #db2777;
     /* 3,32:1 contre le fond, là où #8b93a7 ne donnait que 2,65 — le sombre est à 3,00 */
     --attente: #7a8294;
-    --tours: #2563c9;
+    --travail: #2563c9;
     --reflexion: #8b5cf6;
     --outillage: #a16207;
     --hook: #0369a1;
@@ -665,7 +665,7 @@ const elListeVoies = document.getElementById('listeVoies');
 // Quelles voies annexes sont montrées. Les agents, eux, sont toujours là : ce sont eux
 // qu'on vient voir.
 const VOIES_ANNEXES = [
-  { cle: 'tours', nom: 'tours', teinte: 'var(--tours)' },
+  { cle: 'tours', nom: 'travail', teinte: 'var(--travail)' },
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'reflexion', nom: 'réflexion', teinte: 'var(--reflexion)' },
   { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, var(--outil), var(--outil-echec))' },
@@ -1041,26 +1041,45 @@ function construireVoies() {
     if (caches.has(a.id)) continue;
     voies.push({ genre: 'agent', agent: a, prof: a.profondeur });
     if (agentsReplies.has(a.id)) continue;
-    // Les tours viennent juste sous l'agent : ils sont le rythme de son travail, et tout
-    // le reste — outils, appels au modèle — se loge dedans.
+    // L'ordre naturel suit une lecture : d'abord le **rythme** — quand la machine a
+    // travaillé, quand elle a attendu, quand elle a réfléchi, et à quel modèle elle a
+    // parlé ; puis **ce qu'elle a fait** — ses outils, l'outillage qui change, les hooks
+    // qui les encadrent, les fichiers qu'ils touchent, les boucles qui les répètent ;
+    // puis le **contexte**, ses trois voies ensemble à la fin.
+    //
+    // « travail » et « attente » sont volontairement voisines : elles partagent le même
+    // temps et se lisent en vis-à-vis. Ce qui n'est pas dans l'une est dans l'autre.
     if (voiesVisibles.tours && (a.tours || []).length) {
       voies.push({ genre: 'tours', agent: a, prof: a.profondeur + 1 });
     }
-    if (voiesVisibles.outils && (a.outils || []).length) {
-      voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
+    if (voiesVisibles.attente && (a.attentes || []).length) {
+      voies.push({ genre: 'attente', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.reflexion
         && (a.requetesModele || []).some((r) => r.jetons.reflexion > 0)) {
       voies.push({ genre: 'reflexion', agent: a, prof: a.profondeur + 1 });
     }
-    if (voiesVisibles.fichiers && (a.outils || []).some((o) => o.fichier)) {
-      voies.push({ genre: 'fichiers', agent: a, prof: a.profondeur + 1 });
+    // Une voie par modèle réellement appelé : un agent peut en employer plusieurs, et les
+    // mélanger sur une seule ligne masquerait lequel répond vite.
+    if (voiesVisibles.modele) {
+      for (const m of modelesDe(a)) {
+        voies.push({ genre: 'modele', agent: a, modele: m, prof: a.profondeur + 1 });
+      }
+    }
+    if (voiesVisibles.outils && (a.outils || []).length) {
+      voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
+    }
+    if (voiesVisibles.outillage && (a.outillage || []).length) {
+      voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.hooks && (a.hooks || []).length) {
       voies.push({ genre: 'hooks', agent: a, prof: a.profondeur + 1 });
     }
-    if (voiesVisibles.outillage && (a.outillage || []).length) {
-      voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
+    if (voiesVisibles.fichiers && (a.outils || []).some((o) => o.fichier)) {
+      voies.push({ genre: 'fichiers', agent: a, prof: a.profondeur + 1 });
+    }
+    if (voiesVisibles.boucles && (a.boucles || []).length) {
+      voies.push({ genre: 'boucles', agent: a, prof: a.profondeur + 1 });
     }
     if (voiesVisibles.contexte && (a.contexte || []).length > 1) {
       voies.push({ genre: 'contexte', agent: a, prof: a.profondeur + 1 });
@@ -1070,19 +1089,6 @@ function construireVoies() {
     }
     if (voiesVisibles.buffer && (a.requetesModele || []).length > 1) {
       voies.push({ genre: 'buffer', agent: a, prof: a.profondeur + 1 });
-    }
-    if (voiesVisibles.attente && (a.attentes || []).length) {
-      voies.push({ genre: 'attente', agent: a, prof: a.profondeur + 1 });
-    }
-    if (voiesVisibles.boucles && (a.boucles || []).length) {
-      voies.push({ genre: 'boucles', agent: a, prof: a.profondeur + 1 });
-    }
-    // Une voie par modèle réellement appelé : un agent peut en employer plusieurs, et les
-    // mélanger sur une seule ligne masquerait lequel répond vite.
-    if (voiesVisibles.modele) {
-      for (const m of modelesDe(a)) {
-        voies.push({ genre: 'modele', agent: a, modele: m, prof: a.profondeur + 1 });
-      }
     }
   }
   return rangerVoies(voies);
@@ -1102,6 +1108,8 @@ const LEGENDE_VOIE = {
     'Les appels d’outils ont leur propre voie, juste dessous.',
   ].join('\n'),
   tours: [
+    'Le temps où la machine travaille vraiment, par TOURS.',
+    '',
     'Un tour va de ce qui réveille l’agent — ta requête, un réveil de boucle,',
     'la fin d’une tâche — jusqu’à ce qu’il rende la main.',
     '',
@@ -1424,13 +1432,15 @@ function dessinerArbre() {
     } else if (v.genre === 'tours') {
       const cumul = a.tours.reduce((n, x) => n + x.dureeMs, 0);
       const etendue = (a.fin ?? deroule.fin) - a.debut;
-      d.title = a.tours.length + ' tours\ntravail cumulé ' + duree(cumul)
+      d.title = 'travail cumulé ' + duree(cumul) + ', en ' + a.tours.length + ' tours'
         + ' sur ' + duree(etendue) + '  —  ' + (cumul * 100 / Math.max(1, etendue)).toFixed(1) + ' %'
         + '\n\n' + LEGENDE_VOIE.tours;
-      icone.textContent = '⊟';
-      icone.style.color = 'var(--en-cours)';
-      puce.style.background = 'var(--en-cours)';
-      etiq.textContent = 'tours';
+      // ⊡ et non ⊟ : la voie des fichiers portait déjà ⊟, et deux voies qui partagent
+      // leur pictogramme ne se distinguent plus d'un coup d'œil dans un arbre fourni.
+      icone.textContent = '⊡';
+      icone.style.color = 'var(--travail)';
+      puce.style.background = 'var(--travail)';
+      etiq.textContent = 'travail';
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = a.tours.length + ' · ' + duree(cumul);
       surLigne(() => carteTours(a));
