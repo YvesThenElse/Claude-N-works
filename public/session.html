@@ -652,6 +652,7 @@ const VOIES_ANNEXES = [
   { cle: 'outils', nom: 'outils', teinte: 'var(--outil)' },
   { cle: 'reflexion', nom: 'réflexion', teinte: 'var(--reflexion)' },
   { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, var(--outil), var(--outil-echec))' },
+  { cle: 'taches', nom: 'tâches de fond', teinte: 'var(--en-cours)' },
   { cle: 'outillage', nom: 'outillage', teinte: 'var(--outillage)' },
   { cle: 'hooks', nom: 'hooks', teinte: 'var(--hook)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, var(--ramp-bon), var(--ramp-mauvais))' },
@@ -662,7 +663,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: 'var(--modele)' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, fichiers: true, outillage: true, hooks: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, taches: true, outillage: true, hooks: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
 };
 
 // Ce que coûte un appel, en multiples du prix plein : écrire au cache coûte 1,25 fois, y
@@ -1052,6 +1053,9 @@ function construireVoies() {
     if (voiesVisibles.outils && (a.outils || []).length) {
       voies.push({ genre: 'outils', agent: a, prof: a.profondeur + 1 });
     }
+    if (voiesVisibles.taches && (a.taches || []).length) {
+      voies.push({ genre: 'taches', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.outillage && (a.outillage || []).length) {
       voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
     }
@@ -1215,6 +1219,20 @@ const LEGENDE_VOIE = {
     'Le transcript ne contient aucun diff git. Ce qui est montré ici est',
     'ce que l’agent a demandé, ce qui est plus proche de la source.',
   ].join('\n'),
+  taches: [
+    'Ce que l’agent a lancé puis laissé courir pendant qu’il faisait',
+    'autre chose. Une barre par tâche, de son lancement à son compte rendu :',
+    '   vert         elle a rendu compte',
+    '   rose         elle a échoué',
+    '   ambre        on l’a arrêtée en vol',
+    '   bleu pointillé  elle n’a jamais rendu compte',
+    '',
+    'Les traits verticaux sont les gestes portés SUR la tâche pendant',
+    'qu’elle court : une consultation de sa sortie, ou son arrêt.',
+    '',
+    'Le temps qu’elles occupent se lit aussi en « attente » sur la voie',
+    'du dessus — mais la machine n’y est pas oisive : une tâche y travaille.',
+  ].join('\n'),
   hooks: [
     'Ce qui s’exécute autour de chaque geste, et qui décide de ce qui a',
     'le droit de se produire :',
@@ -1376,6 +1394,24 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = distincts + ' fich.';
       surLigne(() => carteFichiers(a));
+    } else if (v.genre === 'taches') {
+      const ts = a.taches;
+      const rendues = ts.filter((x) => x.statut === 'completed').length;
+      const ouvertes = ts.filter((x) => x.fin === null).length;
+      const ratees = ts.filter((x) => x.statut === 'failed').length;
+      const arretees = ts.filter((x) => x.statut === 'arrêtée').length;
+      d.title = ts.length + ' tâche(s) de fond — ' + rendues + ' rendue(s)'
+        + (ratees ? ', ' + ratees + ' échouée(s)' : '')
+        + (arretees ? ', ' + arretees + ' arrêtée(s)' : '')
+        + (ouvertes ? ', ' + ouvertes + ' sans compte rendu' : '')
+        + '\n\n' + LEGENDE_VOIE.taches;
+      icone.textContent = '⊚';
+      icone.style.color = 'var(--en-cours)';
+      puce.style.background = 'var(--en-cours)';
+      etiq.textContent = 'tâches de fond';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = ts.length + ' tâch.';
+      surLigne(() => carteTaches(a, null));
     } else if (v.genre === 'hooks') {
       const total = (a.hooks || []).reduce((n2, h) => n2 + (h.dureeMs || 0), 0);
       d.title = a.hooks.length + ' hook(s) déclenché(s), ' + Math.round(total) + ' ms en tout'
@@ -1812,6 +1848,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'hooks') {
       svg.append(dessinerVoieHooks(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'taches') {
+      svg.append(dessinerVoieTaches(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
@@ -2470,6 +2510,57 @@ function detaillerEntree(dl, j, nombre) {
  * La carte des hooks. C'est elle qui porte les durées, puisque la voie ne peut pas les
  * dessiner — un hook dure quelques dizaines de millisecondes, soit un dixième de pixel.
  */
+/** Carte des tâches de fond : l'une d'elles, et le compte de toutes. */
+function carteTaches(agent, visee) {
+  const ts = agent.taches || [];
+  const dl = document.createElement('dl');
+  if (visee) {
+    ligne(dl, 'Cette tâche', visee.fin === null ? 'jamais rendu compte'
+      : visee.statut === 'failed' ? 'échouée'
+        : visee.statut === 'arrêtée' ? 'arrêtée en vol' : 'rendue');
+    ligne(dl, 'Lancée à', heure(visee.debut));
+    ligne(dl, 'Rendue à', visee.fin !== null ? heure(visee.fin) : null);
+    ligne(dl, 'Durée', visee.fin !== null ? duree(visee.fin - visee.debut) : 'inconnue');
+    ligne(dl, 'Identifiant', visee.id, true);
+    ligne(dl, 'Lancée par', visee.outil, true);
+    ligne(dl, 'Gestes en vol', (visee.evenements || []).length
+      ? visee.evenements.map((e) => e.genre + ' à ' + heure(e.instant)).join(', ') : null);
+  }
+  ligne(dl, 'Agent', agent.nom);
+  ligne(dl, 'Tâches de fond', String(ts.length));
+  const finies = ts.filter((t) => t.fin !== null);
+  ligne(dl, 'Ayant rendu compte', finies.length + ' sur ' + ts.length);
+  if (finies.length) {
+    const durees = finies.map((t) => t.fin - t.debut).sort((a2, b2) => a2 - b2);
+    ligne(dl, 'Durée d’une tâche', 'médiane ' + duree(durees[Math.floor(durees.length / 2)])
+      + ', la plus longue ' + duree(durees[durees.length - 1]));
+    ligne(dl, 'Temps de fond cumulé', duree(durees.reduce((n, x) => n + x, 0)));
+  }
+  const ratees = ts.filter((t) => t.statut === 'failed').length;
+  const arretees = ts.filter((t) => t.statut === 'arrêtée').length;
+  ligne(dl, 'Échouées', ratees ? String(ratees) : 'aucune');
+  ligne(dl, 'Arrêtées en vol', arretees ? String(arretees) : 'aucune');
+
+  const morceaux = [dl];
+  if (visee && visee.commande) {
+    morceaux.push(blocReplie('la commande lancée', visee.commande, true, {
+      invite: '$', libelle: 'commande, en arrière-plan',
+    }));
+  }
+
+  const p = document.createElement('p');
+  p.className = 'avert';
+  p.textContent = 'Le temps qu’une tâche de fond occupe se lit AUSSI en « attente » sur la '
+    + 'voie du dessus — mais la machine n’y est pas oisive : une tâche y travaille, et '
+    + 'c’est précisément ce que cette voie montre. L’identifiant d’une tâche n’est écrit '
+    + 'nulle part ailleurs que dans la phrase rendue au lancement ; sa fin arrive sous '
+    + 'trois formes différentes dans le transcript, et n’en lire qu’une perdait la moitié '
+    + 'des fins.';
+  morceaux.push(p);
+
+  ouvrirPanneau('tâches de fond', agent.nom, morceaux);
+}
+
 function carteHooks(agent, visee) {
   const hooks = agent.hooks || [];
   const dl = document.createElement('dl');
@@ -3487,6 +3578,75 @@ const NOM_OUTILLAGE = {
  * carte qui donne les durées. Ce qui se lit à l'œil est la **densité** — deux traits par
  * appel d'outil — et les événements de cycle de vie, qui traversent la voie.
  */
+/**
+ * La voie des tâches de fond : ce que l'agent a lancé et laissé courir pendant qu'il
+ * faisait autre chose.
+ *
+ * C'est la notion de **sous-tâche** au sens courant — un travail délégué qui a sa propre
+ * durée, son propre sort, et qui rend compte plus tard. Elle est nichée sous l'agent qui
+ * l'a lancée, comme l'est un sous-agent.
+ *
+ * Mesuré sur la machine : 508 lancements, 501 qui annoncent leur identifiant, et après
+ * correction de la lecture des notifications, 129 fins retrouvées sur 131 tâches d'une
+ * même session. Rien de tout cela n'était montré, et le temps qu'elles occupent se
+ * lisait en « attente » alors qu'une tâche y travaillait.
+ *
+ * La couleur dit l'état, comme pour un agent : verte si elle a rendu, rose si elle a
+ * échoué, ambre si on l'a arrêtée, bleue si elle court encore.
+ */
+function dessinerVoieTaches(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const haut = centre - 6;
+  const hauteur = 12;
+  const finVoie = agent.fin ?? deroule.fin;
+  const couleurDe = (t) => (t.fin === null ? 'var(--en-cours)'
+    : t.statut === 'failed' ? 'var(--outil-echec)'
+      : t.statut === 'arrêtée' ? 'var(--inconnu)'
+        : t.statut === 'completed' ? 'var(--outil)' : 'var(--termine)');
+
+  for (const t of agent.taches || []) {
+    if (t.debut === null) continue;
+    const x0 = axe.x(t.debut);
+    const x1 = axe.x(t.fin ?? finVoie);
+    const largeur = Math.max(2, x1 - x0);
+    if (!visible(x0, x0 + largeur)) continue;
+    const couleur = couleurDe(t);
+    const barre = el('rect', {
+      x: x0, y: haut, width: largeur, height: hauteur, rx: 2,
+      fill: couleur, opacity: '.75',
+      // Une tâche qui n'a jamais rendu reste ouverte à droite, comme un agent en cours.
+      ...(t.fin === null ? { 'stroke-dasharray': '3 2', stroke: couleur } : {}),
+    });
+    g.append(barre);
+
+    // Les gestes portés SUR la tâche pendant qu'elle court : on la consulte, on l'arrête.
+    for (const e of t.evenements || []) {
+      const xe = axe.x(e.instant);
+      g.append(el('rect', {
+        x: xe - 1, y: centre - 9, width: 2, height: 18,
+        fill: e.genre === 'arrêt' ? 'var(--outil-echec)' : 'var(--texte)',
+        opacity: e.genre === 'arrêt' ? '.95' : '.55',
+      }));
+    }
+
+    const prise = el('rect', {
+      x: x0 - 2, y: centre - 10, width: Math.max(10, largeur + 4), height: 20, fill: 'transparent',
+    });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      'tâche de fond — ' + (t.fin === null ? 'jamais rendu compte'
+        : t.statut === 'failed' ? 'échouée'
+          : t.statut === 'arrêtée' ? 'arrêtée en vol' : 'rendue')
+      + '\n' + heure(t.debut)
+      + (t.fin !== null ? '\ndurée ' + duree(t.fin - t.debut) : '')
+      + ((t.evenements || []).length ? '\n' + t.evenements.length + ' geste(s) en vol' : '')
+      + '\n\n' + (t.commande || '').slice(0, 300))));
+    prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteTaches(agent, t); });
+    g.append(prise);
+  }
+  return g;
+}
+
 function dessinerVoieHooks(agent, centre, axe, visible) {
   const g = el('g', {});
   const AVANT = new Set(['PreToolUse']);
@@ -4290,6 +4450,7 @@ function remplirMenuVoies() {
     }
     if ((a.outillage || []).length) presentes.outillage = (presentes.outillage || 0) + 1;
     if ((a.hooks || []).length) presentes.hooks = (presentes.hooks || 0) + 1;
+    if ((a.taches || []).length) presentes.taches = (presentes.taches || 0) + 1;
     if ((a.requetesModele || []).length > 1) {
       presentes.contenu = (presentes.contenu || 0) + 1;
       presentes.buffer = (presentes.buffer || 0) + 1;

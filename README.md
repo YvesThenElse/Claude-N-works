@@ -492,6 +492,27 @@ contient, et la part de sa durée passée dans les outils et chez le modèle. Ex
 un tour de 10 minutes, 27 appels `Bash`, 28 requêtes au modèle — 20 % du temps dans les
 outils, 51 % chez le modèle.
 
+### Les tâches de fond
+
+Ce que l'agent a lancé puis **laissé courir** pendant qu'il faisait autre chose. Une barre
+par tâche, de son lancement à son compte rendu, nichée sous l'agent qui l'a lancée — comme
+l'est un sous-agent, parce que c'est la même idée : un travail délégué qui a sa propre
+durée et son propre sort. La couleur dit l'état comme pour un agent : verte si elle a
+rendu, rose si elle a échoué, ambre si on l'a arrêtée, bleue et pointillée si elle n'a
+jamais rendu compte. Les traits verticaux sont les gestes portés **sur** la tâche pendant
+qu'elle court — une consultation de sa sortie, son arrêt.
+
+**Rien de tout cela n'était montré**, et le cycle de vie est pourtant entièrement dans la
+trace — simplement éparpillé sur quatre formes, dont trois pour la seule fin. Mesuré :
+508 lancements sur la machine, 501 qui annoncent leur identifiant, et sur une session de
+131 tâches **129 fins retrouvées** — contre 66 quand on ne lisait qu'une des trois formes.
+Sur l'ensemble du corpus, des 1 451 notifications de fin, **1 373 désignent une tâche** et
+78 un agent : les premières étaient lues puis jetées.
+
+⚠️ **Le temps qu'une tâche occupe se lit aussi en « attente »** sur la voie du dessus. Ce
+n'est pas une contradiction : l'agent, lui, attend vraiment — mais la machine n'est pas
+oisive, une tâche y travaille. C'est précisément ce que cette voie ajoute.
+
 ### Les fichiers
 
 Une voie où chaque opération sur un fichier se lit de part et d'autre d'une ligne de base :

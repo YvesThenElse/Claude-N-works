@@ -578,6 +578,52 @@ travail n'est donc pas à deviner — mais il n'est pas non plus une propriété
     10 lignes  /…/projects/Digital-Twin-Alternative/web/src
 ```
 
+## 5 undecies. Les tâches de fond — mesuré le 15 octobre 2026
+
+**Constaté.** Une commande lancée avec `run_in_background: true` devient une **tâche** :
+elle court pendant que l'agent fait autre chose et rend compte plus tard. Son cycle de vie
+est entièrement reconstructible, mais il est **éparpillé sur quatre formes**.
+
+**① La naissance n'est écrite nulle part ailleurs que dans la phrase rendue au
+lancement.** Il n'y a ni champ, ni pièce jointe : seulement du texte.
+
+```
+Command running in background with ID: b04ajkth7. Output is being written to:
+…/tasks/b04ajkth7.output. You will be notified when it completes.
+```
+
+Sur la machine : **508 lancements, dont 501 annoncent leur identifiant** ainsi.
+
+⚠️ **L'identifiant d'une tâche et celui d'un agent ne sont pas du même espace.** Une tâche
+porte un identifiant court (`b04ajkth7`, 9 caractères) ; un agent porte 17 chiffres
+hexadécimaux. C'est ce qui permet de les distinguer dans une notification.
+
+**② Les gestes en vol** sont des `tool_use` ordinaires : `TaskOutput` consulte la sortie
+d'une tâche qui court (12 sur la machine), `TaskStop` l'arrête (48). Tous deux portent le
+`task_id` dans leur entrée.
+
+**③ La fin arrive sous TROIS formes, et n'en lire qu'une perd la moitié des fins.**
+Mesuré sur une session de 131 tâches, 327 lignes portent un `<task-id>` :
+
+| Forme | n | Ce que c'est |
+|---|---|---|
+| `queue-operation`, champ `content` | 195 | la **mise en file** — l'instant où la tâche finit |
+| `attachment` de type `queued_command`, champ `prompt` | 63 | elle attend d'être remise |
+| `user` avec `origin.kind: "task-notification"` | 69 | elle est **remise** à l'agent |
+
+Les trois portent le même `<task-id>` et le même `<status>`. La distinction a un sens :
+la mise en file dit **quand la tâche a fini**, la remise dit **quand l'agent l'a appris** —
+quelques dizaines de millisecondes quand il est libre, un tour entier quand il ne l'est
+pas. On retient donc la plus **précoce**.
+
+**Statuts observés** : `completed`, `failed`. Une tâche close par `TaskStop` n'a pas
+forcément de notification — son arrêt fait alors office de fin.
+
+**Ce que ça donne.** En ne lisant que la troisième forme, l'application trouvait **66 fins
+sur 131** ; en lisant les trois, elle en trouve **129**. Et sur l'ensemble du corpus, des
+1 451 notifications, **1 373 désignent une tâche** et 78 un agent — les premières étaient
+lues puis jetées.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :

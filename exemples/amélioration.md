@@ -25,6 +25,10 @@ Rien n'oblige les suivants à y rester.
   attend que tout soit rendu, l'autre où chaque élément part à l'assiette dès qu'il est
   prêt. Aujourd'hui rien ne distingue visuellement une barrière d'un simple enchaînement,
   alors que c'est la différence qui fait tout le temps gagné.
+- **Tâches de fond** — ✔ **depuis le 15 octobre 2026**. Une voie *tâches de fond* montre
+  ce que l'agent a lancé puis laissé courir : une barre par tâche, colorée par son sort,
+  avec les gestes portés sur elle en vol. Reste à le **mettre en scène** : le chef qui
+  allume le four la veille.
 - **Agent d'arrière-plan assumé** — ◐. Le chef lance le pain la veille et va faire autre
   chose. La trace le note (`async_launched`, `<task-notification>`), mais la barre ne dit
   pas « lancé ici, fini là-bas ».

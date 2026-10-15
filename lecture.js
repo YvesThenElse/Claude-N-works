@@ -257,6 +257,14 @@ function etatVide() {
     branche: null,
     repertoires: [],            // les répertoires DISTINCTS, avec le temps passé dans chacun
     changementsDeRepertoire: 0, // le compte brut, qui dit le bruit
+    // Les tâches d'arrière-plan. Une commande lancée avec `run_in_background` continue
+    // pendant que l'agent fait autre chose, et rend compte plus tard. Mesuré sur la
+    // machine : 508 lancements, dont 501 annoncent leur identifiant dans leur résultat,
+    // et 456 ont aussi leur notification de fin — le cycle est donc reconstructible.
+    taches: [],
+    tachesParId: new Map(),
+    finsDeTache: new Map(),     // identifiant -> { instant, statut }, la plus précoce
+    evenementsDeTache: [],      // les consultations (TaskOutput) et les arrêts (TaskStop)
   };
 }
 
@@ -301,6 +309,32 @@ function avaler(etat, ligne) {
     // effacer le libellé du vrai déclencheur, qui la précède de quelques millisecondes.
     const motif = libelleDeclencheur(etat, ligne);
     if (motif) etat.dernierLibelle = motif;
+  }
+
+  // ⚠️ Une notification de fin de tâche arrive sous TROIS formes, et n'en lire qu'une
+  // perdait la moitié des fins. Mesuré sur une session de 131 tâches : 327 lignes
+  // portent un `<task-id>`, réparties en `queue-operation` (la mise en file, au moment
+  // où la tâche finit), `attachment`/`queued_command` (elle attend d'être remise) et
+  // `user` avec `origin.kind: task-notification` (elle est remise à l'agent). Seule la
+  // dernière était lue, et seules 66 fins sur 128 appariables étaient trouvées.
+  //
+  // On retient la **plus précoce** : la mise en file dit quand la tâche a fini, la
+  // remise dit seulement quand l'agent l'a appris — l'écart est de quelques dizaines de
+  // millisecondes quand il est libre, et de tout un tour quand il ne l'est pas.
+  if (t !== null) {
+    const brut = typeof ligne.content === 'string' ? ligne.content
+      : (ligne.attachment && typeof ligne.attachment.prompt === 'string') ? ligne.attachment.prompt
+        : (typeof ligne.message?.content === 'string' ? ligne.message.content : '');
+    if (brut && brut.includes('<task-id>')) {
+      const id = /<task-id>([^<]+)<\/task-id>/.exec(brut);
+      const st = /<status>([^<]+)<\/status>/.exec(brut);
+      if (id) {
+        const vu = etat.finsDeTache.get(id[1]);
+        if (!vu || t < vu.instant) {
+          etat.finsDeTache.set(id[1], { instant: t, statut: st ? st[1] : null });
+        }
+      }
+    }
   }
 
   if (ligne.type === 'system') {
@@ -463,6 +497,13 @@ function avaler(etat, ligne) {
     if (dit.trim()) etat.derniereReponse = dit;
     for (const bloc of ligne.message?.content || []) {
       if (bloc.type !== 'tool_use') continue;
+      if ((bloc.name === 'TaskOutput' || bloc.name === 'TaskStop')
+          && (bloc.input || {}).task_id) {
+        etat.evenementsDeTache.push({
+          idTache: bloc.input.task_id, instant: t,
+          genre: bloc.name === 'TaskStop' ? 'arrêt' : 'consultation',
+        });
+      }
       etat.appels.set(bloc.id, {
         id: bloc.id,
         nom: bloc.name,
@@ -530,6 +571,27 @@ function avaler(etat, ligne) {
     if (bloc.type !== 'tool_result') continue;
     const appel = etat.appels.get(bloc.tool_use_id);
     if (!appel) continue;
+    // La naissance d'une tâche d'arrière-plan : son identifiant n'est écrit nulle part
+    // ailleurs que dans la phrase que Claude Code rend en réponse au lancement.
+    if (appel.entree?.run_in_background) {
+      const brut = typeof bloc.content === 'string'
+        ? bloc.content
+        : texteResultat(bloc.content);
+      const m = /background with ID: ([A-Za-z0-9]+)/.exec(brut || '');
+      if (m && !etat.tachesParId.has(m[1])) {
+        const tache = {
+          id: m[1],
+          debut: appel.debut,
+          fin: null,
+          statut: null,
+          commande: resumerEntree(appel.nom, appel.entree),
+          outil: appel.nom,
+          idAppel: appel.id,
+        };
+        etat.taches.push(tache);
+        etat.tachesParId.set(m[1], tache);
+      }
+    }
     appel.fin = t;
     // `is_error` vaut parfois null : on ne transforme pas une absence d'information en
     // succès, on la laisse inconnue.
@@ -663,6 +725,30 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
   const notifications = new Map();
   for (const n of racine.notifications) notifications.set(n.agentId, n);
 
+  /**
+   * Fermer les tâches d'arrière-plan d'un agent.
+   *
+   * Le `task-id` d'une notification désigne tantôt un agent — 17 chiffres hexadécimaux —
+   * tantôt une **tâche** — un identifiant court. Mesuré sur la machine : 1 373 des 1 451
+   * notifications désignent une tâche, et seules les 78 autres étaient exploitées. Les
+   * 95 % restants étaient lus puis jetés.
+   */
+  const fermerLesTaches = (d) => {
+    const parId = new Map(d.taches.map((t) => [t.id, t]));
+    for (const [id, f] of d.finsDeTache) {
+      const t = parId.get(id);
+      if (t && t.fin === null) { t.fin = f.instant; t.statut = f.statut; }
+    }
+    for (const e of d.evenementsDeTache) {
+      const t = parId.get(e.idTache);
+      if (!t) continue;
+      (t.evenements = t.evenements || []).push(e);
+      // Un arrêt forcé clôt la tâche même sans notification : c'est bien une fin.
+      if (e.genre === 'arrêt' && t.fin === null) { t.fin = e.instant; t.statut = 'arrêtée'; }
+    }
+    return d.taches;
+  };
+
   const agents = [];
 
   // Un appel resté sans résultat dans une session qui ne tourne plus : elle a été coupée
@@ -701,6 +787,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
     compactages: racine.compactages,
     erreurs: racine.erreurs,
     skillsCharges: racine.skillsCharges,
+    taches: fermerLesTaches(racine),
     hooks: racine.hooks,
     repertoire: racine.repertoire,
     branche: racine.branche,
@@ -754,7 +841,8 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
       compactages: d.compactages,
       erreurs: d.erreurs,
       skillsCharges: d.skillsCharges,
-      hooks: d.hooks,
+      taches: fermerLesTaches(d),
+    hooks: d.hooks,
       repertoire: d.repertoire,
       branche: d.branche,
       repertoires: d.repertoires,
