@@ -535,7 +535,7 @@ contient, et la part de sa durée passée dans les outils et chez le modèle. Ex
 un tour de 10 minutes, 27 appels `Bash`, 28 requêtes au modèle — 20 % du temps dans les
 outils, 51 % chez le modèle.
 
-### Les tâches de fond
+### Les shells de fond
 
 Ce que l'agent a lancé puis **laissé courir** pendant qu'il faisait autre chose. Une barre
 par tâche, de son lancement à son compte rendu, nichée sous l'agent qui l'a lancée — comme
@@ -552,9 +552,26 @@ trace — simplement éparpillé sur quatre formes, dont trois pour la seule fin
 Sur l'ensemble du corpus, des 1 451 notifications de fin, **1 373 désignent une tâche** et
 78 un agent : les premières étaient lues puis jetées.
 
-⚠️ **Le temps qu'une tâche occupe se lit aussi en « attente »** sur la voie du dessus. Ce
+**Elles s'empilent sur des rangées.** Toutes sur une seule ligne, les 131 shells d'une
+session de onze jours ne faisaient qu'une bande bleue continue d'un bord à l'autre : on ne
+pouvait ni les compter, ni voir lesquels couraient encore. Chacun reprend maintenant la
+première rangée libre — deux qui ne se chevauchent pas dans le temps partagent leur ligne,
+et la voie ne grandit pas pour rien. Mesuré : au plus **cinq shells à la fois**, ce qui
+tient dans la hauteur d'une voie.
+
+**Un shell qui n'a jamais rendu compte est posé en dernier, sur sa propre rangée.** Sa
+barre court jusqu'au bout de la session, parce qu'on ne sait pas quand il s'est arrêté —
+et sans cette précaution il tenait la rangée du haut sur onze jours et repoussait d'un cran
+les cent trente autres, qui n'ont rien à voir avec lui.
+
+**La commande s'écrit sur la barre** dès qu'elle y tient, comme le nom d'un outil : c'est
+ce que le panneau *Background* de Claude Code montre, et la seule chose qui distingue deux
+shells l'un de l'autre. L'en-tête de la voie annonce **combien tournent encore** avant
+d'annoncer le total — « 2 en cours / 98 » — parce que c'est ce qu'on regarde en premier.
+
+⚠️ **Le temps qu'un shell occupe se lit aussi en « attente »** sur la voie du dessus. Ce
 n'est pas une contradiction : l'agent, lui, attend vraiment — mais la machine n'est pas
-oisive, une tâche y travaille. C'est précisément ce que cette voie ajoute.
+oisive, un shell y travaille. C'est précisément ce que cette voie ajoute.
 
 ### Les fichiers
 

@@ -1422,18 +1422,28 @@ const LEGENDE_VOIE = {
     'ce que l’agent a demandé, ce qui est plus proche de la source.',
   ].join('\n'),
   taches: [
-    'Ce que l’agent a lancé puis laissé courir pendant qu’il faisait',
-    'autre chose. Une barre par tâche, de son lancement à son compte rendu :',
-    '   vert         elle a rendu compte',
-    '   rose         elle a échoué',
-    '   ambre        on l’a arrêtée en vol',
-    '   bleu pointillé  elle n’a jamais rendu compte',
+    'Les shells lancés et laissés courir — un appel Bash marqué',
+    '« run_in_background », ceux que Claude Code compte dans son',
+    'panneau « Background » :',
+    '   une barre par shell      du lancement jusqu’au compte rendu',
+    '   verte                    rendue',
+    '   rose                     échouée',
+    '   ambre                    arrêtée en vol',
+    '   bleue, ouverte à droite  elle tourne encore, ou n’a jamais rendu',
+    '   trait vertical           un geste porté sur elle en vol :',
+    '                            on la consulte, ou on l’arrête',
     '',
-    'Les traits verticaux sont les gestes portés SUR la tâche pendant',
-    'qu’elle court : une consultation de sa sortie, ou son arrêt.',
+    'Elles s’empilent sur des rangées quand elles se chevauchent, et la',
+    'commande s’écrit sur la barre dès qu’elle y tient. Sur une seule',
+    'ligne, les 131 shells d’une session de onze jours ne faisaient',
+    'qu’une bande continue où l’on ne pouvait rien compter.',
     '',
-    'Le temps qu’elles occupent se lit aussi en « attente » sur la voie',
-    'du dessus — mais la machine n’y est pas oisive : une tâche y travaille.',
+    'Le temps qu’ils occupent se lit aussi en « attente » sur la voie du',
+    'dessus — mais la machine n’y est pas oisive : un shell y travaille.',
+    '',
+    'MESURÉ : 508 shells de fond sur le corpus, dont 501 annoncent un',
+    'identifiant. Les 14 restants n’ont jamais démarré — permission',
+    'refusée, modèle indisponible — et une barre pour eux mentirait.',
   ].join('\n'),
   hooks: [
     'Ce qui s’exécute autour de chaque geste, et qui décide de ce qui a',
@@ -1620,7 +1630,7 @@ function dessinerArbre() {
       const ouvertes = ts.filter((x) => x.fin === null).length;
       const ratees = ts.filter((x) => x.statut === 'failed').length;
       const arretees = ts.filter((x) => x.statut === 'arrêtée').length;
-      d.title = ts.length + ' tâche(s) de fond — ' + rendues + ' rendue(s)'
+      d.title = ts.length + ' shell(s) de fond — ' + rendues + ' rendu(s)'
         + (ratees ? ', ' + ratees + ' échouée(s)' : '')
         + (arretees ? ', ' + arretees + ' arrêtée(s)' : '')
         + (ouvertes ? ', ' + ouvertes + ' sans compte rendu' : '')
@@ -1628,9 +1638,13 @@ function dessinerArbre() {
       icone.replaceChildren(picto('taches'));
       icone.style.color = 'var(--en-cours)';
       puce.style.background = 'var(--en-cours)';
-      etiq.textContent = 'tâches de fond';
+      etiq.textContent = 'shells de fond';
       etiq.style.color = 'var(--texte-faible)';
-      etat.textContent = ts.length + ' tâch.';
+      // Claude Code annonce « 2 shells still running » dans son panneau : le nombre de
+      // ceux qui courent encore est ce qu'on regarde en premier, bien avant le total.
+      etat.textContent = ouvertes
+        ? ouvertes + ' en cours / ' + ts.length
+        : ts.length + ' shells';
       surLigne(() => carteTaches(a, null));
     } else if (v.genre === 'hooks') {
       const total = (a.hooks || []).reduce((n2, h) => n2 + (h.dureeMs || 0), 0);
@@ -4275,49 +4289,115 @@ function dessinerVoieSkills(agent, centre, axe, visible) {
  * La couleur dit l'état, comme pour un agent : verte si elle a rendu, rose si elle a
  * échoué, ambre si on l'a arrêtée, bleue si elle court encore.
  */
+/**
+ * La voie des tâches de fond — §6.9.
+ *
+ * Ce sont les **shells lancés et laissés courir** : un `Bash` avec `run_in_background`, que
+ * Claude Code compte dans son panneau « Background ». Mesuré sur le corpus : 508 shells de
+ * fond et 7 agents, dont 501 annoncent un identifiant — les 14 autres n'ont jamais démarré
+ * (permission refusée, modèle indisponible), et une barre pour eux serait un mensonge.
+ *
+ * Elles étaient dessinées toutes sur la MÊME ligne. Sur une session de onze jours et 131
+ * shells, cela donnait une bande bleue continue d'un bord à l'autre : on ne pouvait ni les
+ * compter, ni voir lesquels couraient encore. Elles s'empilent maintenant sur des rangées,
+ * et la commande s'écrit dessus dès qu'elle tient — mesuré : au plus cinq shells à la fois,
+ * ce qui tient dans la hauteur d'une voie.
+ */
 function dessinerVoieTaches(agent, centre, axe, visible) {
   const g = el('g', {});
-  const haut = centre - 6;
-  const hauteur = 12;
   const finVoie = agent.fin ?? deroule.fin;
   const couleurDe = (t) => (t.fin === null ? 'var(--en-cours)'
     : t.statut === 'failed' ? 'var(--outil-echec)'
       : t.statut === 'arrêtée' ? 'var(--inconnu)'
         : t.statut === 'completed' ? 'var(--outil)' : 'var(--termine)');
 
-  for (const t of agent.taches || []) {
-    if (t.debut === null) continue;
+  // Premier passage : la place de chacune. Une tâche reprend la première rangée libre, si
+  // bien que deux shells qui ne se chevauchent pas dans le temps partagent leur ligne et
+  // que la voie ne grandit pas pour rien.
+  const posees = [];
+  const finsParRang = [];
+  const candidates = (agent.taches || []).slice()
+    .sort((x, y) => (x.debut ?? 0) - (y.debut ?? 0))
+    .filter((t) => t.debut !== null);
+  // Les shells qui n'ont jamais rendu compte sont posés EN DERNIER, sur leur propre
+  // rangée. Sans cela, l'un d'eux tient la rangée du haut sur toute la session — onze
+  // jours dans la session mesurée — et repousse d'un cran les cent trente autres, qui
+  // n'ont rien à voir avec lui. En bas, la bande se lit pour ce qu'elle est : ce qui
+  // n'est jamais revenu.
+  const rendus = candidates.filter((t) => t.fin !== null);
+  const ouverts = candidates.filter((t) => t.fin === null);
+  // Un shell rendu reprend la première rangée libre : deux qui ne se chevauchent pas dans
+  // le temps partagent leur ligne, et la voie ne grandit pas pour rien.
+  for (const t of rendus) {
     const x0 = axe.x(t.debut);
-    const x1 = axe.x(t.fin ?? finVoie);
-    const largeur = Math.max(2, x1 - x0);
+    const largeur = Math.max(2, axe.x(t.fin) - x0);
     if (!visible(x0, x0 + largeur)) continue;
+    let rang = finsParRang.findIndex((fx) => fx <= x0 - 1);
+    if (rang === -1) { rang = finsParRang.length; finsParRang.push(x0 + largeur); }
+    else finsParRang[rang] = x0 + largeur;
+    posees.push({ t, x0, largeur, rang });
+  }
+  const rangOuverts = posees.length ? Math.max(...posees.map((p) => p.rang)) + 1 : 0;
+  for (const t of ouverts) {
+    const x0 = axe.x(t.debut);
+    const largeur = Math.max(2, axe.x(t.fin ?? finVoie) - x0);
+    if (!visible(x0, x0 + largeur)) continue;
+    posees.push({ t, x0, largeur, rang: rangOuverts });
+  }
+  if (!posees.length) return g;
+
+  // La hauteur se déduit du nombre de rangées réellement occupées : une seule tâche garde
+  // une barre franche, cinq se serrent sans sortir de la voie.
+  const rangs = Math.max(...posees.map((p) => p.rang)) + 1;
+  const DISPO = 24;
+  const hauteur = Math.max(3, Math.min(12, Math.floor((DISPO - (rangs - 1)) / rangs)));
+  const total = rangs * hauteur + (rangs - 1);
+  const haut0 = centre - total / 2;
+
+  for (const { t, x0, largeur, rang } of posees) {
+    const y = haut0 + rang * (hauteur + 1);
     const couleur = couleurDe(t);
-    const barre = el('rect', {
-      x: x0, y: haut, width: largeur, height: hauteur, rx: 2,
-      fill: couleur, opacity: '.75',
-      // Une tâche qui n'a jamais rendu reste ouverte à droite, comme un agent en cours.
+    g.append(el('rect', {
+      x: x0, y, width: largeur, height: hauteur, rx: Math.min(2, hauteur / 2),
+      fill: couleur, opacity: '.8',
+      // Un shell qui n'a jamais rendu reste ouvert à droite, comme un agent en cours.
       ...(t.fin === null ? { 'stroke-dasharray': '3 2', stroke: couleur } : {}),
-    });
-    g.append(barre);
+    }));
+
+    // La commande, écrite sur la barre quand elle y tient. C'est ce que le panneau
+    // « Background » de Claude Code montre, et c'est la seule chose qui distingue deux
+    // shells l'un de l'autre.
+    const cmd = (t.commande || '').split('\n')[0].trim();
+    if (cmd && hauteur >= 7) {
+      const place = Math.floor((largeur - 8) / LARGEUR_PAR_CARACTERE);
+      if (place >= 6) {
+        g.append(el('text', {
+          x: x0 + 4, y: y + hauteur - 2, fill: 'var(--texte)',
+          'font-size': TAILLE_NOM, opacity: '.9',
+        }, document.createTextNode(
+          cmd.length > place ? cmd.slice(0, Math.max(1, place - 1)) + '…' : cmd)));
+      }
+    }
 
     // Les gestes portés SUR la tâche pendant qu'elle court : on la consulte, on l'arrête.
     for (const e of t.evenements || []) {
       const xe = axe.x(e.instant);
       g.append(el('rect', {
-        x: xe - 1, y: centre - 9, width: 2, height: 18,
+        x: xe - 1, y: y - 1, width: 2, height: hauteur + 2,
         fill: e.genre === 'arrêt' ? 'var(--outil-echec)' : 'var(--texte)',
-        opacity: e.genre === 'arrêt' ? '.95' : '.55',
+        opacity: e.genre === 'arrêt' ? '.95' : '.6',
       }));
     }
 
     const prise = el('rect', {
-      x: x0 - 2, y: centre - 10, width: Math.max(10, largeur + 4), height: 20, fill: 'transparent',
+      x: x0 - 2, y: y - 1, width: Math.max(10, largeur + 4), height: hauteur + 2,
+      fill: 'transparent',
     });
     prise.style.cursor = 'pointer';
     prise.append(el('title', {}, document.createTextNode(
-      'tâche de fond — ' + (t.fin === null ? 'jamais rendu compte'
-        : t.statut === 'failed' ? 'échouée'
-          : t.statut === 'arrêtée' ? 'arrêtée en vol' : 'rendue')
+      'shell de fond — ' + (t.fin === null ? 'tourne encore, ou n’a jamais rendu compte'
+        : t.statut === 'failed' ? 'échoué'
+          : t.statut === 'arrêtée' ? 'arrêté en vol' : 'rendu')
       + '\n' + heure(t.debut)
       + (t.fin !== null ? '\ndurée ' + duree(t.fin - t.debut) : '')
       + ((t.evenements || []).length ? '\n' + t.evenements.length + ' geste(s) en vol' : '')
