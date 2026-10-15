@@ -934,6 +934,115 @@ function el(nom, attrs, ...enfants) {
 }
 
 /**
+ * Les pictogrammes de voie, dessinés et non écrits — §6.6.
+ *
+ * Ils étaient des caractères Unicode, et SEPT des quinze tombaient en carré vide sur cette
+ * machine : ⊡ travail, ⊞ outils, ∿ réflexion, ⊠ outillage, ⊝ attente, ⊟ fichiers,
+ * ⟳ boucles. Deux instruments concordants l'ont établi — `fc-list` ne trouve aucune police
+ * installée pour ces codepoints, et leur empreinte au pixel est identique à celle d'un
+ * tofu connu. Chercher d'autres caractères n'aurait fait que déplacer le pari sur les
+ * polices du poste ; un tracé, lui, ne dépend de rien.
+ *
+ * Chacun est une **miniature de ce que la voie dessine** : la voie des outils montre des
+ * barres, son picto est trois barres ; la voie des skills montre une bande à bord gauche
+ * épais, son picto est cette bande. On reconnaît la voie avant de lire son nom.
+ *
+ * Le tracé est en `currentColor` : la couleur se pose toujours par `icone.style.color`, et
+ * rien d'autre n'a bougé dans l'appel.
+ */
+const PICTOS = {
+  // Un agent EST une barre sur la ligne du temps, et rien d'autre.
+  agent: 'M1 5.6h12v2.8H1z',
+  // Un sous-agent : la même barre, plus courte et décalée, avec le coude qui la rattache
+  // à son parent — c'est le filet d'arbre que la colonne de gauche dessine déjà.
+  'sous-agent': 'M5 6.3h8v2.8H5z',
+  'sous-agentCoude': 'M2 1.5v5.7h2.4',
+  // Le travail : des segments séparés par des silences.
+  travail: 'M1 6h3.5v2H1z M6 6h2.5v2H6z M10 6h3v2h-3z',
+  // L'attente : la même barre, mais creuse — ce qui n'est pas dans l'une est dans l'autre.
+  attente: 'M1 5.5h12v3H1z',
+  attenteCreux: true,
+  // La réflexion : une onde.
+  reflexion: 'M1 8.5c1.5 0 1.5-3 3-3s1.5 3 3 3 1.5-3 3-3 1.5 3 3 3',
+  reflexionTrait: true,
+  // Un appel au modèle : le losange que la voie dessine.
+  modele: 'M7 2.5 11.5 7 7 11.5 2.5 7z',
+  modeleCreux: true,
+  // Les outils : trois barres d'inégale hauteur, comme la voie.
+  outils: 'M2 4h2v7H2z M6 6h2v5H6z M10 3h2v8h-2z',
+  // Une tâche de fond : lancée ici, rendue là-bas.
+  taches: 'M1.5 6h7v2h-7z M11 4.5A2.5 2.5 0 1 1 11 9.5 2.5 2.5 0 0 1 11 4.5z',
+  // L'outillage : le carré et le losange que la voie emploie pour ses genres.
+  outillage: 'M1 4.5h4.5v5H1z M10 3.5 13 7l-3 3.5L7 7z',
+  outillageMixte: true,
+  // Un hook : des traits avant et après, autour de la ligne du geste.
+  hooks: 'M1 6.8h12v.9H1z M3 2.5h1.1v4H3z M6.5 7.8h1.1v4H6.5z M10 2.5h1.1v4H10z',
+  // Un skill : la bande à bord gauche épais, exactement ce que la voie trace.
+  skills: 'M1.5 4.5h11v5h-11z',
+  skillsBande: true,
+  // Les fichiers : la courbe qui monte en marches.
+  fichiers: 'M1 11h3V9h3V6.5h3V3.5h3v9H1z',
+  // Une boucle : la flèche qui revient.
+  boucles: 'M7 2.6a4.4 4.4 0 1 1-4.1 2.8',
+  bouclesTrait: true,
+  bouclesPointe: 'M1.2 2.2 3.9 5.1 0.2 5.8z',
+  // La taille du contexte : la ligne qui monte.
+  contexte: 'M1 11.5 4.5 9 7.5 9.8 10 5.5 13 2.5',
+  contexteTrait: true,
+  // Le contenu du contexte : ses bandes empilées.
+  contenu: 'M1 3h12v2.4H1z M1 6.3h12v2.4H1z M1 9.6h12v2.4H1z',
+  // Le buffer : des marques verticales d'inégale hauteur sur une base.
+  buffer: 'M1 11.6h12v.9H1z M2.5 7h1.1v4.2H2.5z M5.5 4h1.1v7.2H5.5z M8.5 8.5h1.1v2.7H8.5z M11.5 5.5h1.1v5.7h-1.1z',
+};
+
+function picto(nom) {
+  const d = PICTOS[nom];
+  const svg = el('svg', {
+    viewBox: '0 0 14 14', width: '14', height: '14',
+    fill: 'currentColor', 'aria-hidden': 'true',
+    style: 'display:block;margin:0 auto',
+  });
+  if (!d) return svg;
+  if (PICTOS[nom + 'Trait'] || nom === 'reflexion' || nom === 'boucles' || nom === 'contexte') {
+    svg.append(el('path', {
+      d, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6,
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    }));
+    if (PICTOS[nom + 'Pointe']) svg.append(el('path', { d: PICTOS[nom + 'Pointe'] }));
+    return svg;
+  }
+  if (PICTOS[nom + 'Creux']) {
+    svg.append(el('path', { d, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 }));
+    return svg;
+  }
+  if (PICTOS[nom + 'Mixte']) {
+    // L'outillage mêle une forme creuse et une forme pleine, comme sa voie.
+    const parts = d.split(' M');
+    svg.append(el('path', { d: parts[0], fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 }));
+    svg.append(el('path', { d: 'M' + parts[1] }));
+    return svg;
+  }
+  if (PICTOS[nom + 'Coude']) {
+    // Le coude se trace, la barre se remplit : deux sous-chemins d'un même `path` se
+    // seraient annulés par la règle de remplissage, et le filet avait disparu.
+    svg.append(el('path', {
+      d: PICTOS[nom + 'Coude'], fill: 'none', stroke: 'currentColor',
+      'stroke-width': 1.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+    }));
+    svg.append(el('path', { d }));
+    return svg;
+  }
+  if (PICTOS[nom + 'Bande']) {
+    // La bande d'un skill : lavis, contour, et le bord gauche épais du chargement.
+    svg.append(el('path', { d, fill: 'currentColor', 'fill-opacity': '.25', stroke: 'currentColor', 'stroke-width': 1.2 }));
+    svg.append(el('rect', { x: '1.5', y: '4.5', width: '2', height: '5' }));
+    return svg;
+  }
+  svg.append(el('path', { d }));
+  return svg;
+}
+
+/**
  * Les voies de la piste : une par agent, et sous chaque agent qui en mène, une voie à part
  * pour ses boucles. Une boucle n'est pas un agent — elle n'a ni modèle ni outils — mais
  * elle occupe du temps, et c'est à ce titre qu'elle mérite sa propre ligne.
@@ -1387,7 +1496,7 @@ function dessinerArbre() {
 
     if (v.genre === 'agent') {
       d.title = a.nom + '  —  ' + a.etat + '\n\n' + LEGENDE_VOIE.agent;
-      icone.textContent = a.profondeur === 0 ? '◆' : '◈';
+      icone.replaceChildren(picto(a.profondeur === 0 ? 'agent' : 'sous-agent'));
       icone.style.color = couleurPicto(a.etat);
       puce.style.background = couleurEtat(a.etat);
       etiq.textContent = a.nom;
@@ -1400,7 +1509,7 @@ function dessinerArbre() {
       d.title = avec.length + ' appels sur ' + a.requetesModele.length + ' comportent une '
         + 'réflexion\n' + total.toLocaleString('fr-FR') + ' jetons en tout, le plus long '
         + pic.toLocaleString('fr-FR') + '\n\n' + LEGENDE_VOIE.reflexion;
-      icone.textContent = '∿';
+      icone.replaceChildren(picto('reflexion'));
       icone.style.color = 'var(--reflexion)';
       puce.style.background = 'var(--reflexion)';
       etiq.textContent = 'réflexion';
@@ -1415,7 +1524,7 @@ function dessinerArbre() {
       d.title = distincts + ' fichiers touchés, ' + ops.length + ' opérations'
         + '\n+' + plus.toLocaleString('fr-FR') + ' / −' + moins.toLocaleString('fr-FR')
         + ' lignes\n\n' + LEGENDE_VOIE.fichiers;
-      icone.textContent = '⊟';
+      icone.replaceChildren(picto('fichiers'));
       icone.style.color = 'var(--outil)';
       puce.style.background = 'linear-gradient(to bottom, var(--outil), var(--outil-echec))';
       etiq.textContent = 'fichiers';
@@ -1437,7 +1546,7 @@ function dessinerArbre() {
         + (arretees ? ', ' + arretees + ' arrêtée(s)' : '')
         + (ouvertes ? ', ' + ouvertes + ' sans compte rendu' : '')
         + '\n\n' + LEGENDE_VOIE.taches;
-      icone.textContent = '⊚';
+      icone.replaceChildren(picto('taches'));
       icone.style.color = 'var(--en-cours)';
       puce.style.background = 'var(--en-cours)';
       etiq.textContent = 'tâches de fond';
@@ -1448,7 +1557,7 @@ function dessinerArbre() {
       const total = (a.hooks || []).reduce((n2, h) => n2 + (h.dureeMs || 0), 0);
       d.title = a.hooks.length + ' hook(s) déclenché(s), ' + Math.round(total) + ' ms en tout'
         + '\n\n' + LEGENDE_VOIE.hooks;
-      icone.textContent = '⊣';
+      icone.replaceChildren(picto('hooks'));
       icone.style.color = 'var(--hook)';
       puce.style.background = 'var(--hook)';
       etiq.textContent = 'hooks';
@@ -1461,7 +1570,7 @@ function dessinerArbre() {
       d.title = sk.length + ' skill(s) chargé(s), ' + total.toLocaleString('fr-FR')
         + ' caractères injectés'
         + '\n\n' + LEGENDE_VOIE.skills;
-      icone.textContent = '⊜';
+      icone.replaceChildren(picto('skills'));
       icone.style.color = 'var(--skill)';
       puce.style.background = 'var(--skill)';
       etiq.textContent = 'skills';
@@ -1472,7 +1581,7 @@ function dessinerArbre() {
       d.title = (a.outilsOfferts || []).length + ' outils offerts à la fin\n'
         + a.outillage.length + ' changement(s) d’outillage'
         + '\n\n' + LEGENDE_VOIE.outillage;
-      icone.textContent = '⊠';
+      icone.replaceChildren(picto('outillage'));
       icone.style.color = 'var(--outillage)';
       puce.style.background = 'var(--outillage)';
       etiq.textContent = 'outillage';
@@ -1488,7 +1597,7 @@ function dessinerArbre() {
             + ref.pic.toLocaleString('fr-FR') + ')'
           : 'sur une fenêtre de taille inconnue')
         + '\n\n' + LEGENDE_VOIE.contexte;
-      icone.textContent = '▥';
+      icone.replaceChildren(picto('contexte'));
       icone.style.color = 'var(--requete)';
       puce.style.background = ref.fenetreConnue
         ? 'linear-gradient(to top, var(--ramp-bon), var(--ramp-moyen), var(--ramp-mauvais))'
@@ -1505,7 +1614,7 @@ function dessinerArbre() {
         + '\n\n' + LEGENDE_VOIE.tours;
       // ⊡ et non ⊟ : la voie des fichiers portait déjà ⊟, et deux voies qui partagent
       // leur pictogramme ne se distinguent plus d'un coup d'œil dans un arbre fourni.
-      icone.textContent = '⊡';
+      icone.replaceChildren(picto('travail'));
       icone.style.color = 'var(--travail)';
       puce.style.background = 'var(--travail)';
       etiq.textContent = 'travail';
@@ -1519,7 +1628,7 @@ function dessinerArbre() {
       d.title = a.outils.length + ' appels d’outils\n'
         + tri.map(([n, c]) => '   ' + n + ' × ' + c).join('\n')
         + '\n\n' + LEGENDE_VOIE.outils;
-      icone.textContent = '⊞';
+      icone.replaceChildren(picto('outils'));
       icone.style.color = 'var(--outil)';
       puce.style.background = 'var(--outil)';
       etiq.textContent = 'outils';
@@ -1530,7 +1639,7 @@ function dessinerArbre() {
       const derniere = a.requetesModele[a.requetesModele.length - 1];
       d.title = 'De quoi le contexte est fait, à chaque appel au modèle.\n\n'
         + LEGENDE_VOIE.contenu;
-      icone.textContent = '▤';
+      icone.replaceChildren(picto('contenu'));
       icone.style.color = 'var(--en-cours)';
       puce.style.background = 'linear-gradient(to right, var(--en-cours), var(--outil))';
       etiq.textContent = 'Contenu CTX';
@@ -1548,7 +1657,7 @@ function dessinerArbre() {
           + ' % relus du cache\n' : '')
         + (pires ? pires + ' appel(s) sous 70 % — le buffer y a été reconstruit\n' : '')
         + '\n' + LEGENDE_VOIE.buffer;
-      icone.textContent = '⊞';
+      icone.replaceChildren(picto('buffer'));
       icone.style.color = teinteBuffer(e?.part ?? 0.9);
       puce.style.background = 'linear-gradient(to right, var(--ramp-mauvais), var(--ramp-moyen), var(--ramp-bon))';
       etiq.textContent = 'Buffer CTX';
@@ -1566,7 +1675,7 @@ function dessinerArbre() {
         + '\nlatence moyenne ' + duree(Math.round(lat))
         + '\nréponse moyenne ' + duree(Math.round(rep))
         + '\n\n' + LEGENDE_VOIE.modele;
-      icone.textContent = '◇';
+      icone.replaceChildren(picto('modele'));
       icone.style.color = teinteModele(v.modele);
       puce.style.background = teinteModele(v.modele);
       etiq.textContent = v.modele.replace(/^claude-/, '');
@@ -1579,7 +1688,7 @@ function dessinerArbre() {
       d.title = a.attentes.length + ' périodes d’attente, ' + duree(total) + ' en tout'
         + (questions ? ' — dont ' + questions + ' question(s) posée(s)' : '')
         + '\n\n' + LEGENDE_VOIE.attente;
-      icone.textContent = '⊝';
+      icone.replaceChildren(picto('attente'));
       icone.style.color = 'var(--requete)';
       puce.style.background = 'var(--requete)';
       etiq.textContent = 'attente';
@@ -1590,7 +1699,7 @@ function dessinerArbre() {
       const n = a.boucles.length;
       const its = a.boucles.reduce((s, b) => s + b.iterations.length, 0);
       d.title = n + ' boucle(s), ' + its + ' itération(s)\n\n' + LEGENDE_VOIE.boucles;
-      icone.textContent = '⟳';
+      icone.replaceChildren(picto('boucles'));
       icone.style.color = 'var(--boucle)';
       puce.style.background = 'var(--boucle)';
       puce.style.borderRadius = '50%';

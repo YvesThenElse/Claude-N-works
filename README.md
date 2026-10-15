@@ -694,9 +694,25 @@ la racine.
 L'indentation se fait au pixel, avec un filet vertical par niveau, et les voies annexes
 d'un agent s'indentent d'un cran sous lui.
 
-Chaque voie porte un pictogramme dans sa couleur : ◆ l'agent racine, ◈ un sous-agent,
-⊡ le travail, ⊝ l'attente, ∿ la réflexion, ◇ un modèle, ⊞ les outils, ⊠ l'outillage,
-⊣ les hooks, ⊟ les fichiers, ⟳ les boucles, ▥ la taille du contexte, ▤ son contenu.
+Chaque voie porte un **pictogramme dessiné** dans sa couleur, et chacun est une miniature
+de ce que la voie trace : une barre pour l'agent, la même barre avec son coude de
+rattachement pour un sous-agent, des barres inégales pour les outils, des traits de part et
+d'autre d'une ligne pour les hooks, une bande à bord gauche épais pour les skills, un
+escalier pour les fichiers, une flèche qui revient pour les boucles, une courbe qui monte
+pour la taille du contexte, des bandes empilées pour son contenu.
+
+**Ils étaient des caractères, et sept des quinze sortaient en carré vide.** Mesuré le
+15 octobre 2026 par deux instruments concordants : `fc-list` ne trouve aucune police
+installée couvrant ⊡ (travail), ⊞ (outils), ∿ (réflexion), ⊠ (outillage), ⊝ (attente),
+⊟ (fichiers) et ⟳ (boucles) ; et l'empreinte au pixel de ces sept glyphes est identique à
+celle d'un tofu connu. La découverte est venue d'un contrôle de routine — vérifier que le
+nouveau pictogramme des skills n'en était pas un — ce qui a révélé que presque la moitié de
+la signalétique n'existait pas à l'écran depuis le début.
+
+Chercher d'autres caractères n'aurait fait que **déplacer le pari** sur les polices du
+poste ; un tracé ne dépend de rien. Les quinze sont désormais du SVG en `currentColor` : la
+couleur se pose toujours par la voie, et le pictogramme le plus faible rend 4,32 : 1 contre
+le fond, au-dessus du seuil de 3 : 1 exigé d'un objet graphique.
 
 **L'ordre naturel suit une lecture.** D'abord le **rythme** — quand la machine a travaillé,
 quand elle a attendu, quand elle a réfléchi, à quel modèle elle a parlé. Puis **ce qu'elle
