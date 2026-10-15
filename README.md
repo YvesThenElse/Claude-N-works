@@ -178,6 +178,23 @@ c'est-à-dire précisément ce qu'on vient lire. Le coût mesuré côté navigat
 analyser les 7,9 Mo de JSON, 2 s pour charger la page. Le plus gros contenu observé fait
 29 143 caractères, aucun ne dépasse cent mille.
 
+**La carte d'un appel d'outil se lit comme une console.** L'entrée et le résultat sont
+rendus en terminal — fond sombre dans les deux thèmes, bandeau d'invite, et la sortie dans
+un gris plus doux que la commande. Un `Bash` porte l'invite `$` et le mot « commande » ;
+les autres outils portent `›`, parce que leur entrée est du JSON et non une ligne de
+commande, et lui donner une invite de shell serait un mensonge de forme. Un résultat en
+échec passe en rose. Chaque bandeau donne aussi le nombre de lignes.
+
+⚠️ **Le contenu du bloc reste exact** : l'invite vit dans le bandeau, jamais dans le texte.
+Sans cela un copier-coller rapporterait une commande fausse, et le compte de caractères
+mentirait.
+
+Le contraste a été mesuré : la commande rend **13,8 : 1** sur le fond de la console, la
+sortie 8,6, un échec 7,3. Et la bordure — elle seule — dépend du thème : sur une fiche
+sombre, la console ne rend que **1,15 : 1** contre son fond, et descendre jusqu'au noir pur
+ne la porte qu'à 1,25. On ne sépare pas deux surfaces sombres par le ton ; c'est la
+bordure qui le fait, à **2,05 : 1**.
+
 Les blocs d'entrée et de résultat sont **ouverts d'emblée** : c'est le contenu qu'on vient
 lire, le replier imposait un clic pour voir l'essentiel. Chacun garde sa hauteur bornée et
 son propre ascenseur. Seules les instructions chargées d'un skill restent repliées : des

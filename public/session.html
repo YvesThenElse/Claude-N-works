@@ -63,6 +63,16 @@
     --ctx-resume: #bb9af7;
     --ramp-mauvais: #f7768e; --ramp-moyen: #e0af68; --ramp-bon: #9ece6a;
     --jauge-haut: #73d393;
+    /* La console. Volontairement identique dans les deux thèmes : un terminal est sombre,
+       et c'est ce qui le fait reconnaître d'un coup d'œil au milieu d'une fiche. */
+    --console-fond: #0c0e14; --console-trait: #232838;
+    --console-texte: #d7dae3; --console-sortie: #a6adc0;
+    --console-invite: #9ece6a; --console-echec: #f7768e;
+    /* ⚠️ La bordure, et elle seule, dépend du thème. Mesuré : sur une fiche sombre, la
+       console ne rend que 1,15 : 1 contre son fond, et descendre jusqu'au noir pur ne la
+       porte qu'à 1,25 — on ne sépare pas deux surfaces sombres par le ton. C'est la
+       bordure qui fait la séparation, à 2,05 : 1. */
+    --console-bord: #454f66;
   }
 
   :root[data-theme="clair"] {
@@ -96,6 +106,12 @@
     --ctx-resume: #6b21a8;
     --ramp-mauvais: #db2777; --ramp-moyen: #b45309; --ramp-bon: #15803d;
     --jauge-haut: #16a34a;
+    /* inchangées : voir ci-dessus */
+    --console-fond: #0c0e14; --console-trait: #232838;
+    --console-texte: #d7dae3; --console-sortie: #a6adc0;
+    --console-invite: #9ece6a; --console-echec: #f7768e;
+    /* sur fond clair la console tranche d'elle-même — 19,3 : 1 contre une fiche blanche */
+    --console-bord: #232838;
     color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -246,6 +262,37 @@
     border: 1px solid var(--trait); border-radius: 6px;
     font: 12px/1.5 ui-monospace, Menlo, monospace;
     white-space: pre-wrap; overflow-wrap: anywhere; max-height: 24rem; overflow: auto;
+  }
+
+  /*
+   * La console : ce qu'on a tapé et ce que la machine a répondu, rendus comme un
+   * terminal. Lire une commande shell et sa sortie dans la couleur d'une fiche demande
+   * un effort que la forme peut épargner.
+   *
+   * ⚠️ Le `<pre>` garde le contenu EXACT — aucune invite n'est insérée dans le texte.
+   * L'invite est posée par le cadre, pas par la chaîne : on copie la commande telle
+   * qu'elle a été lancée, et le compte de caractères reste vrai.
+   */
+  .console { border-radius: 8px; overflow: hidden; border: 1px solid var(--console-bord); }
+  .console > .bandeau {
+    display: flex; align-items: center; gap: .45rem;
+    background: var(--console-trait); color: var(--console-sortie);
+    padding: .3rem .7rem; font: 11px/1.4 ui-monospace, Menlo, monospace;
+    letter-spacing: .04em;
+  }
+  .console > .bandeau .invite { color: var(--console-invite); font-weight: 700; }
+  .console > .bandeau .compte { margin-left: auto; opacity: .75; }
+  .console pre {
+    margin: 0; border: 0; border-radius: 0;
+    background: var(--console-fond); color: var(--console-texte);
+    padding: .75rem .85rem;
+  }
+  .console.sortie pre { color: var(--console-sortie); }
+  .console.echec pre { color: var(--console-echec); }
+  .console .recherche { background: var(--console-fond); padding: .45rem .5rem 0; margin: 0; }
+  .console .recherche input {
+    background: var(--console-trait); color: var(--console-texte);
+    border-color: var(--console-trait);
   }
   /* La jauge du cache : rouge quand tout est relu au prix fort, vert quand presque tout
      vient du cache. Le curseur se place sur la part réellement servie par le cache. */
@@ -1911,7 +1958,17 @@ function barreRecherche(pre, texte) {
  * a pris et renvoyé, est le contenu principal de la carte — le replier imposait un clic
  * pour voir l'essentiel. La hauteur reste bornée, chaque bloc ayant son propre ascenseur.
  */
-function blocReplie(titre, contenu, ouvert = true) {
+/**
+ * Un bloc repliable.
+ *
+ * `console` le rend comme un terminal : fond sombre dans les deux thèmes, bandeau
+ * d'invite, et la sortie dans un gris plus doux que la commande. `console.invite` est le
+ * glyphe à afficher — « $ » pour un shell — et `console.libelle` ce qu'on en dit.
+ *
+ * ⚠️ Le contenu du `<pre>` reste **exact** : l'invite vit dans le bandeau, jamais dans le
+ * texte. Sans quoi un copier-coller rapporterait une commande fausse.
+ */
+function blocReplie(titre, contenu, ouvert = true, console_ = null) {
   if (!contenu) return null;
   const d = document.createElement('details');
   d.className = 'bloc';
@@ -1920,8 +1977,33 @@ function blocReplie(titre, contenu, ouvert = true) {
   s.textContent = titre + '  (' + contenu.length + ' caractères)';
   const pre = document.createElement('pre');
   pre.textContent = contenu;
+  const corps = contenu.length > 400 ? [barreRecherche(pre, contenu), pre] : [pre];
+
+  if (console_) {
+    const cadre = document.createElement('div');
+    cadre.className = 'console' + (console_.genre ? ' ' + console_.genre : '');
+    const bandeau = document.createElement('div');
+    bandeau.className = 'bandeau';
+    // Un terminal ne préfixe pas ce qu'il répond : la sortie n'a pas d'invite. C'est plus
+    // fidèle, et ça évite de parier sur un glyphe que la police du poste n'aurait pas.
+    const inv = document.createElement('span');
+    inv.className = 'invite';
+    inv.textContent = console_.invite || '';
+    // pas d'étiquette vide : elle laisserait un décalage inexpliqué devant le libellé
+    const lib = document.createElement('span');
+    lib.textContent = console_.libelle || '';
+    const cpt = document.createElement('span');
+    cpt.className = 'compte';
+    const n = contenu.split('\n').length;
+    cpt.textContent = n + (n > 1 ? ' lignes' : ' ligne');
+    bandeau.append(...(console_.invite ? [inv] : []), lib, cpt);
+    cadre.append(bandeau, ...corps);
+    d.append(s, cadre);
+    return d;
+  }
+
   // En deçà de quelques centaines de caractères, l'œil suffit et la barre encombre.
-  d.append(s, ...(contenu.length > 400 ? [barreRecherche(pre, contenu)] : []), pre);
+  d.append(s, ...corps);
   return d;
 }
 
@@ -2104,8 +2186,17 @@ function carteOutil(o, agent) {
   ligne(dl, 'Issue', o.ok === false ? 'échec' : o.ok === true ? 'succès' : null);
 
   const morceaux = [dl,
-    blocReplie(estSkill ? 'consigne donnée au skill' : 'entrée', o.entree),
-    blocReplie('résultat', o.sortie)];
+    // L'invite dit la vérité sur ce qu'on lit : « $ » pour un shell, « › » sinon —
+    // l'entrée d'un Read ou d'un Agent est du JSON, pas une ligne de commande, et lui
+    // mettre une invite de shell serait un mensonge de forme.
+    blocReplie(estSkill ? 'consigne donnée au skill' : 'entrée', o.entree, true, {
+      invite: o.nom === 'Bash' ? '$' : '›',
+      libelle: o.nom === 'Bash' ? 'commande' : (estSkill ? 'consigne' : 'entrée de ' + o.nom),
+    }),
+    blocReplie('résultat', o.sortie, true, {
+      libelle: o.ok === false ? 'sortie — en échec' : 'sortie',
+      genre: o.ok === false ? 'echec' : 'sortie',
+    })];
 
   // Le contenu que le skill a réellement injecté : ce que l'appel seul ne dit pas.
   if (estSkill) {
