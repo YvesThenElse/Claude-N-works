@@ -140,6 +140,13 @@ d'agent, une question à l'utilisateur — masquait l'agent lui-même et rendait
 barre illisible. Chacun y figure à son instant : un trait net au départ, une bande de
 couleur pour la durée. Un appel d'agent et un appel en échec ont leur couleur.
 
+**Le nom de l'outil s'écrit au-dessus de la barre** dès qu'il y a la place — le §5 du
+cahier le demandait depuis le lot 3. La place se mesure jusqu'au **prochain appel**, pas
+jusqu'au bout de la barre : une étiquette a le droit de déborder sur le silence qui suit,
+et c'est ce qui la fait apparaître sur un appel bref suivi d'une pause. Bornée ainsi, elle
+ne peut jamais mordre sur la suivante — vérifié à trois niveaux de zoom, **zéro
+chevauchement** par voie. Elle rend 3,76 : 1 contre le fond : discrète, pas illisible.
+
 ### Les échecs et leurs reprises
 
 Un appel en échec est rose, et **un arc le relie à l'appel qui le rattrape**, la pointe sur
@@ -758,6 +765,17 @@ Relevées le 12 octobre 2026 sur cette machine :
 | Ligne écrite dans un transcript → envoyée au navigateur | **56 à 125 ms** sur treize trames | < 2 s |
 | Mort d'un processus → retirée de la liste | **165, 246 et 464 ms** sur trois essais | < 2 s |
 | Coût d'un relevé complet | 4,5 ms en moyenne, 8,3 ms au pire sur vingt | — |
+
+⚠️ **Les redessins ci-dessus ont été mesurés sur un jeu de voies plus restreint.** Avec les
+**douze** voies affichées en même temps sur la session de 2 730 appels, un redessin en vue
+d'ensemble coûte **879 ms** — c'est le cas extrême, et il était déjà à 806 ms avant que la
+voie *hooks* et les marques du Buffer CTX n'existent. Zoomé, c'est-à-dire dans l'usage
+courant, le redessin reste à **109 ms** quelle que soit la version.
+
+Ce qui tient ce coût est la **fusion sous le pixel** : deux marques qui tombent dans le
+même pixel ne se distinguent pas, on les réunit et l'infobulle dit combien d'appels elles
+couvrent. Sans elle, la session passait de 28 662 à 50 608 éléments et de 806 à 1 307 ms ;
+avec, elle en compte 31 650 pour 879 ms.
 
 Les deux empruntent des chemins différents : l'apparition passe par la surveillance du
 dossier, la mort par le relevé périodique — un processus qui meurt ne touche pas à son

@@ -3444,10 +3444,27 @@ function dessinerVoieHooks(agent, centre, axe, visible) {
   const g = el('g', {});
   const AVANT = new Set(['PreToolUse']);
   const APRES = new Set(['PostToolUse', 'PostToolUseFailure']);
+  // Même raison que pour le Buffer CTX : sous le pixel, deux hooks ne se distinguent pas.
+  // Cette session en compte 5 650 ; les dessiner tous coûtait 154 ms par redessin pour une
+  // image identique. On garde un représentant par pixel et par forme, et l'infobulle dit
+  // combien il en couvre.
+  let dernierPixel = null;
+  const vus = new Map();
   for (const h of agent.hooks || []) {
     if (h.instant === null) continue;
     const x = axe.x(h.instant);
     if (!visible(x - 6, x + 6)) continue;
+    const forme = (h.injecte ? 'i' : h.evenement) + (h.ok ? '' : '!');
+    const pixel = Math.round(x);
+    if (dernierPixel === pixel && vus.has(forme)) {
+      const d = vus.get(forme);
+      d.n += 1;
+      d.titre.textContent = d.n + ' hooks ' + (h.evenement || '') + ' réunis ici\n'
+        + heure(h.instant) + '\n' + d.duree + ' ms en tout';
+      d.duree += h.dureeMs || 0;
+      continue;
+    }
+    if (dernierPixel !== pixel) { vus.clear(); dernierPixel = pixel; }
     const couleur = !h.ok ? 'var(--outil-echec)' : h.injecte ? 'var(--requete)' : 'var(--hook)';
     if (h.injecte) {
       // Un hook qui parle : son contenu entre vraiment dans la conversation. Rare — cinq
@@ -3475,6 +3492,7 @@ function dessinerVoieHooks(agent, centre, axe, visible) {
       + (h.injecte ? '\n\ninjecte dans la conversation :\n' + h.injecte.slice(0, 200) : ''))));
     prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteHooks(agent, h); });
     g.append(prise);
+    vus.set(forme, { n: 1, duree: h.dureeMs || 0, titre: prise.querySelector('title') });
   }
   return g;
 }
@@ -3763,6 +3781,35 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
       fill: 'var(--outil-echec)', opacity: '.9',
     }));
   }
+  // Le nom de l'outil, écrit en léger au-dessus de la barre — le §5 du cahier le demande
+  // depuis le lot 3 : « nom visible quand la place le permet ».
+  //
+  // La place se mesure jusqu'au **prochain appel**, pas jusqu'au bout de la barre : une
+  // étiquette a le droit de déborder sur le silence qui suit, et c'est ce qui la fait
+  // apparaître sur un appel bref suivi d'une pause. Bornée ainsi, elle ne peut jamais
+  // mordre sur l'étiquette suivante — aucune règle d'évitement n'est nécessaire.
+  //
+  // La largeur du texte est estimée plutôt que mesurée : `getComputedTextLength` impose
+  // un calcul de rendu par appel, et une session en compte deux mille.
+  const TAILLE_NOM = 9;
+  const LARGEUR_PAR_CARACTERE = 5.3;   // relevé à 9 px dans la pile de polices de la page
+  // ⚠️ Une table, et non une recherche dans un tableau : `indexOf` dans la boucle des
+  // appels est quadratique, et sur les 2 730 appels d'une vraie session le redessin
+  // passait de quelques dizaines de millisecondes à **1 278 ms** — mesuré.
+  //
+  // Deux appels au même pixel se donnent mutuellement un écart nul, donc aucune étiquette :
+  // c'est voulu, on ne peut pas en écrire deux au même endroit.
+  const debuts = agent.outils
+    .filter((x) => x.debut !== null)
+    .map((x) => axe.x(x.debut))
+    .sort((p, q) => p - q);
+  const suivantDe = new Map();
+  for (let k = 0; k < debuts.length; k += 1) {
+    if (!suivantDe.has(debuts[k])) {
+      suivantDe.set(debuts[k], k + 1 < debuts.length ? debuts[k + 1] : Infinity);
+    }
+  }
+
   for (const o of agent.outils) {
     if (o.debut === null) continue;
     const ox = axe.x(o.debut);
@@ -3780,6 +3827,20 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
     g.append(el('rect', {
       x: ox, y: hautPrise, width: 1.8, height: hauteurPrise, fill: couleur,
     }));
+    // L'étiquette, si elle tient avant le prochain appel.
+    const suivant = suivantDe.get(ox) ?? Infinity;
+    const dispo = Math.min(suivant - ox, largeur + 60) - 3;
+    const voulu = o.nom.length * LARGEUR_PAR_CARACTERE;
+    if (dispo >= voulu) {
+      g.append(el('text', {
+        // .85 et non .75 : à 9 px, mesuré en thème clair, l'étiquette ne rendait que
+        // 3,12 : 1 contre le fond — « en léger » ne doit pas vouloir dire illisible.
+        // À .85 elle est à 3,76 : 1 et garde sa discrétion.
+        x: ox + 1, y: centre - 1, fill: 'var(--texte-faible)',
+        'font-size': TAILLE_NOM, opacity: '.85',
+      }, document.createTextNode(o.nom)));
+    }
+
     const prise = el('rect', {
       x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
       height: hauteurPrise, fill: 'transparent',
@@ -3884,21 +3945,44 @@ function dessinerVoieBuffer(agent, centre, axe, visible) {
   // Espacés, chacun garde une marque fine et aucun ne peut s'étaler sur son attente.
   const LARGEUR_MAX = 3;
 
+  // Deux appels qui tombent dans le même pixel ne se distinguent pas : les dessiner
+  // séparément coûte sans rien montrer. On les réunit, la teinte étant celle de leur
+  // économie moyenne, et l'infobulle dit combien d'appels la marque couvre. Mesuré sur
+  // cette session de 2 880 appels : 50 608 éléments dans le dessin en vue d'ensemble, et
+  // 1,3 s de redessin — insupportable au curseur d'échelle.
+  const groupes = [];
   reqs.forEach((r, i) => {
     const e = economieCache(r.jetons);
     if (!e) return;
     const x = axe.x(r.appel);
     const xSuivant = axe.x(i + 1 < reqs.length ? reqs[i + 1].appel : finAgent);
     const largeur = Math.max(1, Math.min(LARGEUR_MAX, xSuivant - x));
+    const dernier = groupes[groupes.length - 1];
+    if (dernier && x - dernier.x < 1) {
+      dernier.fin = Math.max(dernier.fin, x + largeur);
+      dernier.parts.push(e.part);
+      dernier.n += 1;
+      return;
+    }
+    groupes.push({ x, fin: x + largeur, parts: [e.part], n: 1, r, e, premier: i === 0 });
+  });
+
+  groupes.forEach((gr) => {
+    const { x, r, e } = gr;
+    const largeur = Math.max(1, gr.fin - gr.x);
+    const moyenne = gr.parts.reduce((p, q) => p + q, 0) / gr.parts.length;
     if (!visible(x, x + largeur)) return;
     const marque = el('rect', {
       x, y: haut, width: largeur, height: hauteur,
-      fill: teinteBuffer(e.part), opacity: '.9',
+      fill: teinteBuffer(moyenne), opacity: '.9',
     });
     marque.style.cursor = 'pointer';
     marque.append(el('title', {}, document.createTextNode(
-      'le cache épargne ' + Math.round(e.part * 100) + ' % de cet appel\n'
-      + heure(r.appel) + (i === 0 ? '   (premier appel : rien à relire)' : '') + '\n'
+      gr.n > 1
+        ? gr.n + ' appels réunis, de ' + Math.round(Math.min(...gr.parts) * 100) + ' % à '
+          + Math.round(Math.max(...gr.parts) * 100) + ' % épargnés\n' + heure(r.appel)
+        : 'le cache épargne ' + Math.round(e.part * 100) + ' % de cet appel\n'
+      + heure(r.appel) + (gr.premier ? '   (premier appel : rien à relire)' : '') + '\n'
       + Math.round(e.total).toLocaleString('fr-FR') + ' jetons présentés\n'
       + '   ' + Math.round(e.relu * 100) + ' % relus du cache\n'
       + '   ' + (r.jetons.cacheEcrit || 0).toLocaleString('fr-FR') + ' écrits au cache\n'
