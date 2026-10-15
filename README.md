@@ -156,6 +156,21 @@ d'agent, une question à l'utilisateur — masquait l'agent lui-même et rendait
 barre illisible. Chacun y figure à son instant : un trait net au départ, une bande de
 couleur pour la durée. Un appel d'agent et un appel en échec ont leur couleur.
 
+**Deux appels peuvent partir ensemble, et se recouvraient.** Un message porte parfois
+plusieurs `tool_use`, qui s'exécutent de front : sur une seule ligne, le second était
+dessiné par-dessus le premier — invisible et incliquable. Mesuré sur **17 142 appels** :
+36 % des agents en ont au moins deux qui se chevauchent, **580 appels étaient cachés sous
+un autre**, et l'on monte jusqu'à quatre à la fois. Ils s'empilent maintenant sur des
+rangées, comme les shells, et la voie grandit quand il le faut — 60 px pour quatre de front.
+La place se décide **dans le temps et non en pixels**, pour que la hauteur soit stable d'un
+zoom à l'autre.
+
+Quand il n'y a qu'une rangée — **121 agents sur 190** — la géométrie est inchangée au
+dixième de pixel. Vérifié en servant l'ancienne version en parallèle et en comparant les
+décalages de chaque voie : sept voies sur neuf identiques, une à 0,1 px près par simple
+décalage, et seule celle qui avait besoin de rangées a changé. Le redessin ne régresse pas :
+médiane 173 ms contre 170, pire 759 contre 845, sur la session de 2 730 appels.
+
 **Le nom de l'outil s'écrit au-dessus de la barre** dès qu'il y a la place — le §5 du
 cahier le demandait depuis le lot 3. La place se mesure jusqu'au **prochain appel**, pas
 jusqu'au bout de la barre : une étiquette a le droit de déborder sur le silence qui suit,
@@ -844,6 +859,13 @@ et **ce qui décrit l'appel** : ses champs, ses durées, ses jauges. Elles se di
 même colonne, si bien qu'il fallait faire défiler une liste de vingt lignes pour atteindre
 la phrase qu'on venait lire. Deux onglets les séparent, *contenu* et *propriétés*, chacun
 annonçant combien de blocs il tient.
+
+**Le lecteur de contexte s'ouvre d'emblée.** Replié, il était souvent la seule chose de
+l'onglet *contenu* — sur un appel qui se termine par un outil, le modèle n'a rien dit — et
+l'onglet paraissait vide. La lecture reste asynchrone : la carte s'ouvre en 3 ms, le bloc
+affiche « lecture du contexte… », puis se remplit. Mesuré sur la plus grosse session de la
+machine, 2 730 appels sur onze jours : 780 ms et 712 ko, qui ne font donc jamais attendre
+l'ouverture.
 
 **La distinction se lit sur la balise, pas sur une liste à tenir à jour** : est un contenu
 ce qui est un bloc dépliable, et rien d'autre. Une carte nouvelle se range donc d'elle-même

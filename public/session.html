@@ -560,7 +560,11 @@ const HAUTEUR_VOIE = 35.2;   // la hauteur ORDINAIRE d'une voie, et d'un nœud d
 // la hauteur ordinaire. Mesuré sur 130 sessions : 30 agents sur 52 n'ont qu'un shell à la
 // fois — la hauteur ordinaire leur va —, mais onze dépassent deux et l'un monte à DOUZE
 // simultanés, soit un pixel par barre. La voie grandit donc à la demande.
-const HAUTEUR_RANGEE = 9;    // ce qu'occupe un shell : une barre lisible et son écart
+// Ce qu'occupe un élément empilé. Un shell porte deux choses — sa barre et sa commande
+// écrite dedans ; un appel d'outil en porte trois — le trait du départ, la bande de durée,
+// et le nom AU-DESSUS. D'où trois pixels de plus, sans quoi le nom déborde sur la rangée
+// du dessus et vient mordre sa barre.
+const HAUTEUR_RANGEE = { taches: 9, outils: 12 };
 const RANGEES_MAX = 12;      // le pire mesuré sur la machine ; au-delà on se serre
 const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
 
@@ -572,16 +576,32 @@ const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
  * cran de l'échelle. Calculé une fois par agent, puis gardé.
  */
 const rangsConnus = new Map();
-function rangsDeShells(agent) {
-  if (rangsConnus.has(agent.id)) return rangsConnus.get(agent.id);
-  const ts = (agent.taches || []).filter((t) => t.debut !== null);
+
+/**
+ * Combien d'éléments d'une voie se chevauchent dans le temps, au pire moment.
+ *
+ * Deux voies en ont besoin, et pour la même raison : les **shells de fond**, et les
+ * **appels d'outils** — un message peut en porter plusieurs, qui partent ensemble. Mesuré
+ * sur 17 142 appels : 36 % des agents en ont au moins deux qui se chevauchent, et
+ * **580 appels sont recouverts par un autre**, donc invisibles et incliquables. Jusqu'à
+ * quatre à la fois.
+ *
+ * Un appel sans résultat ne compte que pour un instant : il n'a pas de fin connue, et
+ * l'étendre jusqu'au bout gonflerait les rangées pour rien. Un shell, lui, court vraiment
+ * jusqu'à la fin tant qu'il n'a pas rendu compte.
+ */
+function rangsDeVoie(agent, genre) {
+  const cle = agent.id + '|' + genre;
+  if (rangsConnus.has(cle)) return rangsConnus.get(cle);
+  const els = genre === 'taches'
+    ? (agent.taches || []).filter((t) => t.debut !== null)
+      .map((t) => [t.debut, t.fin ?? agent.fin ?? deroule.fin])
+    : (agent.outils || []).filter((o) => o.debut !== null)
+      .map((o) => [o.debut, o.fin ?? o.debut]);
   let pire = 0;
-  if (ts.length) {
+  if (els.length) {
     const bornes = [];
-    for (const t of ts) {
-      bornes.push([t.debut, 1]);
-      bornes.push([t.fin ?? agent.fin ?? deroule.fin, -1]);
-    }
+    for (const [d, fn] of els) { bornes.push([d, 1]); bornes.push([fn, -1]); }
     // À instant égal, une fin passe avant un début : deux shells qui se touchent sans se
     // recouvrir ne comptent pas pour deux, et partagent donc leur rangée.
     bornes.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -589,15 +609,15 @@ function rangsDeShells(agent) {
     for (const [, k] of bornes) { n += k; if (n > pire) pire = n; }
   }
   const r = Math.max(1, Math.min(RANGEES_MAX, pire));
-  rangsConnus.set(agent.id, r);
+  rangsConnus.set(cle, r);
   return r;
 }
 
-/** La hauteur d'une voie : l'ordinaire, sauf celle des shells quand ils s'empilent. */
+/** La hauteur d'une voie : l'ordinaire, sauf quand ses éléments s'empilent. */
 function hauteurDeVoie(v) {
-  if (v.genre !== 'taches') return HAUTEUR_VOIE;
-  const rangs = rangsDeShells(v.agent);
-  return Math.max(HAUTEUR_VOIE, rangs * HAUTEUR_RANGEE + 12);
+  if (v.genre !== 'taches' && v.genre !== 'outils') return HAUTEUR_VOIE;
+  const rangs = rangsDeVoie(v.agent, v.genre);
+  return Math.max(HAUTEUR_VOIE, rangs * HAUTEUR_RANGEE[v.genre] + 12);
 }
 const REGLE_BAS = 24;      // la ligne de base de la règle du temps
 const HAUTEUR_BARRE = 15;     // la barre de l'agent
@@ -3857,9 +3877,19 @@ function blocLireContexte(agent, requete) {
   const hote = document.createElement('div');
   details.append(s, hote);
   let charge = false;
-  details.addEventListener('toggle', () => {
-    if (details.open && !charge) { charge = true; montrerContenuContexte(agent, requete, hote); }
-  });
+  const charger = () => {
+    if (charge) return;
+    charge = true;
+    montrerContenuContexte(agent, requete, hote);
+  };
+  details.addEventListener('toggle', () => { if (details.open) charger(); });
+  // Ouvert d'emblée : replié, il était la seule chose de l'onglet « contenu » sur une
+  // carte où le modèle n'a rien dit, et l'onglet paraissait vide. La lecture reste
+  // ASYNCHRONE — la carte s'ouvre tout de suite, le bloc affiche « lecture du contexte… »
+  // puis se remplit. Mesuré sur la plus grosse session de la machine, 2 730 appels sur
+  // onze jours : 780 ms et 712 ko, qui ne font donc pas attendre l'ouverture.
+  details.open = true;
+  charger();
   return details;
 }
 
@@ -4418,7 +4448,7 @@ function dessinerVoieTaches(agent, centre, axe, visible) {
   // Les rangées sont celles de la VOIE, pas celles qu'on voit : la voie a été dimensionnée
   // pour les porter toutes, et une barre ne doit pas changer d'épaisseur selon l'endroit
   // où l'on a défilé.
-  const rangs = Math.max(rangsDeShells(agent), basOuverts + finsOuverts.length);
+  const rangs = Math.max(rangsDeVoie(agent, 'taches'), basOuverts + finsOuverts.length);
   const DISPO = hauteurDeVoie({ genre: 'taches', agent }) - 11;
   const hauteur = Math.max(3, Math.min(14, Math.floor((DISPO - (rangs - 1)) / rangs)));
   const total = rangs * hauteur + (rangs - 1);
@@ -4813,9 +4843,48 @@ function dessinerVoieTours(agent, centre, axe, visible) {
  */
 function dessinerVoieOutils(agent, centre, axe, visible) {
   const g = el('g', {});
-  const yDuree = centre + 2;
-  const hautPrise = centre - 11;
-  const hauteurPrise = 24;
+
+  // Les RANGÉES. Un message peut porter plusieurs appels, qui partent ensemble et se
+  // recouvrent donc sur une ligne unique : mesuré, 580 appels du corpus sont cachés sous
+  // un autre, invisibles et incliquables. La place se décide dans le TEMPS — jamais en
+  // pixels — pour que la hauteur de la voie soit stable d'un zoom à l'autre et qu'un appel
+  // ne change pas de ligne selon l'endroit où l'on a défilé.
+  //
+  // Quand il n'y a qu'une rangée — 121 agents sur 190 — la géométrie reste EXACTEMENT
+  // celle d'avant : cette voie est la plus regardée de toutes, et elle ne doit pas bouger
+  // pour les deux tiers des sessions.
+  const rangs = rangsDeVoie(agent, 'outils');
+  const simple = rangs === 1;
+  const DISPO = hauteurDeVoie({ genre: 'outils', agent }) - 6;
+  const bande = simple ? 24 : Math.floor(DISPO / rangs);
+  const haut0 = simple ? centre - 11 : centre - (rangs * bande) / 2;
+  const TAILLE_NOM = simple ? 9 : 8;
+  const LARGEUR_PAR_CARACTERE = simple ? 5.3 : 4.7;
+
+  // La rangée de chaque appel, et le voisin de droite SUR SA RANGÉE : c'est lui qui borne
+  // l'étiquette. La borner sur le voisin global, comme avant, ferait disparaître des noms
+  // que rien ne gêne, et en laisserait d'autres mordre le leur.
+  const finsParRang = [];
+  const rangDe = new Map();
+  const suivantDe = new Map();
+  const derniersParRang = [];
+  for (const o of (agent.outils || []).filter((x) => x.debut !== null)
+    .slice().sort((x, y) => x.debut - y.debut)) {
+    const fin = o.fin ?? o.debut;
+    let r = finsParRang.findIndex((f) => f <= o.debut);
+    if (r === -1) { r = finsParRang.length; finsParRang.push(fin); }
+    else finsParRang[r] = fin;
+    rangDe.set(o.id, r);
+    const avant = derniersParRang[r];
+    if (avant) suivantDe.set(avant.id, axe.x(o.debut));
+    derniersParRang[r] = o;
+  }
+  for (const o of derniersParRang) if (o) suivantDe.set(o.id, Infinity);
+
+  const bandeDe = (o) => {
+    const r = Math.min(rangDe.get(o.id) ?? 0, rangs - 1);
+    return haut0 + r * bande;
+  };
 
   // Les reprises : un arc qui relie l'échec à l'appel qui le rattrape. Mesuré sur le
   // corpus, l'agent relance presque toujours le même outil avec une entrée corrigée —
@@ -4851,25 +4920,6 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
   //
   // La largeur du texte est estimée plutôt que mesurée : `getComputedTextLength` impose
   // un calcul de rendu par appel, et une session en compte deux mille.
-  const TAILLE_NOM = 9;
-  const LARGEUR_PAR_CARACTERE = 5.3;   // relevé à 9 px dans la pile de polices de la page
-  // ⚠️ Une table, et non une recherche dans un tableau : `indexOf` dans la boucle des
-  // appels est quadratique, et sur les 2 730 appels d'une vraie session le redessin
-  // passait de quelques dizaines de millisecondes à **1 278 ms** — mesuré.
-  //
-  // Deux appels au même pixel se donnent mutuellement un écart nul, donc aucune étiquette :
-  // c'est voulu, on ne peut pas en écrire deux au même endroit.
-  const debuts = agent.outils
-    .filter((x) => x.debut !== null)
-    .map((x) => axe.x(x.debut))
-    .sort((p, q) => p - q);
-  const suivantDe = new Map();
-  for (let k = 0; k < debuts.length; k += 1) {
-    if (!suivantDe.has(debuts[k])) {
-      suivantDe.set(debuts[k], k + 1 < debuts.length ? debuts[k + 1] : Infinity);
-    }
-  }
-
   for (const o of agent.outils) {
     if (o.debut === null) continue;
     const ox = axe.x(o.debut);
@@ -4878,17 +4928,20 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
     const estAgent = o.nom === 'Agent' || o.nom === 'Task';
     const couleur = o.ok === false ? 'var(--outil-echec)'
       : estAgent ? 'var(--outil-agent)' : 'var(--outil)';
+    const yBande = bandeDe(o);
+    const hDuree = simple ? HAUTEUR_DUREE : Math.max(3, Math.min(HAUTEUR_DUREE, bande - 9));
+    const yDuree = simple ? centre + 2 : yBande + bande - hDuree - 1;
     if (largeur > 2) {
       g.append(el('rect', {
-        x: ox, y: yDuree, width: largeur, height: HAUTEUR_DUREE, rx: 1.5,
+        x: ox, y: yDuree, width: largeur, height: hDuree, rx: 1.5,
         fill: couleur, opacity: '.6',
       }));
     }
     g.append(el('rect', {
-      x: ox, y: hautPrise, width: 1.8, height: hauteurPrise, fill: couleur,
+      x: ox, y: yBande, width: 1.8, height: bande, fill: couleur,
     }));
-    // L'étiquette, si elle tient avant le prochain appel.
-    const suivant = suivantDe.get(ox) ?? Infinity;
+    // L'étiquette, si elle tient avant le prochain appel DE SA RANGÉE.
+    const suivant = suivantDe.get(o.id) ?? Infinity;
     const dispo = Math.min(suivant - ox, largeur + 60) - 3;
     const voulu = o.nom.length * LARGEUR_PAR_CARACTERE;
     if (dispo >= voulu) {
@@ -4896,14 +4949,14 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
         // .85 et non .75 : à 9 px, mesuré en thème clair, l'étiquette ne rendait que
         // 3,12 : 1 contre le fond — « en léger » ne doit pas vouloir dire illisible.
         // À .85 elle est à 3,76 : 1 et garde sa discrétion.
-        x: ox + 1, y: centre - 1, fill: 'var(--texte-faible)',
+        x: ox + 1, y: simple ? centre - 1 : yDuree - 2, fill: 'var(--texte-faible)',
         'font-size': TAILLE_NOM, opacity: '.85',
       }, document.createTextNode(o.nom)));
     }
 
     const prise = el('rect', {
-      x: ox - 3, y: hautPrise, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
-      height: hauteurPrise, fill: 'transparent',
+      x: ox - 3, y: yBande, width: Math.max(LARGEUR_PRISE_MIN, largeur + 6),
+      height: bande, fill: 'transparent',
     });
     const suite = o.suite === 'corrigée' ? '\nrepris juste après, avec une entrée corrigée'
       : o.suite === 'identique' ? '\nrelancé juste après, à l’identique'
