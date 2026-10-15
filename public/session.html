@@ -156,8 +156,6 @@
   }
   .reglages label { display: flex; gap: .45rem; align-items: center; }
   input[type=range] { width: 11rem; accent-color: var(--accent); }
-  .legende { display: flex; gap: .9rem; flex-wrap: wrap; margin-left: auto; }
-  .legende span { display: flex; gap: .3rem; align-items: center; }
   .puce { width: .7rem; height: .7rem; border-radius: 2px; display: inline-block; }
 
   .cadre { display: grid; grid-template-columns: 19rem 1fr; height: calc(100vh - 11rem); }
@@ -468,21 +466,6 @@
     <span id="bouclesTitre"></span>
     <select id="choixBoucle"></select>
   </label>
-  <div class="legende">
-    <span><i class="puce" style="background:var(--en-cours)"></i>en cours</span>
-    <span><i class="puce" style="background:var(--termine)"></i>terminé</span>
-    <span><i class="puce" style="background:var(--interrompu)"></i>interrompu</span>
-    <span><i class="puce" style="background:var(--inconnu)"></i>fin inconnue</span>
-    <span><i class="puce" style="background:var(--outil)"></i>outil</span>
-    <span><i class="puce" style="background:var(--outil-agent)"></i>appel d'agent</span>
-    <span><i class="puce" style="background:var(--requete)"></i>requête</span>
-    <span><i class="puce" style="background:var(--boucle);border-radius:50%"></i>boucle</span>
-    <span><i class="puce" style="background:var(--hook)"></i>hook</span>
-    <span><i class="puce" style="background:var(--compact)"></i>compactage</span>
-    <span><i class="puce" style="background:var(--panne);border-radius:50%"></i>panne</span>
-    <span><i class="puce" style="background:var(--requete)"></i>question posée</span>
-    <span><i class="puce" style="background:var(--attente)"></i>inoccupée</span>
-  </div>
 </div>
 
 <div class="cadre">
@@ -1094,9 +1077,13 @@ function construireVoies() {
   return rangerVoies(voies);
 }
 
-// La légende de chaque voie, donnée au survol de sa ligne dans l'arbre. Les couleurs de
-// la barre d'outils en haut valent pour toute la piste ; ici on dit ce que chacune signifie
-// dans la voie qu'on survole, ce qui n'est pas la même question.
+// La légende de chaque voie, donnée au survol de sa ligne dans l'arbre.
+//
+// C'est la SEULE légende depuis le 15 octobre 2026 : un bandeau de treize pastilles
+// occupait une ligne entière en haut de l'écran et répondait moins bien, puisqu'une même
+// couleur ne dit pas la même chose d'une voie à l'autre — l'ambre est une requête sur la
+// piste, une question posée sur la voie d'attente. La légende qui vaut est celle de la
+// voie qu'on regarde.
 const LEGENDE_VOIE = {
   agent: [
     'La barre dit l’état de l’agent, du début à la fin :',

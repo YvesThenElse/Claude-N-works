@@ -316,11 +316,16 @@ alors muette. Une étiquette qui n'a pas la place n'est pas écrite ; son trait 
 ### Lire les couleurs
 
 Rester sur une ligne de l'arbre — l'agent, le contexte, l'attente, les boucles — en donne
-la légende complète : ce que chaque couleur signifie **dans cette voie-là**, ce qui n'est
-pas toujours la même question que dans la barre du haut. Pour un agent, l'état de la barre
-et la nature des marques d'outils ; pour le contexte, ce que le dégradé mesure et quand il
-ne mesure rien ; pour l'attente, les trois formes ; pour les boucles, les montants et les
-encoches.
+la légende complète : ce que chaque couleur signifie **dans cette voie-là**. Pour un agent,
+l'état de la barre et la nature des marques d'outils ; pour le contexte, ce que le dégradé
+mesure et quand il ne mesure rien ; pour l'attente, les trois formes ; pour les boucles,
+les montants et les encoches.
+
+C'est la **seule** légende depuis le 15 octobre 2026. Un bandeau de treize pastilles
+occupait une ligne entière en haut de l'écran, et il répondait moins bien : une même
+couleur ne dit pas la même chose d'une voie à l'autre — l'ambre est une requête sur la
+piste, une question posée sur la voie d'attente. La légende qui vaut est celle de la voie
+qu'on regarde.
 
 ### Le contenu du contexte
 
