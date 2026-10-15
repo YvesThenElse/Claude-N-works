@@ -249,6 +249,28 @@
     font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
     color: var(--texte-faible);
   }
+  /* Les onglets d'une carte. Ils ne paraissent que si la carte a les deux sortes de
+     contenu : une carte qui n'a que ses propriétés n'a rien à onglets. */
+  .panneau .onglets {
+    display: flex; gap: .2rem; margin: 1rem 0 0;
+    border-bottom: 1px solid var(--trait);
+  }
+  .panneau .onglets button {
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--texte-faible); font: inherit; font-size: .88rem;
+    padding: .45rem .85rem; cursor: pointer; margin-bottom: -1px;
+    display: flex; align-items: baseline; gap: .4rem;
+  }
+  .panneau .onglets button:hover { color: var(--texte); }
+  .panneau .onglets button[aria-selected="true"] {
+    color: var(--texte); border-bottom-color: var(--accent);
+  }
+  .panneau .onglets .compte {
+    font-size: .76rem; color: var(--texte-faible); opacity: .8;
+  }
+  .panneau .volet { margin-top: .4rem; }
+  /* Le premier bloc d'un volet n'a pas besoin de l'écart qui le sépare du titre. */
+  .panneau .volet > :first-child { margin-top: .6rem; }
   .panneau h2 { font-size: 1.05rem; margin: .25rem 0 .9rem; font-weight: 600; }
   .panneau dl {
     display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1.4rem;
@@ -532,6 +554,17 @@ const SESSIONS_RETENUES = 40;
 let themeCourant = document.documentElement.dataset.theme === 'clair' ? 'clair' : 'sombre';
 
 /**
+ * L'onglet ouvert dans les cartes — §6.7.
+ *
+ * Deux valeurs : `contenu` (ce qui a été écrit — ce que le modèle a dit, l'entrée et le
+ * résultat d'un outil, la définition d'un skill) et `proprietes` (tout le reste : les
+ * champs, les jauges, les listes). Le choix vaut pour **toutes** les cartes et toutes les
+ * sessions, au même titre que le thème : on vient lire une carte pour une raison, et cette
+ * raison ne change pas d'un appel au suivant.
+ */
+let ongletCarte = 'contenu';
+
+/**
  * Les deux pictogrammes de la bascule, tracés plutôt que tapés : mesuré sur un Chromium
  * sans police de symboles, le croissant « ☾ » sort en carré vide. Un bouton dont l'icône
  * manque est un bouton qu'on ne comprend plus.
@@ -592,6 +625,7 @@ function retenir() {
   // Le thème vaut pour toutes les sessions et pour les deux écrans : c'est un goût, au
   // même titre que les voies affichées, et non un détail de telle trace.
   r.theme = themeCourant;
+  r.onglet = ongletCarte;
   r.sessions = r.sessions || {};
   const s = r.sessions[idSession] || (r.sessions[idSession] = {});
   s.ordre = ordrePersonnalise ? ordreVoies : null;
@@ -610,6 +644,7 @@ function retenir() {
 function seSouvenir() {
   const r = lireReglages();
   themeCourant = r.theme === 'clair' ? 'clair' : 'sombre';
+  ongletCarte = r.onglet === 'proprietes' ? 'proprietes' : 'contenu';
   if (r.voies) {
     for (const cle of Object.keys(voiesVisibles)) {
       if (typeof r.voies[cle] === 'boolean') voiesVisibles[cle] = r.voies[cle];
@@ -2205,6 +2240,19 @@ function blocReplie(titre, contenu, ouvert = true, console_ = null) {
   return d;
 }
 
+/**
+ * Ce qui, dans une carte, est un TEXTE plutôt qu'une propriété.
+ *
+ * Les blocs dépliables — `blocReplie`, `blocLireContexte` — portent ce qui a été écrit :
+ * la réponse du modèle, l'entrée et le résultat d'un outil, la définition d'un skill, le
+ * contexte envoyé. Tout le reste de la carte décrit l'appel au lieu de le citer. La
+ * distinction se lit sur la balise, pas sur une liste de cartes à tenir à jour : une
+ * nouvelle carte se range d'elle-même du bon côté.
+ */
+function estUnTexte(e) {
+  return e.tagName === 'DETAILS' && e.classList.contains('bloc');
+}
+
 function ouvrirPanneau(genre, titre, elements) {
   if (genre !== 'boucle') iterationVisee = null;
   elBoite.replaceChildren();
@@ -2215,7 +2263,80 @@ function ouvrirPanneau(genre, titre, elements) {
   fermer.addEventListener('click', fermerPanneau);
   const g = document.createElement('div'); g.className = 'genre'; g.textContent = genre;
   const h = document.createElement('h2'); h.textContent = titre;
-  elBoite.append(fermer, g, h, ...elements.filter(Boolean));
+  elBoite.append(fermer, g, h);
+
+  const tous = elements.filter(Boolean);
+  const textes = tous.filter(estUnTexte);
+  const props = tous.filter((e) => !estUnTexte(e));
+
+  // Une carte qui n'a qu'une sorte de contenu n'a rien à onglets : deux onglets dont un
+  // vide coûteraient un clic pour ne rien montrer.
+  if (!textes.length || !props.length) {
+    elBoite.append(...tous);
+    elPanneau.classList.add('ouvert');
+    elBoite.scrollTop = 0;
+    return;
+  }
+
+  const barre = document.createElement('div');
+  barre.className = 'onglets';
+  barre.setAttribute('role', 'tablist');
+  const volet = document.createElement('div');
+  volet.className = 'volet';
+  volet.setAttribute('role', 'tabpanel');
+
+  const definis = [
+    { cle: 'contenu', nom: 'contenu', elements: textes,
+      aide: 'ce qui a été écrit : la réponse, l’entrée, le résultat, la définition' },
+    { cle: 'proprietes', nom: 'propriétés', elements: props,
+      aide: 'ce qui décrit l’appel : ses champs, ses durées, ses jauges' },
+  ];
+
+  const boutons = new Map();
+  // `parChoix` distingue le clic de l'affichage initial : sans lui, chaque ouverture de
+  // carte réécrirait les réglages pour n'y rien changer.
+  const montrer = (cle, parChoix) => {
+    ongletCarte = cle;
+    if (parChoix) retenir();
+    for (const [k, b] of boutons) {
+      const sien = k === cle;
+      b.setAttribute('aria-selected', String(sien));
+      // Un onglet non choisi sort du parcours de tabulation : la flèche sert à passer de
+      // l'un à l'autre, la tabulation à sortir des onglets. C'est la convention, et c'est
+      // ce qui évite de traverser deux boutons pour atteindre le contenu.
+      b.tabIndex = sien ? 0 : -1;
+    }
+    const choisi = definis.find((d) => d.cle === cle) || definis[0];
+    volet.replaceChildren(...choisi.elements);
+    elBoite.scrollTop = 0;
+  };
+
+  for (const d of definis) {
+    const b = document.createElement('button');
+    b.setAttribute('role', 'tab');
+    b.title = d.aide;
+    const nom = document.createElement('span');
+    nom.textContent = d.nom;
+    const n = document.createElement('span');
+    n.className = 'compte';
+    n.textContent = String(d.elements.length);
+    b.append(nom, n);
+    b.addEventListener('click', () => montrer(d.cle, true));
+    b.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+      ev.preventDefault();
+      const cles = definis.map((x) => x.cle);
+      const i = cles.indexOf(d.cle);
+      const vers = cles[(i + (ev.key === 'ArrowRight' ? 1 : cles.length - 1)) % cles.length];
+      montrer(vers, true);
+      boutons.get(vers).focus();
+    });
+    boutons.set(d.cle, b);
+    barre.append(b);
+  }
+
+  elBoite.append(barre, volet);
+  montrer(ongletCarte, false);
   elPanneau.classList.add('ouvert');
   elBoite.scrollTop = 0;
 }

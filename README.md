@@ -782,6 +782,32 @@ variables : le thème bascule donc **sans redessiner**, puisque les attributs SV
 `var(…)` et que le navigateur les recalcule seul. Une seule exception, l'échelle du Buffer
 CTX, qui s'interpole en JS entre deux paliers : elle relit la palette à chaque dessin.
 
+### Les deux onglets d'une carte
+
+Une carte porte deux choses de nature différente : **ce qui a été écrit** — la réponse du
+modèle, l'entrée et le résultat d'un outil, la définition d'un skill, le contexte envoyé —
+et **ce qui décrit l'appel** : ses champs, ses durées, ses jauges. Elles se disputaient la
+même colonne, si bien qu'il fallait faire défiler une liste de vingt lignes pour atteindre
+la phrase qu'on venait lire. Deux onglets les séparent, *contenu* et *propriétés*, chacun
+annonçant combien de blocs il tient.
+
+**La distinction se lit sur la balise, pas sur une liste à tenir à jour** : est un contenu
+ce qui est un bloc dépliable, et rien d'autre. Une carte nouvelle se range donc d'elle-même
+du bon côté, sans qu'on ait à y penser.
+
+**Une carte qui n'a qu'une sorte n'a pas d'onglets** — celle d'une requête, celle d'un tour.
+Deux onglets dont un vide coûteraient un clic pour ne rien montrer.
+
+**L'onglet choisi est retenu**, et vaut pour toutes les cartes et toutes les sessions : on
+vient lire une carte pour une raison, et cette raison ne change pas d'un appel au suivant.
+Choisir *propriétés* sur un appel d'outil ouvre la carte suivante — modèle, skill, hook —
+sur ses propriétés. C'est un goût, au même titre que le thème.
+
+Les flèches gauche et droite passent d'un onglet à l'autre, et la tabulation sort des
+onglets plutôt que de les traverser. Les blocs gardent leur état d'un onglet à l'autre : un
+contexte déjà chargé — 13 565 caractères dans la mesure — reste chargé et déplié après un
+aller-retour.
+
 ### Ce dont l'écran se souvient
 
 Ce qu'on dispose soi-même survit au rechargement. Sans cela, chaque retour sur une session
