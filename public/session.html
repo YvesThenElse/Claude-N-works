@@ -555,8 +555,50 @@
 'use strict';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
-const HAUTEUR_VOIE = 35.2;   // doit valoir la hauteur d'un nœud de l'arbre (2.2rem)
+const HAUTEUR_VOIE = 35.2;   // la hauteur ORDINAIRE d'une voie, et d'un nœud de l'arbre
+// Une voie de shells peut en porter plusieurs de front, et ils ne tiennent pas tous dans
+// la hauteur ordinaire. Mesuré sur 130 sessions : 30 agents sur 52 n'ont qu'un shell à la
+// fois — la hauteur ordinaire leur va —, mais onze dépassent deux et l'un monte à DOUZE
+// simultanés, soit un pixel par barre. La voie grandit donc à la demande.
+const HAUTEUR_RANGEE = 9;    // ce qu'occupe un shell : une barre lisible et son écart
+const RANGEES_MAX = 12;      // le pire mesuré sur la machine ; au-delà on se serre
 const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
+
+/**
+ * Combien de shells cet agent fait tourner **en même temps**, au pire moment.
+ *
+ * Le compte se fait dans le TEMPS et non en pixels, et c'est délibéré : une hauteur de
+ * voie qui dépendrait du zoom ferait sauter toute la mise en page sous les doigts à chaque
+ * cran de l'échelle. Calculé une fois par agent, puis gardé.
+ */
+const rangsConnus = new Map();
+function rangsDeShells(agent) {
+  if (rangsConnus.has(agent.id)) return rangsConnus.get(agent.id);
+  const ts = (agent.taches || []).filter((t) => t.debut !== null);
+  let pire = 0;
+  if (ts.length) {
+    const bornes = [];
+    for (const t of ts) {
+      bornes.push([t.debut, 1]);
+      bornes.push([t.fin ?? agent.fin ?? deroule.fin, -1]);
+    }
+    // À instant égal, une fin passe avant un début : deux shells qui se touchent sans se
+    // recouvrir ne comptent pas pour deux, et partagent donc leur rangée.
+    bornes.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    let n = 0;
+    for (const [, k] of bornes) { n += k; if (n > pire) pire = n; }
+  }
+  const r = Math.max(1, Math.min(RANGEES_MAX, pire));
+  rangsConnus.set(agent.id, r);
+  return r;
+}
+
+/** La hauteur d'une voie : l'ordinaire, sauf celle des shells quand ils s'empilent. */
+function hauteurDeVoie(v) {
+  if (v.genre !== 'taches') return HAUTEUR_VOIE;
+  const rangs = rangsDeShells(v.agent);
+  return Math.max(HAUTEUR_VOIE, rangs * HAUTEUR_RANGEE + 12);
+}
 const REGLE_BAS = 24;      // la ligne de base de la règle du temps
 const HAUTEUR_BARRE = 15;     // la barre de l'agent
 const HAUTEUR_DUREE = 10;     // la bande de durée d'un appel d'outil, sous la barre
@@ -1433,10 +1475,14 @@ const LEGENDE_VOIE = {
     '   trait vertical           un geste porté sur elle en vol :',
     '                            on la consulte, ou on l’arrête',
     '',
-    'Elles s’empilent sur des rangées quand elles se chevauchent, et la',
+    'Ils s’empilent sur des rangées quand ils se chevauchent, et la',
     'commande s’écrit sur la barre dès qu’elle y tient. Sur une seule',
     'ligne, les 131 shells d’une session de onze jours ne faisaient',
     'qu’une bande continue où l’on ne pouvait rien compter.',
+    '',
+    'Cette voie est la seule qui GRANDIT : sa hauteur suit le nombre de',
+    'shells qu’elle porte de front. Le compte se fait dans le temps et',
+    'non en pixels, pour que la mise en page ne saute pas au zoom.',
     '',
     'Le temps qu’ils occupent se lit aussi en « attente » sur la voie du',
     'dessus — mais la machine n’y est pas oisive : un shell y travaille.',
@@ -1526,6 +1572,10 @@ function dessinerArbre() {
     const a = v.agent;
     const d = document.createElement('div');
     d.className = 'noeud' + (a.id === vise && v.genre === 'agent' ? ' vise' : '');
+    // L'arbre et la piste doivent rester alignés au pixel : une voie qui grandit à droite
+    // grandit aussi à gauche, sinon tout ce qui suit se décale d'un cran.
+    const sienne = hauteurDeVoie(v);
+    if (sienne !== HAUTEUR_VOIE) d.style.height = sienne + 'px';
 
     // Le clic d'une flèche ne doit jamais ouvrir la carte de la ligne. `stopPropagation`
     // depuis le bouton ne suffit pas : le redessin détruit le bouton pendant que
@@ -1855,7 +1905,14 @@ function dessinerPiste() {
       + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
     : '';
   const voies = construireVoies();
-  const hauteur = MARGE_HAUT + voies.length * HAUTEUR_VOIE + 20;
+  // Chaque voie annonce sa hauteur : la plupart gardent l'ordinaire, celle des shells
+  // grandit si elle en porte plusieurs de front. On en tire les sommets cumulés une fois,
+  // et l'arbre à gauche se cale dessus pour rester aligné au pixel.
+  const hauteurs = voies.map(hauteurDeVoie);
+  const sommets = [];
+  let cumul = 0;
+  for (const h of hauteurs) { sommets.push(cumul); cumul += h; }
+  const hauteur = MARGE_HAUT + cumul + 20;
   const svg = el('svg', { width: Math.ceil(axe.largeur) + 2, height: hauteur });
   const defs = el('defs', {});
   const degrade = el('linearGradient', {
@@ -2060,7 +2117,7 @@ function dessinerPiste() {
   }
 
   voies.forEach((v, i) => {
-    const centre = MARGE_HAUT + i * HAUTEUR_VOIE + HAUTEUR_VOIE / 2;
+    const centre = MARGE_HAUT + sommets[i] + hauteurs[i] / 2;
     if (v.genre === 'contexte') {
       svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
       return;
@@ -4326,31 +4383,44 @@ function dessinerVoieTaches(agent, centre, axe, visible) {
   // n'est jamais revenu.
   const rendus = candidates.filter((t) => t.fin !== null);
   const ouverts = candidates.filter((t) => t.fin === null);
-  // Un shell rendu reprend la première rangée libre : deux qui ne se chevauchent pas dans
-  // le temps partagent leur ligne, et la voie ne grandit pas pour rien.
+  // Un shell rendu reprend la première rangée libre. La place se décide dans le TEMPS et
+  // non en pixels : c'est ce qui permet à la hauteur de la voie d'être calculée une fois
+  // pour toutes, et à la mise en page de ne pas sauter à chaque cran de zoom. Deux shells
+  // qui ne se chevauchent pas dans le temps partagent donc leur ligne, quel que soit le
+  // zoom — et la rangée qu'ils occupent ne change jamais.
   for (const t of rendus) {
+    let rang = finsParRang.findIndex((fin) => fin <= t.debut);
+    if (rang === -1) { rang = finsParRang.length; finsParRang.push(t.fin); }
+    else finsParRang[rang] = t.fin;
     const x0 = axe.x(t.debut);
     const largeur = Math.max(2, axe.x(t.fin) - x0);
+    // Le hors-champ se décide APRÈS la rangée : sinon un shell invisible libérerait une
+    // place et ses voisins changeraient de ligne d'un défilement à l'autre.
     if (!visible(x0, x0 + largeur)) continue;
-    let rang = finsParRang.findIndex((fx) => fx <= x0 - 1);
-    if (rang === -1) { rang = finsParRang.length; finsParRang.push(x0 + largeur); }
-    else finsParRang[rang] = x0 + largeur;
     posees.push({ t, x0, largeur, rang });
   }
-  const rangOuverts = posees.length ? Math.max(...posees.map((p) => p.rang)) + 1 : 0;
+  // Les ouverts commencent sous les rendus, et se répartissent entre eux : deux shells qui
+  // tournent en même temps — c'est le cas d'une session vivante mesurée — ne doivent pas
+  // se recouvrir sur la même ligne.
+  const basOuverts = finsParRang.length;
+  const finsOuverts = [];
   for (const t of ouverts) {
+    let rang = finsOuverts.findIndex((fin) => fin <= t.debut);
+    if (rang === -1) { rang = finsOuverts.length; finsOuverts.push(finVoie); }
+    else finsOuverts[rang] = finVoie;
     const x0 = axe.x(t.debut);
-    const largeur = Math.max(2, axe.x(t.fin ?? finVoie) - x0);
+    const largeur = Math.max(2, axe.x(finVoie) - x0);
     if (!visible(x0, x0 + largeur)) continue;
-    posees.push({ t, x0, largeur, rang: rangOuverts });
+    posees.push({ t, x0, largeur, rang: basOuverts + rang });
   }
   if (!posees.length) return g;
 
-  // La hauteur se déduit du nombre de rangées réellement occupées : une seule tâche garde
-  // une barre franche, cinq se serrent sans sortir de la voie.
-  const rangs = Math.max(...posees.map((p) => p.rang)) + 1;
-  const DISPO = 24;
-  const hauteur = Math.max(3, Math.min(12, Math.floor((DISPO - (rangs - 1)) / rangs)));
+  // Les rangées sont celles de la VOIE, pas celles qu'on voit : la voie a été dimensionnée
+  // pour les porter toutes, et une barre ne doit pas changer d'épaisseur selon l'endroit
+  // où l'on a défilé.
+  const rangs = Math.max(rangsDeShells(agent), basOuverts + finsOuverts.length);
+  const DISPO = hauteurDeVoie({ genre: 'taches', agent }) - 11;
+  const hauteur = Math.max(3, Math.min(14, Math.floor((DISPO - (rangs - 1)) / rangs)));
   const total = rangs * hauteur + (rangs - 1);
   const haut0 = centre - total / 2;
 

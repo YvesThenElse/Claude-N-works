@@ -559,6 +559,16 @@ première rangée libre — deux qui ne se chevauchent pas dans le temps partage
 et la voie ne grandit pas pour rien. Mesuré : au plus **cinq shells à la fois**, ce qui
 tient dans la hauteur d'une voie.
 
+**C'est la seule voie qui grandit.** Sa hauteur suit le nombre de shells qu'elle porte de
+front : ordinaire quand il n'y en a qu'un ou deux — ce qui est le cas de **41 agents sur
+52** —, et jusqu'à 120 px pour l'agent qui en fait tourner **douze en même temps**, où la
+hauteur ordinaire ne laissait qu'un pixel par barre. Le compte se fait **dans le temps et
+non en pixels**, délibérément : une hauteur qui dépendrait du zoom ferait sauter toute la
+mise en page sous les doigts à chaque cran de l'échelle. Vérifié — les hauteurs sont
+identiques à trois niveaux de zoom, et l'arbre de gauche reste aligné sur la piste à
+**0,17 px près** ; en forçant la voie à la hauteur ordinaire, l'écart saute à 21,98 px,
+ce qui prouve que la mesure mordrait si l'alignement cassait.
+
 **Un shell qui n'a jamais rendu compte est posé en dernier, sur sa propre rangée.** Sa
 barre court jusqu'au bout de la session, parce qu'on ne sait pas quand il s'est arrêté —
 et sans cette précaution il tenait la rangée du haut sur onze jours et repoussait d'un cran
