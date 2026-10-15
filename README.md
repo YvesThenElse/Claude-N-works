@@ -163,6 +163,22 @@ et c'est ce qui la fait apparaître sur un appel bref suivi d'une pause. Bornée
 ne peut jamais mordre sur la suivante — vérifié à trois niveaux de zoom, **zéro
 chevauchement** par voie. Elle rend 3,76 : 1 contre le fond : discrète, pas illisible.
 
+**La voie des hooks porte le même genre d'étiquette**, et à la même condition. À droite de
+chaque marque s'écrit le nom de l'événement — `PostToolUse:Bash`, `SubagentStart:commis-taillage` — en 8 px, à côté des 10 px du nom d'outil : le hook est un à-côté du geste, pas
+le geste. Les noms sont longs et les hooks se suivent de quelques dizaines de millisecondes,
+si bien que l'étiquette ne sort **qu'à fort zoom**. C'est voulu : en vue d'ensemble, une
+voie de 65 marques reste une trame, et c'est en s'approchant qu'elle se nomme.
+
+Cette étiquette a révélé une chose sur la trace elle-même : **elle n'est pas dans l'ordre
+du temps**. Trois des 65 hooks de la session d'exemple reculent — l'un de **110 secondes** —
+parce qu'un `hook_success` s'écrit au moment où l'appel se referme, pas au moment où le hook
+tourne. Tant que la voie ne faisait que poser des marques, le désordre ne se voyait pas.
+Dès qu'il a fallu mesurer la place **jusqu'à la marque suivante**, « la suivante » a cessé
+d'être « celle de droite » : trois étiquettes mordaient leur voisine, une par désordre. La
+liste est désormais triée avant d'être dessinée — ce dont la fusion sous le pixel avait
+besoin tout autant. Vérifié ensuite à six niveaux de zoom, de 2 à 1 000 px/s : **zéro
+chevauchement**, la marge la plus serrée à 22 px.
+
 ### Les échecs et leurs reprises
 
 Un appel en échec est rose, et **un arc le relie à l'appel qui le rattrape**, la pointe sur

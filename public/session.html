@@ -3657,9 +3657,24 @@ function dessinerVoieHooks(agent, centre, axe, visible) {
   // combien il en couvre.
   let dernierPixel = null;
   const vus = new Map();
-  for (const h of agent.hooks || []) {
-    if (h.instant === null) continue;
-    const x = axe.x(h.instant);
+
+  // Le nom de l'événement, écrit tout petit à droite de la marque quand il tient avant la
+  // suivante — même règle que le nom d'un outil. Les noms sont longs (« PostToolUse:Bash »
+  // fait seize caractères) et les hooks se suivent de quelques dizaines de millisecondes :
+  // l'étiquette ne sort donc qu'à fort zoom, ce qui est exactement voulu.
+  const TAILLE_NOM = 8;
+  const LARGEUR_PAR_CARACTERE = 4.7;   // relevé à 8 px dans la pile de polices de la page
+  // Trié : la trace ne l'est pas. Trois hooks de cette session reculent dans le temps —
+  // l'un de 110 secondes — parce qu'ils sont écrits au moment où l'appel se referme et non
+  // au moment où ils tournent. Sans tri, « la marque suivante » n'est pas la marque de
+  // droite : la place calculée est fausse et l'étiquette mord sa voisine (mesuré : trois
+  // chevauchements, un par désordre). La fusion par pixel en dépend tout autant.
+  const liste = (agent.hooks || []).filter((h) => h.instant !== null)
+    .slice().sort((a, b) => a.instant - b.instant);
+  const xs = liste.map((h) => axe.x(h.instant));
+
+  for (const [i, h] of liste.entries()) {
+    const x = xs[i];
     if (!visible(x - 6, x + 6)) continue;
     const forme = (h.injecte ? 'i' : h.evenement) + (h.ok ? '' : '!');
     const pixel = Math.round(x);
@@ -3700,6 +3715,15 @@ function dessinerVoieHooks(agent, centre, axe, visible) {
     prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteHooks(agent, h); });
     g.append(prise);
     vus.set(forme, { n: 1, duree: h.dureeMs || 0, titre: prise.querySelector('title') });
+
+    const nom = h.nom || h.evenement || '';
+    const dispo = Math.min((i + 1 < xs.length ? xs[i + 1] : Infinity) - x, 220) - 5;
+    if (nom && dispo >= nom.length * LARGEUR_PAR_CARACTERE) {
+      g.append(el('text', {
+        x: x + 3, y: centre + 3, fill: 'var(--texte-faible)',
+        'font-size': TAILLE_NOM, opacity: '.8',
+      }, document.createTextNode(nom)));
+    }
   }
   return g;
 }
