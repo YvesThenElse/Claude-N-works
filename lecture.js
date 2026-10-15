@@ -19,6 +19,11 @@ const readline = require('node:readline');
 // limite à 700 caractères amputait 44 % des entrées d'outils et 32 % de leurs résultats,
 // c'est-à-dire précisément ce qu'on vient lire. Le pire contenu observé fait 27 176
 // caractères ; aucun ne dépasse cent mille.
+// La marque d'un skill de projet qui entre dans le contexte. Elle n'est fiable qu'en
+// TÊTE du message : un résumé de compactage cite la même phrase au milieu de son texte, et
+// la compter là inventerait un chargement qui n'a pas eu lieu (mesuré : 2 cas sur 48).
+const MARQUE_SKILL = 'Base directory for this skill: ';
+
 const LIMITE_TEXTE = Infinity;
 const LIMITE_APPEL = Infinity;
 const LIMITE_REQUETE = Infinity;
@@ -429,6 +434,7 @@ function avaler(etat, ligne) {
         chemin: s.path || null,
         taille: typeof s.content === 'string' ? s.content.length : null,
         contenu: tronquer(s.content || ''),
+        forme: 'pièce jointe',
       });
     }
     return;
@@ -521,6 +527,32 @@ function avaler(etat, ligne) {
 
   const contenu = ligne.message?.content;
   const texte = texteDe(contenu);
+
+  // L'AUTRE façon dont un skill entre — et de loin la plus courante. Un skill de projet
+  // n'est pas une pièce jointe `invoked_skills` : c'est un message `user` marqué `isMeta`,
+  // dont la première ligne donne le répertoire du skill et dont la suite est le texte
+  // entier de ses instructions. Sur le corpus : 46 chargements de cette forme contre 12 en
+  // pièce jointe, soit 79 %. Tout le kit cuisine passe par là — taillage, sauce, cuisson,
+  // service, dressage — et l'application n'en voyait aucun.
+  if (ligne.isMeta === true && texte.startsWith(MARQUE_SKILL)) {
+    const saut = texte.indexOf('\n');
+    const chemin = (saut === -1 ? texte.slice(MARQUE_SKILL.length)
+      : texte.slice(MARQUE_SKILL.length, saut)).trim();
+    const corps = saut === -1 ? '' : texte.slice(saut + 1).replace(/^\n+/, '');
+    etat.skillsCharges.push({
+      instant: t,
+      nom: chemin.split('/').filter(Boolean).pop() || chemin,
+      chemin,
+      taille: corps.length,
+      contenu: tronquer(corps),
+      forme: 'message',
+    });
+    // Et ce texte pèse dans le contexte, où rien ne le comptait : il tombait entre les
+    // catégories de la composition — ni consigne, ni résultat d'outil — et ses 358 288
+    // caractères sur le corpus n'apparaissaient dans aucune bande du Contenu CTX.
+    if (texte) { etat.composition.systeme += texte.length; etat.composition.n += 1; }
+    return;
+  }
 
   // Une notification de fin d'agent d'arrière-plan : §5 bis d'OBSERVATIONS-FORMAT.
   if (ligne.origin && ligne.origin.kind === 'task-notification') {
@@ -857,6 +889,7 @@ function assembler({ cheminTranscript, racine, sousAgents, sessionVivante, nomSe
 
   // La courbe du nombre de fichiers, une fois les appels nettoyés.
   for (const a of agents) a.courbeFichiers = construireCourbeFichiers(a);
+  for (const a of agents) a.skillsCharges = fermerLesSkills(a);
 
   // Les échecs et ce qui les suit. Mesuré sur les 297 échecs du corpus : 78 % sont suivis
   // d'un appel du même outil, mais presque jamais à l'identique — cinq cas seulement.
@@ -1247,6 +1280,31 @@ function cheminsSupprimes(commande) {
  * Elle ne prétend pas compter les fichiers du projet — seulement ceux dont le transcript
  * permet d'affirmer qu'ils sont passés entre les mains de l'agent.
  */
+/**
+ * La portée d'un skill chargé — §6.5.
+ *
+ * Un skill n'est pas un geste : c'est du texte qui entre dans le contexte et qui y reste.
+ * Sa plage court donc du chargement jusqu'à la fin de l'agent. Ce n'est pas une
+ * supposition sur son « règne » : c'est la durée pendant laquelle ses instructions sont
+ * effectivement sous les yeux du modèle. Rien ne retire un skill du contexte — rien sauf
+ * un compactage, qui le réécrit et peut l'emporter : la plage s'y arrête donc, et le dit.
+ *
+ * Mesuré sur le corpus : 44 chargements sur 59 arrivent dans les 10 % premiers de la vie
+ * de leur agent, et 26 dès les six premières lignes. Un skill se prend au début du poste.
+ */
+function fermerLesSkills(agent) {
+  const coupes = (agent.compactages || [])
+    .map((c) => c.instant).filter((t) => t !== null).sort((x, y) => x - y);
+  return (agent.skillsCharges || []).map((s) => {
+    const coupe = coupes.find((t) => t > s.instant);
+    return {
+      ...s,
+      fin: coupe !== undefined ? coupe : (agent.fin ?? null),
+      coupeParCompactage: coupe !== undefined,
+    };
+  });
+}
+
 function construireCourbeFichiers(agent) {
   const vivants = new Set();
   const points = [];
@@ -1457,6 +1515,110 @@ function texteInjecte(att) {
   return bouts.join('\n\n');
 }
 
+/**
+ * Le recensement des skills sur TOUTE la machine — §6.5.
+ *
+ * « Qui se sert de ce skill ? » ne se répond pas dans une session : il faut les lire
+ * toutes. Le balayage complet coûte 3,6 s pour 199 fichiers et 146 922 lignes, ce qui est
+ * trop pour l'ouverture d'une carte. On le garde donc en mémoire, par fichier, et on ne
+ * relit que ceux dont la taille ou la date ont bougé — un transcript déjà lu ne se relit
+ * jamais, et une session vivante ne fait relire qu'elle.
+ */
+const cacheSkills = new Map();   // chemin → { mtimeMs, taille, chargements }
+
+function fichiersTranscrits(dossier, acc = []) {
+  let entrees;
+  try { entrees = fs.readdirSync(dossier, { withFileTypes: true }); } catch { return acc; }
+  for (const e of entrees) {
+    const p = path.join(dossier, e.name);
+    if (e.isDirectory()) fichiersTranscrits(p, acc);
+    else if (e.name.endsWith('.jsonl')) acc.push(p);
+  }
+  return acc;
+}
+
+async function chargementsDuFichier(chemin) {
+  const trouves = [];
+  for await (const { ligne } of lignesDe(chemin)) {
+    const t = instant(ligne);
+    const att = ligne.attachment;
+    if (ligne.type === 'attachment' && att && att.type === 'invoked_skills') {
+      for (const sk of att.skills || []) {
+        trouves.push({
+          nom: sk.name, chemin: sk.path || null, instant: t,
+          taille: typeof sk.content === 'string' ? sk.content.length : 0,
+          forme: 'pièce jointe',
+        });
+      }
+      continue;
+    }
+    if (ligne.type !== 'user' || ligne.isMeta !== true) continue;
+    const texte = texteDe(ligne.message?.content);
+    if (!texte.startsWith(MARQUE_SKILL)) continue;
+    const saut = texte.indexOf('\n');
+    const dossier = (saut === -1 ? texte.slice(MARQUE_SKILL.length)
+      : texte.slice(MARQUE_SKILL.length, saut)).trim();
+    trouves.push({
+      nom: dossier.split('/').filter(Boolean).pop() || dossier,
+      chemin: dossier, instant: t,
+      taille: saut === -1 ? 0 : texte.slice(saut + 1).replace(/^\n+/, '').length,
+      forme: 'message',
+    });
+  }
+  return trouves;
+}
+
+async function recenserSkills(racine) {
+  const fichiers = fichiersTranscrits(racine);
+  const vus = new Set(fichiers);
+  for (const chemin of [...cacheSkills.keys()]) if (!vus.has(chemin)) cacheSkills.delete(chemin);
+
+  let relus = 0;
+  for (const chemin of fichiers) {
+    let st;
+    try { st = fs.statSync(chemin); } catch { continue; }
+    const connu = cacheSkills.get(chemin);
+    if (connu && connu.mtimeMs === st.mtimeMs && connu.taille === st.size) continue;
+    cacheSkills.set(chemin, {
+      mtimeMs: st.mtimeMs, taille: st.size,
+      chargements: await chargementsDuFichier(chemin),
+    });
+    relus += 1;
+  }
+
+  // Un sous-agent vit dans `<session>/subagents/agent-*.jsonl` : son porteur est le
+  // dossier au-dessus. C'est ce qui permet de dire « chargé dans telle session, par tel
+  // agent » plutôt que de rendre un chemin de fichier.
+  const parSkill = new Map();
+  for (const [chemin, { chargements }] of cacheSkills) {
+    const base = path.basename(chemin, '.jsonl');
+    const sousAgent = path.basename(path.dirname(chemin)) === 'subagents';
+    const session = sousAgent
+      ? path.basename(path.dirname(path.dirname(chemin)))
+      : base;
+    for (const c of chargements) {
+      if (!parSkill.has(c.nom)) {
+        parSkill.set(c.nom, { nom: c.nom, chargements: 0, sessions: new Set(), agents: 0, caracteres: 0, formes: {}, chemins: new Set() });
+      }
+      const e = parSkill.get(c.nom);
+      e.chargements += 1;
+      e.sessions.add(session);
+      if (sousAgent) e.agents += 1;
+      e.caracteres += c.taille;
+      e.formes[c.forme] = (e.formes[c.forme] || 0) + 1;
+      if (c.chemin) e.chemins.add(c.chemin);
+    }
+  }
+  return {
+    relus,
+    fichiers: fichiers.length,
+    skills: [...parSkill.values()]
+      .map((e) => ({ ...e, sessions: [...e.sessions], chemins: [...e.chemins] }))
+      .sort((a, b) => b.chargements - a.chargements),
+  };
+}
+
 module.exports = {
   lireSession, lireContexte, assembler, etatVide, avaler, cheminSousAgents,
+  recenserSkills,
 };

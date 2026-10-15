@@ -792,6 +792,50 @@ Au bas du menu des voies, **tout réafficher et remettre l'ordre** défait le to
 reviennent toutes (pour toutes les sessions, puisque c'est leur portée), l'ordre naturel
 reprend et les agents se déplient.
 
+### Les skills — quand, avec quoi, et leur définition
+
+Une **voie par agent** montre les skills qu'il a chargés : une bande par skill, qui
+commence à l'instant du chargement et court jusqu'à la fin de l'agent. La bande n'affirme
+rien qu'on n'ait mesuré — elle ne prétend pas qu'un skill « règne » : elle dit que son
+texte est dans le contexte du modèle, ce qui reste vrai tant que rien ne le réécrit. Le
+seul événement qui le réécrive est un **compactage**, et la bande s'y arrête alors sur une
+coupe franche, dans la couleur des compactages.
+
+Sur la session du kit cuisine, la voie se lit d'un coup d'œil : le chef porte `service` du
+début à la fin, et chaque poste porte le sien — `taillage`, `cuisson`, `sauce`, `dressage`
+— sur toute sa vie. C'est « qui fonctionne avec quoi », sans avoir à le chercher.
+
+**Cliquer une bande ouvre sa carte**, qui répond à ce que l'appel seul ne dit pas :
+
+- **ce qu'il a fait faire** — les appels d'outils passés pendant sa plage, comptés par
+  outil ;
+- **sa part du contexte** — ses caractères rapportés au texte entier de l'agent au dernier
+  appel ;
+- **ce qui cohabitait** — les autres skills en contexte en même temps, et les serveurs MCP
+  en place ;
+- **qui d'autre s'en sert** — le recensement de toute la machine, chargements et sessions,
+  lu à la demande ;
+- **sa définition entière**, dépliable.
+
+**La définition montrée est celle qui a été chargée, jamais le fichier d'aujourd'hui**, et
+ce n'est pas un détail de principe : mesuré sur `taillage`, le texte injecté le 12 octobre
+fait 1 237 caractères quand le fichier sur disque en fait 2 961, réécrit le lendemain à
+11h26 — au point qu'il **ne contient même plus** ce qui avait été chargé. Lire le disque
+montrerait un skill qui n'a jamais tourné.
+
+**Ce que cette voie a fait découvrir.** Un skill entre de deux façons : comme pièce jointe
+`invoked_skills` — les skills livrés avec Claude Code — ou comme un simple message de
+session, qui est le cas des skills d'un projet. L'application ne lisait que la première, et
+voyait donc **12 chargements sur 58**. Tout le kit cuisine lui était invisible, et les
+358 288 caractères que ces skills injectent ne pesaient dans aucune bande du Contenu CTX.
+
+**La bande n'a pas de couleur à elle, et c'est mesuré.** La ligne du temps porte déjà seize
+teintes ; le balayage de 1 703 teintes conformes n'en trouve aucune dix-septième qui
+atteigne la cible de 8 ΔE en vision déficiente — sauf dans la famille ambre, déjà occupée
+deux fois. L'identité vient donc du **nom écrit dans la bande**, et la forme de son
+contour, à 4,2 : 1 contre le fond, la rend lisible sans éteindre les voies qu'elle
+recouvre.
+
 ### L'outillage, et la question des permissions
 
 Ce que l'agent a le droit d'appeler, et les instants où cela change : des outils offerts au

@@ -55,6 +55,13 @@
     --reflexion: #c4a7ff;
     --outillage: #ffd479;
     --hook: #7dcfff;
+    /* Les skills n'ont PAS de teinte à eux, et c'est mesuré : la ligne du temps en
+       porte déjà seize, et le balayage des 1 703 teintes conformes ne trouve aucune
+       dix-septième qui atteigne la cible de 8 ΔE en vision déficiente — hors de la
+       famille ambre, déjà occupée par l'outillage et la requête. La bande emprunte
+       donc la couleur du texte système dans le contexte, ce qu'un skill EST, et son
+       identité vient de son nom écrit dessus. */
+    --skill: #6b76a8;   /* 4,22:1 sur le fond — un contour qu'on ne voit pas n'existe pas */
     --modele: #d6a4ff;
     --modele-opus: #d6a4ff; --modele-sonnet: #6ee7d5;
     --modele-haiku: #ffd479; --modele-autre: #9aa5ce;
@@ -98,6 +105,7 @@
     --reflexion: #8b5cf6;
     --outillage: #a16207;
     --hook: #0369a1;
+    --skill: #646d80;   /* 4,48:1 sur le fond clair */
     --modele: #7c3aed;
     --modele-opus: #7c3aed; --modele-sonnet: #0d9488;
     --modele-haiku: #a16207; --modele-autre: #64748b;
@@ -654,6 +662,7 @@ const VOIES_ANNEXES = [
   { cle: 'fichiers', nom: 'fichiers', teinte: 'linear-gradient(to bottom, var(--outil), var(--outil-echec))' },
   { cle: 'taches', nom: 'tâches de fond', teinte: 'var(--en-cours)' },
   { cle: 'outillage', nom: 'outillage', teinte: 'var(--outillage)' },
+  { cle: 'skills', nom: 'skills', teinte: 'var(--skill)' },
   { cle: 'hooks', nom: 'hooks', teinte: 'var(--hook)' },
   { cle: 'contexte', nom: 'Taille CTX', teinte: 'linear-gradient(to top, var(--ramp-bon), var(--ramp-mauvais))' },
   { cle: 'contenu', nom: 'Contenu CTX', teinte: 'linear-gradient(to right, var(--en-cours), var(--outil))' },
@@ -663,7 +672,7 @@ const VOIES_ANNEXES = [
   { cle: 'modele', nom: 'appels au modèle', teinte: 'var(--modele)' },
 ];
 const voiesVisibles = {
-  tours: true, outils: true, reflexion: true, fichiers: true, taches: true, outillage: true, hooks: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
+  tours: true, outils: true, reflexion: true, fichiers: true, taches: true, outillage: true, skills: true, hooks: true, contexte: true, contenu: true, buffer: true, attente: true, boucles: true, modele: true,
 };
 
 // Ce que coûte un appel, en multiples du prix plein : écrire au cache coûte 1,25 fois, y
@@ -1059,6 +1068,11 @@ function construireVoies() {
     if (voiesVisibles.outillage && (a.outillage || []).length) {
       voies.push({ genre: 'outillage', agent: a, prof: a.profondeur + 1 });
     }
+    // Les skills se posent avec l'outillage : les deux disent ce que l'agent a reçu
+    // pour travailler — l'un ses outils, l'autre ses instructions.
+    if (voiesVisibles.skills && (a.skillsCharges || []).length) {
+      voies.push({ genre: 'skills', agent: a, prof: a.profondeur + 1 });
+    }
     if (voiesVisibles.hooks && (a.hooks || []).length) {
       voies.push({ genre: 'hooks', agent: a, prof: a.profondeur + 1 });
     }
@@ -1252,6 +1266,24 @@ const LEGENDE_VOIE = {
     'atteint l’agent — mais ne laisse aucune trace. Cette voie montre donc ce',
     'que votre propre outillage coûte, jamais celui du projet regardé.',
   ].join('\n'),
+  skills: [
+    'Les instructions qu’un agent a reçues en cours de route, et pendant',
+    'combien de temps il les a eues sous les yeux :',
+    '   bord gauche net       l’instant du chargement',
+    '   bande jusqu’au bout   la durée pendant laquelle le texte reste',
+    '                         dans le contexte — rien ne l’en retire',
+    '   bande tronquée net    un compactage est passé et a réécrit le contexte',
+    '',
+    'Un skill n’est pas un geste : c’est du texte qui entre et qui reste.',
+    'La plage n’est donc pas une supposition sur son « règne », c’est la',
+    'durée mesurée pendant laquelle ses instructions sont lisibles par le',
+    'modèle.',
+    '',
+    'MESURÉ : 44 chargements sur 59 arrivent dans les 10 % premiers de la',
+    'vie de leur agent. Un skill se prend au début du poste — et 46 des 58',
+    'chargements du corpus entrent comme un simple message, non comme une',
+    'pièce jointe. Ce sont eux que l’application ne voyait pas.',
+  ].join('\n'),
   outillage: [
     'Ce que l’agent a le droit d’appeler, et quand cela change :',
     '   trait plein    des outils lui sont offerts',
@@ -1423,6 +1455,19 @@ function dessinerArbre() {
       etiq.style.color = 'var(--texte-faible)';
       etat.textContent = a.hooks.length + ' hk.';
       surLigne(() => carteHooks(a));
+    } else if (v.genre === 'skills') {
+      const sk = a.skillsCharges || [];
+      const total = sk.reduce((n2, x) => n2 + (x.taille || 0), 0);
+      d.title = sk.length + ' skill(s) chargé(s), ' + total.toLocaleString('fr-FR')
+        + ' caractères injectés'
+        + '\n\n' + LEGENDE_VOIE.skills;
+      icone.textContent = '⊜';
+      icone.style.color = 'var(--skill)';
+      puce.style.background = 'var(--skill)';
+      etiq.textContent = 'skills';
+      etiq.style.color = 'var(--texte-faible)';
+      etat.textContent = sk.length + ' sk.';
+      surLigne(() => carteSkills(a));
     } else if (v.genre === 'outillage') {
       d.title = (a.outilsOfferts || []).length + ' outils offerts à la fin\n'
         + a.outillage.length + ' changement(s) d’outillage'
@@ -1844,6 +1889,10 @@ function dessinerPiste() {
     }
     if (v.genre === 'outillage') {
       svg.append(dessinerVoieOutillage(v.agent, centre, axe, visible));
+      return;
+    }
+    if (v.genre === 'skills') {
+      svg.append(dessinerVoieSkills(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'hooks') {
@@ -2510,6 +2559,128 @@ function detaillerEntree(dl, j, nombre) {
  * La carte des hooks. C'est elle qui porte les durées, puisque la voie ne peut pas les
  * dessiner — un hook dure quelques dizaines de millisecondes, soit un dixième de pixel.
  */
+/**
+ * La carte d'un skill — §6.5.
+ *
+ * Elle répond à quatre questions qu'un appel seul ne dit pas : ce que le skill a fait
+ * faire, ce qu'il pesait dans le contexte, avec quoi il cohabitait, et qui d'autre s'en
+ * sert sur cette machine. Sa définition entière vient à la fin, dépliable : c'est le texte
+ * exact qui est entré dans le contexte, pas le fichier tel qu'il est aujourd'hui sur le
+ * disque — les deux peuvent différer, et c'est celui qui a agi qui compte.
+ */
+function carteSkills(agent, visee) {
+  const tous = (agent.skillsCharges || []);
+  const sk = visee || tous[0] || null;
+  const dl = document.createElement('dl');
+  const morceaux = [dl];
+
+  if (!sk) {
+    ligne(dl, 'Agent', agent.nom);
+    ligne(dl, 'Skills chargés', 'aucun');
+    ouvrirPanneau('skills', agent.nom, morceaux);
+    return;
+  }
+
+  ligne(dl, 'Skill', sk.nom, true);
+  ligne(dl, 'Chargé par', agent.nom);
+  ligne(dl, 'Chargé à', heure(sk.instant));
+  ligne(dl, 'En contexte pendant', sk.fin !== null ? duree(sk.fin - sk.instant) : 'jusqu’à la fin');
+  ligne(dl, 'Fin de la plage', sk.coupeParCompactage
+    ? 'un compactage a réécrit le contexte' : 'la fin de l’agent');
+  // La forme dit par où le texte est entré, et ce n'est pas un détail : l'application ne
+  // lisait que la pièce jointe, et ratait ainsi 46 chargements sur 58.
+  ligne(dl, 'Entré comme', sk.forme === 'message'
+    ? 'un message de session (skill de projet)'
+    : 'une pièce jointe invoked_skills (skill livré)');
+  ligne(dl, 'Depuis', sk.chemin, true);
+  ligne(dl, 'Poids injecté', (sk.taille || 0).toLocaleString('fr-FR') + ' caractères');
+
+  // ── 1. sa part du contexte, mesurée et non estimée
+  const der = (agent.requetesModele || []).filter((r) => r.composition).slice(-1)[0];
+  if (der && sk.taille) {
+    const c = der.composition;
+    const total = c.humain + c.modele + c.outilEntree + c.outilSortie + c.systeme;
+    if (total > 0) {
+      ligne(dl, 'Part du contexte', (sk.taille * 100 / total).toFixed(1).replace('.', ',')
+        + ' % du texte de cet agent au dernier appel ('
+        + total.toLocaleString('fr-FR') + ' caractères)');
+    }
+  }
+
+  // ── 2. les outils appelés sous son règne
+  const fin = sk.fin !== null ? sk.fin : Infinity;
+  const sous = (agent.outils || [])
+    .filter((o) => o.debut !== null && o.debut >= sk.instant && o.debut <= fin);
+  if (sous.length) {
+    const comptes = new Map();
+    for (const o of sous) comptes.set(o.nom, (comptes.get(o.nom) || 0) + 1);
+    ligne(dl, 'Appels sous sa plage', sous.length + ' appel(s), '
+      + comptes.size + ' outil(s) différent(s)');
+    const bloc = document.createElement('div');
+    bloc.className = 'bloc';
+    const t = document.createElement('div');
+    t.style.cssText = 'font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--texte-faible)';
+    t.textContent = 'ce qu’il a fait faire';
+    const puces = document.createElement('div');
+    puces.className = 'puces-outils';
+    for (const [nom, n] of [...comptes].sort((a, b) => b[1] - a[1])) {
+      const sp = document.createElement('span');
+      sp.textContent = nom + ' × ' + n;
+      puces.append(sp);
+    }
+    bloc.append(t, puces);
+    morceaux.push(bloc);
+  } else {
+    ligne(dl, 'Appels sous sa plage', 'aucun');
+  }
+
+  // ── 3. ce qui cohabitait : les autres skills en contexte en même temps, et l'outillage
+  const voisins = tous.filter((x) => x !== sk && x.instant !== null
+    && x.instant <= fin && (x.fin === null ? Infinity : x.fin) >= sk.instant);
+  ligne(dl, 'Autres skills en même temps', voisins.length
+    ? voisins.map((x) => x.nom).join(', ') : 'aucun — il était seul');
+  const serveurs = (agent.outillage || [])
+    .filter((e) => e.genre === 'serveurs' && e.instant !== null && e.instant <= fin)
+    .flatMap((e) => e.noms || []);
+  ligne(dl, 'Serveurs MCP en place', serveurs.length
+    ? [...new Set(serveurs)].join(', ') : 'aucun');
+
+  // ── 4. qui d'autre s'en sert, sur toute la machine. Le recensement lit tous les
+  // transcrits : on l'appelle après coup et on complète la carte quand il répond, plutôt
+  // que de faire attendre l'ouverture.
+  const dAutres = document.createElement('p');
+  // Pas la classe « avert » : ce n'est pas un avertissement, c'est un renseignement, et
+  // l'ambre d'une alerte lui donnerait un ton qu'il n'a pas.
+  dAutres.style.cssText = 'color:var(--texte-faible);font-size:.86rem;margin:.6rem 0 0';
+  dAutres.textContent = 'Recensement des autres sessions…';
+  morceaux.push(dAutres);
+  fetch('/api/skills').then((r) => r.json()).then((etat) => {
+    const e = (etat.skills || []).find((x) => x.nom === sk.nom);
+    if (!e) { dAutres.textContent = 'Aucune autre trace de ce skill sur cette machine.'; return; }
+    const ailleurs = e.sessions.length;
+    dAutres.textContent = 'Sur cette machine : ' + e.chargements + ' chargement'
+      + (e.chargements > 1 ? 's' : '') + ' dans ' + ailleurs + ' session'
+      + (ailleurs > 1 ? 's' : '')
+      + (e.agents ? ', dont ' + e.agents + ' par un sous-agent' : '')
+      + ' — ' + e.caracteres.toLocaleString('fr-FR') + ' caractères injectés en tout.'
+      + (e.chemins.length > 1 ? ' Chargé depuis ' + e.chemins.length + ' emplacements différents.' : '');
+  }).catch(() => { dAutres.textContent = 'Le recensement des autres sessions a échoué.'; });
+
+  // ── sa définition, entière
+  morceaux.push(blocReplie('sa définition — le texte exact qui est entré dans le contexte',
+    sk.contenu || '', false));
+
+  if (tous.length > 1) {
+    const p = document.createElement('p');
+    p.style.cssText = 'color:var(--texte-faible);font-size:.86rem;margin:.4rem 0 0';
+    p.textContent = 'Cet agent a chargé ' + tous.length + ' skills : '
+      + tous.map((x) => x.nom).join(', ') + '. Cliquez une autre bande pour la sienne.';
+    morceaux.push(p);
+  }
+
+  ouvrirPanneau('skill', sk.nom + ' — ' + agent.nom, morceaux);
+}
+
 /** Carte des tâches de fond : l'une d'elles, et le compte de toutes. */
 function carteTaches(agent, visee) {
   const ts = agent.taches || [];
@@ -3565,6 +3736,91 @@ const NOM_OUTILLAGE = {
  * change. Les événements sont rares — une poignée par session — donc des marques, pas des
  * barres : une voie remplie laisserait croire à une activité continue qu'il n'y a pas.
  */
+// La mesure d'une étiquette de voie, partagée par les hooks et les skills : 8 px, et
+// 4,7 px par caractère. Le chiffre est volontairement majorant — relevé au pire à 4,25 px
+// dans la pile de polices de la page — pour qu'une étiquette refuse de sortir plutôt que
+// de mordre sa voisine.
+const TAILLE_NOM = 8;
+const LARGEUR_PAR_CARACTERE = 4.7;
+
+/**
+ * La voie des skills — §6.5.
+ *
+ * Une bande par skill chargé, du chargement jusqu'à la fin de l'agent. Ce que la bande
+ * affirme est vérifiable : pendant toute sa longueur, les instructions du skill sont dans
+ * le contexte du modèle. Rien ne les en retire — rien sauf un compactage, et la bande s'y
+ * arrête alors sur une coupe franche qui le dit.
+ *
+ * La bande n'a pas de teinte à elle : la ligne du temps en porte déjà seize et aucune
+ * dix-septième ne sépare assez (voir le commentaire de `--skill`). L'identité vient donc
+ * du **nom écrit dessus**, ce qui est aussi la seule chose qu'on cherche en la lisant.
+ */
+function dessinerVoieSkills(agent, centre, axe, visible) {
+  const g = el('g', {});
+  const liste = (agent.skillsCharges || [])
+    .filter((s) => s.instant !== null)
+    .slice().sort((a, b) => a.instant - b.instant);
+  if (!liste.length) return g;
+
+  // Plusieurs skills peuvent être en contexte en même temps — c'est même tout l'intérêt
+  // de la bande. On les empile sur des rangées pour qu'aucune n'en cache une autre, en
+  // réutilisant la première rangée libre : deux skills qui ne se chevauchent pas dans le
+  // temps partagent leur ligne, et la voie ne grandit pas pour rien.
+  const HAUTEUR = 7;
+  const finsParRang = [];
+  for (const s of liste) {
+    const x0 = axe.x(s.instant);
+    const x1 = s.fin !== null ? axe.x(s.fin) : axe.largeur;
+    if (!visible(x0, Math.max(x1, x0 + 2))) continue;
+    let rang = finsParRang.findIndex((fin) => fin <= x0 - 2);
+    if (rang === -1) { rang = finsParRang.length; finsParRang.push(x1); }
+    else finsParRang[rang] = x1;
+    const y = centre - 9 + rang * (HAUTEUR + 1);
+    const largeur = Math.max(2, x1 - x0);
+
+    // Un lavis seul ne suffit pas : mesuré, il ne rend que 1,3 : 1 contre le fond, et
+    // une forme qu'on ne voit pas n'existe pas. C'est le CONTOUR qui porte la bande —
+    // 4,2 : 1, au-dessus du seuil de 3 : 1 exigé d'un objet graphique — pendant que le
+    // lavis reste assez pâle pour ne pas éteindre les voies voisines, qu'il recouvre
+    // parfois sur toute la largeur de l'écran.
+    g.append(el('rect', {
+      x: x0 + 0.5, y: y + 0.5, width: Math.max(1, largeur - 1), height: HAUTEUR - 1, rx: 1.5,
+      fill: 'var(--skill)', 'fill-opacity': '.18',
+      stroke: 'var(--skill)', 'stroke-width': 1,
+    }));
+    // Le bord gauche, net : c'est l'ÉVÉNEMENT, l'instant où le texte entre.
+    g.append(el('rect', { x: x0, y, width: 2, height: HAUTEUR, fill: 'var(--skill)' }));
+    // Le bord droit n'est franc que si un compactage a coupé : sinon la bande meurt avec
+    // l'agent, ce qui n'est pas un fait sur le skill mais sur l'agent.
+    if (s.coupeParCompactage) {
+      g.append(el('rect', {
+        x: x0 + largeur - 2, y, width: 2, height: HAUTEUR, fill: 'var(--compact)',
+      }));
+    }
+
+    // Le nom, écrit DANS la bande dès qu'il y tient. C'est lui qui porte l'identité.
+    const nom = s.nom || '';
+    if (nom && largeur >= nom.length * LARGEUR_PAR_CARACTERE + 10) {
+      g.append(el('text', {
+        x: x0 + 5, y: y + HAUTEUR - 1.5, fill: 'var(--texte)',
+        'font-size': TAILLE_NOM, opacity: '.95',
+      }, document.createTextNode(nom)));
+    }
+
+    const prise = el('rect', { x: x0, y: y - 1, width: largeur, height: HAUTEUR + 2, fill: 'transparent' });
+    prise.style.cursor = 'pointer';
+    prise.append(el('title', {}, document.createTextNode(
+      nom + '  —  ' + (s.taille || 0).toLocaleString('fr-FR') + ' caractères'
+      + '\nchargé à ' + heure(s.instant)
+      + (s.fin !== null ? '\nen contexte pendant ' + duree(s.fin - s.instant) : '')
+      + (s.coupeParCompactage ? '\n\nun compactage a réécrit le contexte ici' : '')
+      + '\n\n' + (s.chemin || ''))));
+    prise.addEventListener('click', (ev) => { ev.stopPropagation(); carteSkills(agent, s); });
+    g.append(prise);
+  }
+  return g;
+}
+
 /**
  * La voie des hooks : ce qui s'exécute **autour** de chaque geste de l'agent, et qui
  * décide de ce qui a le droit de se produire.
@@ -3662,8 +3918,6 @@ function dessinerVoieHooks(agent, centre, axe, visible) {
   // suivante — même règle que le nom d'un outil. Les noms sont longs (« PostToolUse:Bash »
   // fait seize caractères) et les hooks se suivent de quelques dizaines de millisecondes :
   // l'étiquette ne sort donc qu'à fort zoom, ce qui est exactement voulu.
-  const TAILLE_NOM = 8;
-  const LARGEUR_PAR_CARACTERE = 4.7;   // relevé à 8 px dans la pile de polices de la page
   // Trié : la trace ne l'est pas. Trois hooks de cette session reculent dans le temps —
   // l'un de 110 secondes — parce qu'ils sont écrits au moment où l'appel se referme et non
   // au moment où ils tournent. Sans tri, « la marque suivante » n'est pas la marque de
@@ -4473,6 +4727,7 @@ function remplirMenuVoies() {
       presentes.fichiers = (presentes.fichiers || 0) + 1;
     }
     if ((a.outillage || []).length) presentes.outillage = (presentes.outillage || 0) + 1;
+    if ((a.skillsCharges || []).length) presentes.skills = (presentes.skills || 0) + 1;
     if ((a.hooks || []).length) presentes.hooks = (presentes.hooks || 0) + 1;
     if ((a.taches || []).length) presentes.taches = (presentes.taches || 0) + 1;
     if ((a.requetesModele || []).length > 1) {

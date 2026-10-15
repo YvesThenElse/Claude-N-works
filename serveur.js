@@ -7,7 +7,7 @@
 'use strict';
 
 const http = require('node:http');
-const { lireSession, lireContexte, cheminSousAgents } = require('./lecture.js');
+const { lireSession, lireContexte, cheminSousAgents, recenserSkills } = require('./lecture.js');
 const { Suiveur } = require('./suivi.js');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -273,6 +273,21 @@ function traiter(requete, reponse) {
     suivreSession(id, requete, reponse).catch((err) => {
       signaler(err);
       try { reponse.end(); } catch { /* le navigateur est déjà parti */ }
+    });
+    return;
+  }
+
+  // Le recensement des skills sur toute la machine : « qui d'autre se sert de celui-ci ».
+  // Servi à la demande, comme le contexte, parce qu'il lit TOUS les transcrits — 4,9 s au
+  // premier appel, 10 ms ensuite grâce au cache par date de fichier.
+  if (url.pathname === '/api/skills') {
+    recenserSkills(DOSSIER_PROJETS).then((etat) => {
+      reponse.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      reponse.end(JSON.stringify(etat));
+    }).catch((err) => {
+      signaler(err);
+      reponse.writeHead(500, { 'content-type': 'application/json; charset=utf-8' });
+      reponse.end(JSON.stringify({ erreur: String(err) }));
     });
     return;
   }

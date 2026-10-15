@@ -420,9 +420,14 @@ texte est `API Error: …`. Trois relevés sur la machine :
 
 ### Les skills : l'appel ne dit pas ce qui a été chargé
 
-Un `tool_use` `Skill` dit **ce qu'on a demandé**. L'attachement `invoked_skills` dit **ce
-qui a été injecté** : `name`, `path` (par exemple `bundled:loop`) et `content` entier —
-8 778 caractères d'instructions pour le skill `loop`.
+Un `tool_use` `Skill` dit **ce qu'on a demandé** — et rien d'autre : son résultat fait
+**24 caractères de médiane**, « `Launching skill: taillage` », sur les 57 appels du corpus.
+Le contenu entre ailleurs.
+
+> ⚠️ **Cette section disait que `invoked_skills` portait le contenu. C'est vrai, mais ce
+> n'est QU'UNE des deux formes — et la plus rare.** Voir le § 5 duodecies : 46 chargements
+> sur 58 passent par un simple message. L'application n'a lu que la pièce jointe jusqu'au
+> 15 octobre 2026, et ne voyait donc aucun skill de projet.
 
 ## 5 septies. Un agent né dans une boucle, et qui en lance un autre
 
@@ -623,6 +628,60 @@ forcément de notification — son arrêt fait alors office de fin.
 sur 131** ; en lisant les trois, elle en trouve **129**. Et sur l'ensemble du corpus, des
 1 451 notifications, **1 373 désignent une tâche** et 78 un agent — les premières étaient
 lues puis jetées.
+
+## 5 duodecies. Les skills — mesurés le 15 octobre 2026
+
+Un skill entre dans le contexte de **deux façons**, et une seule était lue.
+
+| | forme | compte | ce qu'elle couvre |
+|---|---|---|---|
+| **A** | pièce jointe `invoked_skills` | **12** | les skills livrés avec Claude Code |
+| **B** | message `user` marqué `isMeta` | **46** | les skills d'un projet — `.claude/skills/` |
+
+**La forme A** est un `attachment` dont `skills[]` porte `name`, `path` (`bundled:loop`) et
+`content`. Trois champs, toujours les mêmes.
+
+**La forme B** n'a pas de type à elle. C'est un message ordinaire, dont le texte **commence
+par** :
+
+```
+Base directory for this skill: /chemin/vers/.claude/skills/taillage
+
+# Taillage
+…
+```
+
+Le nom du skill n'est écrit nulle part : il se déduit du **dernier segment du chemin**.
+
+> ⚠️ **Le marqueur n'est fiable qu'en tête.** Sur 48 lignes `user` qui contiennent la
+> phrase, 2 ne sont pas des chargements : un résumé de compactage cite le texte d'un skill
+> au milieu du sien. La règle est donc `type === 'user'` **et** `isMeta === true` **et**
+> le texte **commence** par la marque — elle rend exactement 46, et les 8 lignes écartées
+> sont toutes légitimes (Claude qui parle d'un skill, un résumé qui en recopie un).
+
+### Ce que ça change
+
+- **Le kit cuisine entier passait sous le radar.** `taillage` (15 chargements), `service`
+  (8), `sauce` (8), `cuisson` (6), `dressage` (5) : 42 chargements invisibles.
+- **358 288 caractères n'étaient comptés dans aucune catégorie du contexte.** Ni consigne,
+  ni résultat d'outil, ni système : le texte d'un skill de forme B tombait entre les
+  bandes de la composition. Il compte désormais comme texte système.
+
+### Un skill se prend au début du poste
+
+Sur les 59 chargements situés dans la vie de leur agent, **44 arrivent dans les 10 %
+premiers**, et 26 dès les six premières lignes du transcript. C'est ce qui rend honnête de
+dessiner une **plage** et non une marque : un skill n'est pas un geste, c'est du texte qui
+entre et qui reste. La plage court jusqu'à la fin de l'agent — ou jusqu'au compactage, le
+seul événement qui réécrive le contexte.
+
+### Le disque n'est pas la trace
+
+Le fichier `SKILL.md` d'aujourd'hui n'est pas celui qui a tourné. Mesuré sur `taillage` :
+le texte injecté le 12 octobre fait **1 237 caractères**, le fichier sur disque en fait
+**2 961**, modifié le 13 octobre à 11h26 — et le disque **ne contient même plus** le texte
+injecté, qui a été réécrit et non complété. Lire le fichier pour montrer « la définition »
+montrerait un skill qui n'a jamais été chargé. C'est le transcript qui fait foi.
 
 ## 6. Corrections à apporter au cahier des charges
 

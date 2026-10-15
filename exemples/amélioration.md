@@ -70,7 +70,14 @@ Rien n'oblige les suivants à y rester.
   trop salée ». Les fichiers de mémoire ne sont pas lus.
 - **Ce qu'un sous-agent ne voit pas** — ◐ voie Contenu CTX. Faire demander à un commis une
   chose que seul le chef sait, et montrer noir sur blanc qu'il ne l'a pas.
-- **Skills chargées à la demande** — ✔. Déjà dans le kit cuisine.
+- **Skills chargées à la demande** — ✔ **depuis le 15 octobre 2026**. Une voie *skills*
+  montre, par agent, une bande du chargement jusqu'à la fin, avec le nom écrit dedans ; la
+  carte donne la définition chargée, ce que le skill a fait faire, sa part du contexte, ce
+  qui cohabitait et qui d'autre s'en sert. Le marqueur disait « déjà dans le kit cuisine » —
+  c'était vrai de la mise en scène, faux de l'observation : l'application ne lisait que la
+  pièce jointe `invoked_skills` et ratait **46 chargements sur 58**, dont tout le kit.
+  Reste à **mettre en scène** ce qu'on ne sait toujours pas montrer : un skill chargé en
+  cours de route plutôt qu'au début du poste, et deux skills qui se contredisent.
 
 ## Outils et MCP
 
