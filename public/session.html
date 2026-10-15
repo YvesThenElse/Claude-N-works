@@ -1475,7 +1475,10 @@ function dessinerArbre() {
       puce.style.background = 'linear-gradient(to right, var(--ramp-mauvais), var(--ramp-moyen), var(--ramp-bon))';
       etiq.textContent = 'Buffer CTX';
       etiq.style.color = 'var(--texte-faible)';
-      etat.textContent = Math.round((e?.part || 0) * 100) + ' %';
+      // « 89 % » tout court se lit à tort comme la part relue du cache, qui est un autre
+      // nombre — sur un appel mesuré, 85 % d'économie pour 96 % de jetons relus. On dit
+      // donc de quoi il s'agit.
+      etat.textContent = Math.round((e?.part || 0) * 100) + ' % épargnés';
       surLigne(() => carteBuffer(a, null));
     } else if (v.genre === 'modele') {
       const reqs = a.requetesModele.filter((r) => r.modele === v.modele);
@@ -3866,53 +3869,43 @@ function dessinerVoieBuffer(agent, centre, axe, visible) {
   const haut = centre - 9;
   const hauteur = 18;
   const finAgent = agent.fin ?? deroule.fin;
-  // En dessous de cette largeur, deux appels de même teinte ne se distinguent plus : on
-  // les réunit en une seule bande. Mesuré sur la session de 2 880 appels, cela ramène
-  // 5 761 éléments à quelques centaines sans rien changer à l'image.
-  const SEUIL_FUSION = 2;
-  const seau = (x) => Math.round(x * 40);
 
-  const bornes = reqs.map((r, i) => ({
-    r,
-    e: economieCache(r.jetons),
-    x: axe.x(r.appel),
-    xf: axe.x(i + 1 < reqs.length ? reqs[i + 1].appel : finAgent),
-  })).filter((b) => b.e);
+  // ⚠️ Une marque par appel, et sa largeur est PLAFONNÉE.
+  //
+  // Jusqu'au 15 octobre 2026, chaque appel peignait une bande qui tenait jusqu'au suivant.
+  // L'intention était juste — l'état du buffer ne change que quand on y touche — mais la
+  // largeur se mettait alors à mesurer **le temps d'attente**, qui ne dit rien du cache.
+  // Mesuré sur une session de 2 880 appels : repli des temps morts décoché, **un seul
+  // appel prenait 56 % de la voie** ; replié, les dix plus larges en prenaient encore
+  // 20 % à eux dix, soit 0,35 % des appels pour un cinquième de l'encre.
+  //
+  // Le plafond règle les deux cas d'un coup. Serrés, les appels se pavent sans se
+  // recouvrir — la densité de la voie devient la densité des appels, ce qui est vrai.
+  // Espacés, chacun garde une marque fine et aucun ne peut s'étaler sur son attente.
+  const LARGEUR_MAX = 3;
 
-  let i = 0;
-  while (i < bornes.length) {
-    const d = bornes[i];
-    let j = i;
-    // On n'agrège que des bandes trop fines pour être lues séparément, et de même teinte.
-    while (j + 1 < bornes.length
-        && bornes[j].xf - bornes[j].x < SEUIL_FUSION
-        && seau(bornes[j + 1].e.part) === seau(d.e.part)) {
-      j += 1;
-    }
-    const f = bornes[j];
-    const largeur = Math.max(1.4, f.xf - d.x);
-    if (visible(d.x, d.x + largeur)) {
-      const parts = bornes.slice(i, j + 1).map((b) => b.e.part);
-      const bande = el('rect', {
-        x: d.x, y: haut, width: largeur, height: hauteur,
-        fill: teinteBuffer(d.e.part), opacity: '.85',
-      });
-      bande.style.cursor = 'pointer';
-      bande.append(el('title', {}, document.createTextNode(
-        j > i
-          ? (j - i + 1) + ' appels, de ' + Math.round(Math.min(...parts) * 100) + ' % à '
-            + Math.round(Math.max(...parts) * 100) + ' % épargnés\n' + heure(d.r.appel)
-          : 'le cache épargne ' + Math.round(d.e.part * 100) + ' % de cet appel\n'
-            + heure(d.r.appel) + (i === 0 ? '   (premier appel : rien à relire)' : '') + '\n'
-            + Math.round(d.e.total).toLocaleString('fr-FR') + ' jetons présentés\n'
-            + '   ' + Math.round(d.e.relu * 100) + ' % relus du cache\n'
-            + '   ' + (d.r.jetons.cacheEcrit || 0).toLocaleString('fr-FR') + ' écrits au cache\n'
-            + '   ' + (d.r.jetons.entree || 0).toLocaleString('fr-FR') + ' payés au prix fort')));
-      bande.addEventListener('click', (ev) => { ev.stopPropagation(); carteBuffer(agent, d.r); });
-      g.append(bande);
-    }
-    i = j + 1;
-  }
+  reqs.forEach((r, i) => {
+    const e = economieCache(r.jetons);
+    if (!e) return;
+    const x = axe.x(r.appel);
+    const xSuivant = axe.x(i + 1 < reqs.length ? reqs[i + 1].appel : finAgent);
+    const largeur = Math.max(1, Math.min(LARGEUR_MAX, xSuivant - x));
+    if (!visible(x, x + largeur)) return;
+    const marque = el('rect', {
+      x, y: haut, width: largeur, height: hauteur,
+      fill: teinteBuffer(e.part), opacity: '.9',
+    });
+    marque.style.cursor = 'pointer';
+    marque.append(el('title', {}, document.createTextNode(
+      'le cache épargne ' + Math.round(e.part * 100) + ' % de cet appel\n'
+      + heure(r.appel) + (i === 0 ? '   (premier appel : rien à relire)' : '') + '\n'
+      + Math.round(e.total).toLocaleString('fr-FR') + ' jetons présentés\n'
+      + '   ' + Math.round(e.relu * 100) + ' % relus du cache\n'
+      + '   ' + (r.jetons.cacheEcrit || 0).toLocaleString('fr-FR') + ' écrits au cache\n'
+      + '   ' + (r.jetons.entree || 0).toLocaleString('fr-FR') + ' payés au prix fort')));
+    marque.addEventListener('click', (ev) => { ev.stopPropagation(); carteBuffer(agent, r); });
+    g.append(marque);
+  });
   return g;
 }
 

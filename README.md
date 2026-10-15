@@ -575,10 +575,29 @@ reprises après une pause, où le cache a expiré. Mesuré sur la session la plu
 l'écart médian étant de 2 h 36 — contre 2,3 s pour les 2 857 autres. Le premier appel d'un
 agent est rouge pour la même raison, en pire : il n'y a rien à relire.
 
-**Ce qui est fusionné, et pourquoi.** Deux bandes voisines de même teinte et trop fines pour
-être distinguées — moins de 2 px — sont réunies en une seule, et l'infobulle dit alors
-combien d'appels elle couvre. Sans cela, la session de 2 880 appels ajoutait 5 761 éléments
-au dessin ; avec, elle en ajoute 873, pour exactement la même image.
+**Une marque par appel, et sa largeur est plafonnée** — corrigé le 15 octobre 2026.
+Jusque-là, chaque appel peignait une bande qui tenait jusqu'au suivant. L'intention était
+juste — l'état du buffer ne change que quand on y touche — mais la largeur se mettait alors
+à mesurer **le temps d'attente**, qui ne dit rien du cache. Mesuré sur la session de 2 880
+appels :
+
+| | bande continue | marque plafonnée |
+|---|---|---|
+| éléments dessinés | 434 (fusionnés) | **2 880**, un par appel |
+| la plus large, à elle seule | 3,1 % de la voie | **0,10 %** |
+| les dix plus larges | 20,1 % | **1 %** |
+| la moitié la plus fine | 22,2 % | **48 %** |
+| les mêmes, repli des temps morts décoché | **56 % pour un seul appel** | identique au cas replié |
+
+La dernière ligne est la preuve : la voie ne dépend plus du temps d'attente. Et comme plus
+rien n'est fusionné, **chaque appel est maintenant cliquable** là où 2 880 appels se
+réduisaient à 434 bandes.
+
+⚠️ **Et le chiffre de la voie n'est pas celui de la carte d'un appel.** La voie montre
+l'**économie** — ce que l'appel ne paie pas, aux tarifs relatifs. La carte d'un appel au
+modèle montre la **part relue**, qui est un autre nombre : sur un appel mesuré, 77 234
+jetons présentés dont 74 130 relus, cela fait **96 % de part relue** et **85 % d'économie**.
+Les deux sont justes. La ligne de la voie dit donc « 85 % épargnés », et non « 85 % ».
 
 **Ce qu'on ne sait pas dire.** Les tarifs sont des rapports, pas une monnaie : l'économie
 est exacte en proportion et muette en euros, parce que le transcript ne porte aucun prix.
