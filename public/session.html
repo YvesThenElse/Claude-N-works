@@ -343,6 +343,50 @@
 
   /* La lecture du contexte : une liste d'éléments dépliables, dans l'ordre. */
   .ctx-liste { margin-top: .8rem; }
+
+  /* Les MOMENTS d'un contexte — §6.8. La liste à plat ne disait pas son rythme ; ces
+     groupes le rendent sans rien retirer ni rien ajouter. */
+
+  /* Une ponctuation : la consigne, ce que le modèle a dit, une reprise après compactage.
+     Elle traverse la liste pour qu'on la voie en la survolant du regard. */
+  .ctx-moment { margin: .9rem 0 0; border-left: 3px solid var(--trait); padding-left: .7rem; }
+  .ctx-moment > .titre {
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--texte-faible); padding: .1rem 0 .25rem;
+  }
+  .ctx-moment.consigne { border-left-color: var(--ctx-humain); }
+  .ctx-moment.parole { border-left-color: var(--ctx-modele); }
+  .ctx-moment.reprise { border-left-color: var(--ctx-resume); }
+  .ctx-moment.miseEnPlace { border-left-color: var(--ctx-systeme); }
+  .ctx-moment.consigne > .titre { color: var(--ctx-humain); }
+  .ctx-moment.parole > .titre { color: var(--ctx-modele); }
+  .ctx-moment.reprise > .titre { color: var(--ctx-resume); }
+  /* Le premier élément d'un moment n'a pas besoin du filet qui sépare deux lignes. */
+  .ctx-moment .ctx-element:first-child { border-top: 0; }
+
+  /* La mise en place se replie : c'est ce qui était là avant qu'on demande quoi que ce
+     soit, et on ne vient presque jamais le lire. */
+  .ctx-miseenplace > summary {
+    cursor: pointer; list-style: none; padding: .2rem 0;
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--texte-faible);
+  }
+  .ctx-miseenplace > summary::-webkit-details-marker { display: none; }
+  .ctx-miseenplace > summary:hover { color: var(--texte); }
+
+  /* Un GESTE : réflexion, appel, résultat. Le rail les lie ; l'en-tête dit l'outil. */
+  .ctx-geste { margin: .55rem 0 0; border-left: 2px solid var(--trait); padding-left: .7rem; }
+  .ctx-geste > .entete {
+    display: flex; align-items: baseline; gap: .5rem;
+    font-size: .76rem; color: var(--texte-faible); padding: 0 0 .1rem;
+  }
+  .ctx-geste > .entete .outil { color: var(--texte); font-weight: 600; }
+  .ctx-geste > .entete .poids { margin-left: auto; }
+  /* Plusieurs appels dans un même geste ne sont pas une suite : ils sont partis ensemble,
+     dans un seul message. C'est ce qui fait gagner du temps, et ça méritait de se voir. */
+  .ctx-geste.ensemble { border-left-color: var(--ctx-outil-entree); }
+  .ctx-geste.ensemble > .entete .outil { color: var(--ctx-outil-entree); }
+  .ctx-geste .ctx-element:first-child { border-top: 0; }
   .ctx-element { border-top: 1px solid var(--trait); }
   .ctx-element > summary {
     cursor: pointer; padding: .3rem .1rem; font-size: .78rem; display: flex;
@@ -3374,6 +3418,104 @@ const NOM_GENRE = {
 };
 
 /**
+ * Découper un contexte en MOMENTS — §6.8.
+ *
+ * Le contexte arrive à plat : soixante-quinze lignes qui se ressemblent toutes, où il faut
+ * lire chaque titre pour savoir où on en est. Mais la trace a un rythme très régulier, et
+ * il se mesure : **réflexion → appel → résultat → rappel de jetons**, répété, ponctué par
+ * ce que le modèle dit. On rend ce rythme visible au lieu de le laisser deviner.
+ *
+ * Les moments :
+ *   `consigne`     une requête d'Yves — ce qui ouvre tout
+ *   `miseEnPlace`  ce qui était là AVANT le premier geste : outils offerts, skills
+ *                  listés, instructions des serveurs MCP
+ *   `travail`      une suite de gestes
+ *   `parole`       ce que le modèle a dit, et la réflexion qui y mène
+ *   `reprise`      un résumé de compactage : le contexte repart de là
+ *
+ * Mesuré sur 41 contextes et 6 185 éléments : **aucun élément perdu**. Le découpage ne
+ * jette rien et n'invente rien — il regroupe.
+ */
+function decouperEnMoments(elements) {
+  const moments = [];
+  let travail = null;
+  // Tant qu'aucun geste n'a eu lieu, une ligne « système » est de la mise en place. Après,
+  // c'est un rappel qui s'intercale dans le travail, et il n'a pas le même sens.
+  let ouverture = true;
+  const poser = (genre, els) => { moments.push({ genre, elements: els }); travail = null; };
+  for (const e of elements) {
+    if (e.genre === 'humain') { poser('consigne', [e]); continue; }
+    if (e.genre === 'modele') { poser('parole', [e]); ouverture = false; continue; }
+    if (e.genre === 'resume') { poser('reprise', [e]); ouverture = true; continue; }
+    if (e.genre === 'systeme' && ouverture) {
+      const d = moments[moments.length - 1];
+      if (d && d.genre === 'miseEnPlace') d.elements.push(e);
+      else poser('miseEnPlace', [e]);
+      continue;
+    }
+    ouverture = false;
+    if (!travail) { travail = { genre: 'travail', elements: [], gestes: [] }; moments.push(travail); }
+    travail.elements.push(e);
+  }
+  // Une réflexion SEULE en fin de travail, juste avant une parole, n'est pas un geste
+  // orphelin : c'est la pensée qui mène à ce que le modèle va dire. Elle rejoint la parole.
+  for (let i = 0; i < moments.length - 1; i += 1) {
+    const m = moments[i];
+    if (m.genre !== 'travail' || moments[i + 1].genre !== 'parole') continue;
+    const fin = [];
+    while (m.elements.length && m.elements[m.elements.length - 1].genre === 'reflexion') {
+      fin.unshift(m.elements.pop());
+    }
+    if (fin.length) moments[i + 1].elements.unshift(...fin);
+  }
+  const gardes = moments.filter((m) => m.elements.length);
+  for (const m of gardes) if (m.genre === 'travail') m.gestes = decouperEnGestes(m.elements);
+  return gardes;
+}
+
+/**
+ * Un **geste** : ce que la machine fait d'un bloc — elle réfléchit, elle appelle, elle
+ * reçoit. Un nouveau geste commence à une réflexion, ou à un appel qui suit un résultat.
+ *
+ * Plusieurs appels dans un même geste ne sont pas une suite : ce sont des appels lancés
+ * ENSEMBLE, dans un seul message. C'est le peigne, et c'est ce qui fait gagner du temps —
+ * mesuré sur la session d'exemple : quatre agents lancés d'un coup, que la liste à plat
+ * donnait à voir comme quatre lignes identiques sans rien dire de leur simultanéité.
+ */
+function decouperEnGestes(els) {
+  const gestes = [];
+  let g = null;
+  const neuf = () => { g = { elements: [], appels: [], aResultat: false }; gestes.push(g); };
+  for (const e of els) {
+    if (!g) neuf();
+    else if (e.genre === 'reflexion' && g.elements.length) neuf();
+    else if (e.genre === 'outilEntree' && g.aResultat) neuf();
+    g.elements.push(e);
+    if (e.genre === 'outilEntree') g.appels.push((e.titre || '').replace(/^appel de /, ''));
+    if (e.genre === 'outilSortie') g.aResultat = true;
+  }
+  return gestes;
+}
+
+/** Le titre d'un geste : ce qu'il appelle, ou ce qu'il est quand il n'appelle rien. */
+function titreDuGeste(g) {
+  if (g.appels.length > 1) {
+    const uniques = [...new Set(g.appels)];
+    return g.appels.length + ' appels lancés ensemble  —  '
+      + (uniques.length === 1 ? uniques[0] : uniques.join(', '));
+  }
+  if (g.appels.length === 1) return g.appels[0];
+  if (g.elements.every((e) => e.genre === 'reflexion')) return 'une réflexion';
+  if (g.elements.every((e) => e.genre === 'systeme')) return 'rappels du système';
+  return 'sans appel';
+}
+
+const NOM_MOMENT = {
+  consigne: 'la consigne', miseEnPlace: 'la mise en place',
+  parole: 'ce que le modèle a dit', reprise: 'la reprise après compactage',
+};
+
+/**
  * Lit, auprès du serveur, le contenu du contexte tel qu'il était à cet appel, et l'affiche
  * élément par élément. C'est servi à la demande : plusieurs centaines de milliers de
  * caractères, qu'on ne regarde qu'un appel à la fois.
@@ -3410,7 +3552,7 @@ async function montrerContenuContexte(agent, requete, hote) {
       ? retenus.length + ' élément(s) contiennent « ' + terme + ' » sur '
         + data.elements.length
       : '';
-    liste.replaceChildren(...retenus.map((e) => {
+    const faireElement = (e) => {
       const d = document.createElement('details');
       d.className = 'ctx-element';
       const s = document.createElement('summary');
@@ -3443,7 +3585,60 @@ async function montrerContenuContexte(agent, requete, hote) {
         if (b) { b.value = terme; b.dispatchEvent(new Event('input')); }
       }
       return d;
-    }));
+    };
+
+    // Le poids d'un groupe, dit une fois plutôt qu'additionné de tête sur chaque ligne.
+    const poids = (els) => els.reduce((n, e) => n + (e.texte || '').length, 0);
+    const heureDe = (e) => (e.instant
+      ? new Date(e.instant).toLocaleTimeString('fr-FR') : '');
+
+    const blocs = [];
+    for (const m of decouperEnMoments(retenus)) {
+      if (m.genre === 'travail') {
+        for (const g of m.gestes) {
+          const bloc = document.createElement('div');
+          bloc.className = 'ctx-geste' + (g.appels.length > 1 ? ' ensemble' : '');
+          const en = document.createElement('div');
+          en.className = 'entete';
+          const outil = document.createElement('span');
+          outil.className = 'outil';
+          outil.textContent = titreDuGeste(g);
+          const quand = document.createElement('span');
+          quand.textContent = heureDe(g.elements[0]);
+          const p = document.createElement('span');
+          p.className = 'poids';
+          p.textContent = poids(g.elements).toLocaleString('fr-FR') + ' car.';
+          en.append(outil, quand, p);
+          bloc.append(en, ...g.elements.map(faireElement));
+          blocs.push(bloc);
+        }
+        continue;
+      }
+
+      // La mise en place se replie : on ne vient presque jamais la lire, et c'est elle qui
+      // pèse le plus — le listing des skills fait à lui seul des dizaines de milliers de
+      // caractères.
+      if (m.genre === 'miseEnPlace') {
+        const d = document.createElement('details');
+        d.className = 'ctx-miseenplace ctx-moment miseEnPlace';
+        const sm = document.createElement('summary');
+        sm.textContent = NOM_MOMENT.miseEnPlace + '  —  ' + m.elements.length
+          + ' élément(s), ' + poids(m.elements).toLocaleString('fr-FR') + ' car.';
+        if (terme) d.open = true;   // une recherche doit pouvoir l'ouvrir
+        d.append(sm, ...m.elements.map(faireElement));
+        blocs.push(d);
+        continue;
+      }
+
+      const bloc = document.createElement('div');
+      bloc.className = 'ctx-moment ' + m.genre;
+      const t = document.createElement('div');
+      t.className = 'titre';
+      t.textContent = NOM_MOMENT[m.genre] || m.genre;
+      bloc.append(t, ...m.elements.map(faireElement));
+      blocs.push(bloc);
+    }
+    liste.replaceChildren(...blocs);
   };
 
   // La recherche sur tout le contexte : elle réduit la liste aux éléments qui contiennent

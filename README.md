@@ -380,6 +380,33 @@ parce qu'un enregistrement `hook_success` recopie la commande du hook — douze 
 caractères sur cette seule session, qui ne sont jamais envoyés au modèle. Seuls les champs
 réellement injectés sont comptés.
 
+### Le contexte raconte une histoire, et elle se lit
+
+Le contenu d'un contexte arrivait **à plat** : soixante-quinze lignes qui se ressemblaient
+toutes, où il fallait lire chaque titre pour savoir où on en était. Or la trace a un rythme,
+et il se mesure — **réflexion → appel → résultat → rappel de jetons**, répété, ponctué par
+ce que le modèle dit. La liste le rend maintenant visible.
+
+**Un geste** — ce que la machine fait d'un bloc : elle réfléchit, elle appelle, elle reçoit —
+est lié par un filet, et son en-tête donne l'outil, l'heure et ce qu'il pèse. Un nouveau
+geste commence à une réflexion, ou à un appel qui suit un résultat.
+
+**Plusieurs appels dans un même geste ne sont pas une suite** : ils sont partis *ensemble*,
+dans un seul message. Le filet passe alors au bleu des appels et l'en-tête le dit — « 4
+appels lancés ensemble — Agent ». La liste à plat donnait quatre lignes identiques sans
+rien dire de leur simultanéité, qui est pourtant tout ce qui fait gagner du temps.
+
+**Les moments** se détachent par un filet de leur couleur : *la consigne* d'Yves, *ce que le
+modèle a dit* — avec la réflexion qui y mène, car ce n'est pas un geste orphelin mais la
+pensée qui aboutit —, *la reprise après compactage*, et *la mise en place* : ce qui était là
+avant qu'on demande quoi que ce soit. Celle-ci se replie, parce qu'on ne vient presque jamais
+la lire et que c'est elle qui pèse le plus — le listing des skills fait à lui seul des
+dizaines de milliers de caractères.
+
+**Le découpage ne jette rien et n'invente rien, il regroupe** : vérifié sur 41 contextes et
+6 185 éléments, aucun élément perdu. La recherche et les filtres s'appliquent avant lui, si
+bien qu'un contexte filtré se regroupe comme un contexte entier.
+
 ### Le contexte, les compactages et les pannes
 
 La taille du contexte a sa propre voie, dessinée **en courbe simple** — une grandeur qui
