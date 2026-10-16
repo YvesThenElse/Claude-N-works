@@ -2801,7 +2801,17 @@ function carteOutil(o, agent) {
   ligne(dl, 'Durée', o.fin !== null ? duree(o.dureeMs) : 'sans résultat enregistré');
   // Un résultat sans drapeau d'erreur est le cas ordinaire : on omet la ligne plutôt que
   // d'afficher « inconnue » sur presque tous les appels.
-  ligne(dl, 'Issue', o.ok === false ? 'échec' : o.ok === true ? 'succès' : null);
+  ligne(dl, 'Issue', o.refus ? 'REFUSÉ — l’outil n’a pas tourné'
+    : o.ok === false ? 'échec' : o.ok === true ? 'succès' : null);
+  if (o.refus) {
+    ligne(dl, 'Refus', NOM_REFUS[o.refus.genre] || o.refus.genre);
+    ligne(dl, 'Raison donnée', o.refus.raison);
+    if (o.refus.genre === 'permission-rule' && !RAISON_STANDARD.test(o.refus.raison)) {
+      ligne(dl, 'À noter', 'la raison n’est pas celle que rend une règle de Claude Code : '
+        + 'elle a été fournie par ce qui a refusé — un hook, en pratique. '
+        + 'La trace ne nomme pas son auteur.');
+    }
+  }
 
   const morceaux = [dl,
     // L'invite dit la vérité sur ce qu'on lit : « $ » pour un shell, « › » sinon —
@@ -3731,6 +3741,27 @@ function carteModele(agent, modele, visee) {
     [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p], nav,
     visee ? voisinageDe(freres, visee, (e) => carteModele(agent, modele, e)) : null);
 }
+
+/**
+ * Les quatre façons dont un appel peut être REFUSÉ — §6.14.
+ *
+ * Un refus n'est pas un échec : l'outil n'a pas tourné du tout. La trace le dit en clair
+ * par `toolDenialKind`, et personne ne le lisait. Mesuré sur le corpus : 146 refus.
+ *
+ * ⚠️ Rien ne distingue structurellement un refus de HOOK d'un refus de règle : les deux
+ * portent `permission-rule`. Ce qui les sépare est la raison — une règle rend toujours la
+ * même phrase de Claude Code, un hook rend la sienne. On montre donc la raison telle
+ * quelle et on se garde d'affirmer qui a refusé.
+ */
+const NOM_REFUS = {
+  'user-rejected': 'refusé par vous',
+  'permission-rule': 'refusé par une règle de permission',
+  'automode-blocked': 'bloqué par le classifieur du mode automatique',
+  'automode-unavailable': 'le classifieur du mode automatique n’a pas pu décider',
+};
+// La phrase que Claude Code rend quand c'est SA règle qui refuse. Une raison qui n'est pas
+// celle-là vient d'ailleurs — en pratique d'un hook, mais la trace ne le dit pas.
+const RAISON_STANDARD = /^Permission to use \S+ has been denied/;
 
 const TEINTE_GENRE = {
   humain: 'var(--ctx-humain)', modele: 'var(--ctx-modele)', reflexion: 'var(--ctx-reflexion)',
@@ -5306,7 +5337,14 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
     const hDuree = simple ? HAUTEUR_DUREE : Math.max(3, Math.min(HAUTEUR_DUREE, bande - 9));
     const yDuree = simple ? centre + 2 : yBande + bande - hDuree - 1;
     if (largeur > 2) {
-      g.append(el('rect', {
+      // Un appel REFUSÉ n'a pas de durée à montrer : l'outil n'a pas tourné. Sa bande est
+      // donc creuse — le contour dit « il y a eu un geste ici », le vide dit « il n'a rien
+      // produit ». C'est la seule distinction, et elle ne coûte aucune couleur de plus.
+      g.append(el('rect', o.refus ? {
+        x: ox + 0.5, y: yDuree + 0.5, width: Math.max(1, largeur - 1),
+        height: Math.max(1, hDuree - 1), rx: 1.5,
+        fill: 'none', stroke: couleur, 'stroke-width': 1, opacity: '.9',
+      } : {
         x: ox, y: yDuree, width: largeur, height: hDuree, rx: 1.5,
         fill: couleur, opacity: '.6',
       }));
@@ -5339,7 +5377,8 @@ function dessinerVoieOutils(agent, centre, axe, visible) {
     const reprend = o.reprendId
       ? '\nreprend un ' + o.repriseDe + ' qui a échoué' : '';
     prise.append(el('title', {}, document.createTextNode(
-      o.nom + (o.ok === false ? '  — ÉCHEC' : '')
+      o.nom + (o.refus ? '  — REFUSÉ, l’outil n’a pas tourné\n' + (NOM_REFUS[o.refus.genre] || '')
+        : o.ok === false ? '  — ÉCHEC' : '')
       + '\n' + heure(o.debut) + '\ndurée ' + duree(o.dureeMs)
       + suite + reprend
       + (o.resume ? '\n\n' + o.resume.slice(0, 300) : ''))));

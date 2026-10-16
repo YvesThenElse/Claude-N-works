@@ -194,6 +194,23 @@ liste est désormais triée avant d'être dessinée — ce dont la fusion sous l
 besoin tout autant. Vérifié ensuite à six niveaux de zoom, de 2 à 1 000 px/s : **zéro
 chevauchement**, la marge la plus serrée à 22 px.
 
+### Un appel refusé n'est pas un appel qui échoue
+
+Un refus veut dire que **l'outil n'a pas tourné du tout** — ce n'est pas la même chose
+qu'un échec, où il a tourné et mal fini. La trace le dit en clair, par un champ que
+l'application ne lisait pas, et **146 refus du corpus étaient donc montrés comme de simples
+échecs** : 106 où Yves a répondu non, 20 par une règle de permission, 20 par le classifieur
+du mode automatique.
+
+Sur la voie, leur bande de durée est **creuse** : le contour dit « il y a eu un geste ici »,
+le vide dit « il n'a rien produit ». Cela ne coûte aucune couleur de plus. La carte donne le
+genre du refus et sa **raison, telle quelle**.
+
+> ⚠️ **Un refus de hook ne se distingue pas d'un refus de règle** : les deux portent
+> `permission-rule`, et aucun champ ne les sépare. Ce qui les sépare est la raison — une
+> règle de Claude Code rend toujours la même phrase, un hook rend la sienne. La carte dit
+> donc « la raison n'est pas celle que rend une règle », et se garde de nommer l'auteur.
+
 ### Les échecs et leurs reprises
 
 Un appel en échec est rose, et **un arc le relie à l'appel qui le rattrape**, la pointe sur

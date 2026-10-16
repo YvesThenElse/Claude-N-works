@@ -683,6 +683,50 @@ le texte injecté le 12 octobre fait **1 237 caractères**, le fichier sur disqu
 injecté, qui a été réécrit et non complété. Lire le fichier pour montrer « la définition »
 montrerait un skill qui n'a jamais été chargé. C'est le transcript qui fait foi.
 
+## 5 terdecies. Un appel REFUSÉ — mesuré le 16 octobre 2026
+
+Un refus n'est pas un échec : l'outil n'a pas tourné du tout. La ligne de résultat le dit
+en clair, par un champ qu'on ne lisait pas :
+
+```json
+{"type":"user","toolDenialKind":"permission-rule",
+ "toolUseResult":"Error: Le chef de rang a goûté : ce plat ne part pas en salle.",
+ "message":{"content":[{"type":"tool_result","is_error":true,
+   "content":"Le chef de rang a goûté : ce plat ne part pas en salle."}]}}
+```
+
+**Quatre genres, 146 refus sur le corpus :**
+
+| `toolDenialKind` | compte | ce que c'est |
+|---|---|---|
+| `user-rejected` | 106 | Yves a répondu non |
+| `permission-rule` | 20 | une règle de permission, **ou un hook** |
+| `automode-unavailable` | 14 | le classifieur du mode automatique n'a pas pu décider |
+| `automode-blocked` | 6 | le classifieur a bloqué |
+
+Les outils refusés : `Bash` 121, `Write` 16, `EnterWorktree` 4, `Read` 2, et une fois
+chacun `AskUserQuestion`, `Skill`, `Agent`.
+
+### ⚠️ Un refus de hook ne se distingue pas d'un refus de règle
+
+Les deux portent `permission-rule`, et **aucun champ ne les sépare** — vérifié en comparant
+la liste des clés des quatre genres. Ce qui les sépare est la **raison** : une règle de
+Claude Code rend toujours « `Permission to use <outil> has been denied. IMPORTANT: …` »
+(18 cas sur 20), un hook rend la sienne (2 cas). On peut donc dire « la raison n'est pas
+celle d'une règle », on ne peut pas dire « c'est un hook ».
+
+### Et le hook lui-même, toujours pas enregistré
+
+Mesuré de nouveau le 16 octobre 2026, en relançant l'exercice `02-les-hooks` : son
+`.claude/settings.json` déclare deux `PreToolUse` et un `PostToolUse`, les trois tournent —
+le journal de l'exercice les horodate, et le refus atteint l'agent — et le transcrit de la
+session ne contient **aucune** pièce jointe de hook. Les types présents sont
+`deferred_tools_delta`, `agent_listing_delta`, `skill_listing`, `total_tokens_reminder`,
+`edited_text_file`. Le § 5 nonies le disait déjà des hooks du dépôt observé ; la mesure
+tient sur Claude Code 2.1.236 comme sur 2.1.301.
+
+**Ce qu'on peut donc montrer d'un hook qui refuse :** son effet, pas son existence.
+
 ## 6. Corrections à apporter au cahier des charges
 
 **C1 — la source de données (§3.2).** Il faut lire deux endroits, pas un :

@@ -628,6 +628,18 @@ function avaler(etat, ligne) {
     // `is_error` vaut parfois null : on ne transforme pas une absence d'information en
     // succès, on la laisse inconnue.
     appel.ok = bloc.is_error === true ? false : (bloc.is_error === false ? true : null);
+    // Un REFUS n'est pas un échec : l'outil n'a pas tourné du tout. La trace le dit en
+    // clair — `toolDenialKind` — et personne ne le lisait. Mesuré sur le corpus : 146
+    // refus, dont 106 d'Yves lui-même, 20 par une règle de permission, 20 par le
+    // classifieur du mode automatique. La raison est rendue telle quelle.
+    if (ligne.toolDenialKind) {
+      appel.refus = {
+        genre: ligne.toolDenialKind,
+        raison: typeof ligne.toolUseResult === 'string'
+          ? ligne.toolUseResult.replace(/^Error:\s*/, '')
+          : texteResultat(bloc.content),
+      };
+    }
     // Attention : toolUseResult est tantôt un objet, tantôt une chaîne — §5 quater — et
     // surtout il est **absent des transcripts de sous-agents**, où le résultat ne vit que
     // dans le bloc tool_result lui-même.
@@ -1381,6 +1393,7 @@ function nettoyerAppel(a) {
     fin: a.fin,
     dureeMs: a.debut !== null && a.fin !== null ? a.fin - a.debut : null,
     ok: a.ok,
+    refus: a.refus || null,
     resume: a.resume,
     // `tronque` dit franchement que la carte ne montre pas tout, plutôt que de laisser
     // croire que l'appel tenait en sept cents caractères.
