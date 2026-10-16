@@ -265,6 +265,23 @@
     float: right; background: none; border: 0; color: var(--texte-faible);
     font-size: 1.5rem; cursor: pointer; line-height: 1; padding: 0 .2rem;
   }
+  /* Aller à l'élément voisin sans refermer la carte. Posées à droite, avant la croix,
+     parce qu'elles appartiennent au même geste : se déplacer dans ce qu'on lit. */
+  .panneau .voisins { float: right; display: flex; align-items: center; gap: .2rem;
+    margin-right: .6rem; }
+  .panneau .voisins button {
+    background: none; border: 1px solid var(--trait); border-radius: 6px;
+    color: var(--texte-faible); cursor: pointer; padding: .1rem .3rem;
+    display: flex; align-items: center;
+  }
+  .panneau .voisins button:hover:not(:disabled) {
+    color: var(--texte); border-color: var(--texte-faible);
+  }
+  .panneau .voisins button:disabled { opacity: .35; cursor: default; }
+  .panneau .voisins .rang {
+    font-size: .74rem; color: var(--texte-faible); min-width: 4.2rem;
+    text-align: center; font-variant-numeric: tabular-nums;
+  }
   .panneau .fermer:hover { color: var(--texte); }
   .panneau .genre {
     font-size: .7rem; text-transform: uppercase; letter-spacing: .09em;
@@ -2454,11 +2471,64 @@ function estUnTexte(e) {
 }
 
 /**
+ * Les deux flèches de voisinage — §6.13.
+ *
+ * Une carte s'ouvre sur UN élément, mais on la lit rarement seule : on compare l'appel
+ * d'avant, celui d'après, on suit une suite d'échecs. Refermer et viser la marque suivante
+ * au pixel est un geste coûteux, et d'autant plus que la marque est petite.
+ *
+ * `voisins` décrit la liste d'où l'élément vient : `{ liste, index, aller(e, i) }`. La
+ * carte rend alors deux flèches et son rang — « 12 / 146 » — et `aller` rouvre la carte
+ * sur le voisin. C'est la carte appelante qui dit ce qu'est un voisin : pour un appel
+ * d'outil ce sont les autres appels du même agent, pour un hook les autres hooks.
+ */
+function dessinerLesVoisins(voisins) {
+  const n = voisins.liste.length;
+  const i = voisins.index;
+  const boite = document.createElement('span');
+  boite.className = 'voisins';
+  const flecher = (vers, mot, chemin) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.title = mot;
+    b.disabled = vers < 0 || vers >= n;
+    const svg = el('svg', { viewBox: '0 0 12 12', width: '11', height: '11',
+      fill: 'none', stroke: 'currentColor', 'stroke-width': '1.6',
+      'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+    svg.append(el('path', { d: chemin }));
+    b.append(svg);
+    b.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!b.disabled) voisins.aller(voisins.liste[vers], vers);
+    });
+    return b;
+  };
+  const rang = document.createElement('span');
+  rang.className = 'rang';
+  rang.textContent = (i + 1) + ' / ' + n;
+  boite.append(
+    flecher(i - 1, 'l’élément précédent  (←)', 'M7.5 2 3.5 6l4 4'),
+    rang,
+    flecher(i + 1, 'l’élément suivant  (→)', 'M4.5 2l4 4-4 4'));
+  return boite;
+}
+
+/**
+ * Le voisinage d'un élément dans sa liste. Rend `null` si l'élément n'y est pas — une
+ * carte ouverte autrement que depuis sa voie, et les flèches se taisent plutôt que de
+ * désigner un voisin au hasard.
+ */
+function voisinageDe(liste, element, aller) {
+  const i = liste.indexOf(element);
+  return i === -1 ? null : { liste, index: i, aller };
+}
+
+/**
  * `chapeau` : ce qui se pose SOUS le titre et AU-DESSUS des onglets. C'est la place d'un
  * lien de navigation — il n'appartient ni au contenu ni aux propriétés, et le ranger dans
  * l'un des deux le cacherait derrière l'onglet qu'on n'a pas choisi.
  */
-function ouvrirPanneau(genre, titre, elements, chapeau) {
+function ouvrirPanneau(genre, titre, elements, chapeau, voisins) {
   if (genre !== 'boucle') iterationVisee = null;
   elBoite.replaceChildren();
   const fermer = document.createElement('button');
@@ -2466,9 +2536,14 @@ function ouvrirPanneau(genre, titre, elements, chapeau) {
   fermer.textContent = '×';
   fermer.title = 'fermer (Échap)';
   fermer.addEventListener('click', fermerPanneau);
+  // Les flèches ne paraissent que s'il y a un voisinage : une carte seule n'a pas de
+  // suivant, et deux flèches éteintes ne feraient qu'encombrer.
+  voisinsCourants = voisins && voisins.liste && voisins.liste.length > 1 ? voisins : null;
   const g = document.createElement('div'); g.className = 'genre'; g.textContent = genre;
   const h = document.createElement('h2'); h.textContent = titre;
-  elBoite.append(fermer, g, h);
+  elBoite.append(fermer);
+  if (voisinsCourants) elBoite.append(dessinerLesVoisins(voisinsCourants));
+  elBoite.append(g, h);
   if (chapeau) elBoite.append(chapeau);
 
   const tous = elements.filter(Boolean);
@@ -2562,7 +2637,18 @@ function amenerEnVue(t0, t1) {
   elPiste.scrollLeft = Math.max(0, (x0 + x1) / 2 - elPiste.clientWidth / 2);
 }
 
+/** Le voisinage de la carte ouverte, pour que les flèches du clavier sachent où aller. */
+let voisinsCourants = null;
+
+function allerAuVoisin(pas) {
+  if (!voisinsCourants) return;
+  const i = voisinsCourants.index + pas;
+  if (i < 0 || i >= voisinsCourants.liste.length) return;
+  voisinsCourants.aller(voisinsCourants.liste[i], i);
+}
+
 function fermerPanneau() {
+  voisinsCourants = null;
   elPanneau.classList.remove('ouvert');
   elBoite.replaceChildren();
   iterationVisee = null;
@@ -2700,7 +2786,8 @@ function carteAgent(a) {
       + "cet agent a été coupé net. L'instant affiché est sa dernière trace, pas sa fin.";
     morceaux.push(p);
   }
-  ouvrirPanneau(a.profondeur === 0 ? 'agent racine' : 'sous-agent', a.nom, morceaux);
+  ouvrirPanneau(a.profondeur === 0 ? 'agent racine' : 'sous-agent', a.nom, morceaux, null,
+    voisinageDe(deroule.agents || [], a, (e) => carteAgent(e)));
 }
 
 /** Carte d'un appel d'outil — §6.4 — ou d'un skill — §6.2. */
@@ -2761,9 +2848,14 @@ function carteOutil(o, agent) {
     morceaux.push(p);
   }
 
+  // Les voisins d'un appel sont les autres appels du même agent, rangés dans le temps —
+  // c'est l'ordre où on les lit sur la voie.
+  const freres = (agent.outils || []).filter((x) => x.debut !== null)
+    .slice().sort((x, y) => x.debut - y.debut);
+  const voisins = voisinageDe(freres, o, (e) => carteOutil(e, agent));
   ouvrirPanneau(estSkill ? 'skill' : "appel d'outil",
     estSkill ? o.skill : o.nom + (o.resume ? ' — ' + o.resume.slice(0, 60) : ''),
-    morceaux);
+    morceaux, null, voisins);
 }
 
 /**
@@ -3120,7 +3212,10 @@ function carteSkills(agent, visee) {
     morceaux.push(p);
   }
 
-  ouvrirPanneau('skill', sk.nom + ' — ' + agent.nom, morceaux);
+  const freresSkills = (agent.skillsCharges || []).filter((x) => x.instant !== null)
+    .slice().sort((x, y) => x.instant - y.instant);
+  ouvrirPanneau('skill', sk.nom + ' — ' + agent.nom, morceaux, null,
+    voisinageDe(freresSkills, sk, (e) => carteSkills(agent, e)));
 }
 
 /**
@@ -3212,7 +3307,10 @@ function carteTaches(agent, visee) {
     + 'des fins.';
   morceaux.push(p);
 
-  ouvrirPanneau('tâches de fond', agent.nom, morceaux);
+  const freresTaches = (agent.taches || []).filter((t) => t.debut !== null)
+    .slice().sort((x, y) => x.debut - y.debut);
+  ouvrirPanneau('tâches de fond', agent.nom, morceaux, null,
+    visee ? voisinageDe(freresTaches, visee, (e) => carteTaches(agent, e)) : null);
 }
 
 function carteHooks(agent, visee) {
@@ -3275,7 +3373,10 @@ function carteHooks(agent, visee) {
     + 'pèse 3 226 caractères en moyenne et ne compte pas dans le contexte.';
   morceaux.push(p);
 
-  ouvrirPanneau('hooks', agent.nom, morceaux);
+  const freresHooks = (agent.hooks || []).filter((h) => h.instant !== null)
+    .slice().sort((x, y) => x.instant - y.instant);
+  ouvrirPanneau('hooks', agent.nom, morceaux, null,
+    visee ? voisinageDe(freresHooks, visee, (e) => carteHooks(agent, e)) : null);
 }
 
 function carteOutillage(agent, visee) {
@@ -3339,7 +3440,10 @@ function carteOutillage(agent, visee) {
     + 'recherche d’outils en remonte, restreint quand un skill l’impose.';
   morceaux.push(p);
 
-  ouvrirPanneau('outillage', agent.nom, morceaux);
+  const freresOutillage = (agent.outillage || []).filter((e) => e.instant !== null)
+    .slice().sort((x, y) => x.instant - y.instant);
+  ouvrirPanneau('outillage', agent.nom, morceaux, null,
+    visee ? voisinageDe(freresOutillage, visee, (e) => carteOutillage(agent, e)) : null);
 }
 
 /** Carte des fichiers : lesquels ont été touchés, combien de fois, et de combien. */
@@ -3618,8 +3722,14 @@ function carteModele(agent, modele, visee) {
   nav.append(document.createTextNode('Où cet appel se place dans la suite : '),
     lienVersLaChaine(agent, visee, 'la chaîne des appels'));
 
+  // Les voisins d'un appel au modèle sont les autres appels AU MÊME MODÈLE chez cet
+  // agent : c'est une voie par modèle, et passer de l'un à l'autre suit cette voie.
+  const freres = (agent.requetesModele || [])
+    .filter((r) => r.modele === modele && Number.isFinite(r.appel))
+    .slice().sort((x, y) => x.appel - y.appel);
   ouvrirPanneau('modèle', modele.replace(/^claude-/, ''),
-    [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p], nav);
+    [dl, ...jauges, explication, ...morceauxEnTete, ...(lecture ? [lecture] : []), p], nav,
+    visee ? voisinageDe(freres, visee, (e) => carteModele(agent, modele, e)) : null);
 }
 
 const TEINTE_GENRE = {
@@ -4188,7 +4298,8 @@ function carteRequete(r) {
   p.style.cssText = 'margin:.1rem 0 .6rem;color:var(--texte-faible);font-size:.86rem';
   p.append(document.createTextNode('Ce que cette consigne a déclenché : '),
     lienVersLaChaine(deroule.agents[0], null, 'voir la chaîne'));
-  ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)], p);
+  ouvrirPanneau('requête', heure(r.instant), [blocReplie('texte', r.texte, true)], p,
+    voisinageDe(deroule.requetes || [], r, (e) => carteRequete(e)));
 }
 
 // Les pas d'une règle du temps, du plus fin au plus large. On choisit le premier qui
@@ -5667,7 +5778,22 @@ setInterval(() => {
 elPause.addEventListener('click', basculerLaPause);
 elZoom.addEventListener('input', dessiner);
 addEventListener('resize', dessiner);
-addEventListener('keydown', (e) => { if (e.key === 'Escape') fermerPanneau(); });
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { fermerPanneau(); return; }
+  if (!elPanneau.classList.contains('ouvert')) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  // On laisse la flèche aux onglets quand c'est un onglet qui a le curseur — ils s'en
+  // servent pour passer de l'un à l'autre — et aux champs de saisie, où elle déplace le
+  // curseur dans le texte.
+  // `closest` n'existe que sur un élément : la cible d'un keydown peut être le document
+  // ou la fenêtre, et l'appeler aveuglément jetait une TypeError qui avalait la touche.
+  const cible = e.target;
+  if (cible && typeof cible.closest === 'function'
+      && (cible.closest('.onglets') || /^(INPUT|TEXTAREA|SELECT)$/.test(cible.tagName))) return;
+  if (!voisinsCourants) return;
+  e.preventDefault();
+  allerAuVoisin(e.key === 'ArrowRight' ? 1 : -1);
+});
 elReplier.addEventListener('change', dessiner);
 
 /** Le menu des voies : une case par genre de voie annexe, avec son compte. */

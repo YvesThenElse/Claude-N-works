@@ -938,6 +938,26 @@ variables : le thème bascule donc **sans redessiner**, puisque les attributs SV
 `var(…)` et que le navigateur les recalcule seul. Une seule exception, l'échelle du Buffer
 CTX, qui s'interpole en JS entre deux paliers : elle relit la palette à chaque dessin.
 
+### Passer d'un élément au suivant sans refermer
+
+Une carte s'ouvre sur **un** élément, mais on la lit rarement seule : on compare l'appel
+d'avant, celui d'après, on suit une suite d'échecs. Refermer et viser la marque suivante au
+pixel est un geste coûteux, et d'autant plus que la marque est petite.
+
+Deux flèches en haut de la carte, avant la croix, mènent au voisin, avec le rang —
+**« 3 / 1157 »**. Les touches ← et → font la même chose. En butée, la flèche s'éteint.
+
+**C'est la carte qui dit ce qu'est un voisin.** Pour un appel d'outil, ce sont les autres
+appels du même agent dans l'ordre du temps ; pour un appel au modèle, les autres appels *au
+même modèle*, puisque c'est une voie par modèle ; pour un hook, un shell, un skill, un
+changement d'outillage, une consigne ou un agent, la liste correspondante. Une carte dont
+l'élément n'appartient à aucune liste — ou dont la liste n'a qu'un élément — n'a pas de
+flèches : deux boutons éteints n'ajouteraient rien.
+
+**La flèche du clavier reste aux onglets quand c'est un onglet qui a le curseur**, et aux
+champs de saisie, où elle déplace le curseur dans le texte. Vérifié : avec le curseur sur un
+onglet, la flèche change d'onglet et la carte ne bouge pas.
+
 ### Les deux onglets d'une carte
 
 Une carte porte deux choses de nature différente : **ce qui a été écrit** — la réponse du
