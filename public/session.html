@@ -1980,6 +1980,11 @@ function dessinerPiste() {
   };
   rendu = { defil: elPiste.scrollLeft, largeur: axe.largeur };
   const visible = (a, b) => b >= vue.x0 && a <= vue.x1;
+  // Les bords RÉELS de la fenêtre, sans la marge de rendu : une barre plus large que
+  // l'écran — un shell qui tourne depuis des heures — doit pouvoir accrocher ses
+  // étiquettes à ce qu'on voit, plutôt qu'à ses extrémités qui sont hors champ.
+  visible.gauche = elPiste.scrollLeft;
+  visible.droite = elPiste.scrollLeft + elPiste.clientWidth;
   elReplis.textContent = axe.replies
     ? axe.replies + ' temps mort' + (axe.replies > 1 ? 's' : '') + ' replié'
       + (axe.replies > 1 ? 's' : '') + ', ' + duree(axe.elide) + ' élidée'
@@ -4691,14 +4696,46 @@ function dessinerVoieTaches(agent, centre, axe, visible) {
     const cmd = (t.commande || '').split('\n')[0].trim();
     // Sous 12 px, le texte de 8 px touche les bords et ne se lit plus : mieux vaut une
     // barre nette sans commande qu'une commande qu'on devine.
-    if (cmd && hauteur >= 12) {
-      const place = Math.floor((largeur - 8) / LARGEUR_PAR_CARACTERE);
-      if (place >= 6) {
+    if (hauteur >= 12) {
+      // Centré dans la barre, et non posé sur son bord : mesuré, la ligne de base à
+      // `hauteur - 2` laissait 4 px au-dessus du texte et ZÉRO en dessous, où les
+      // jambages touchaient le bord. Le demi plus quatre répartit les deux.
+      const ligneDeBase = y + hauteur / 2 + 4;
+
+      // Le temps écoulé, posé au BOUT de la barre. Il se mesure sur la même borne que la
+      // barre elle-même — la fin du shell, ou le bout de la voie tant qu'il tourne — pour
+      // que le nombre et le dessin disent la même chose. Sur une session en direct, la
+      // voie se redessine chaque seconde et le compte avance donc tout seul.
+      const ecoule = (t.fin ?? finVoie) - t.debut;
+      // « depuis » et non la durée nue quand le shell n'a pas rendu compte : on sait
+      // qu'il est parti il y a ce temps-là, on ne sait PAS qu'il a tourné tout ce
+      // temps-là. Mesuré sur une session de onze jours, un shell sans compte rendu
+      // affichait « 13,6 j » — une affirmation que rien n'appuie.
+      const mot = (t.fin === null ? 'depuis ' : '') + duree(ecoule);
+      const placeDuree = mot.length * LARGEUR_PAR_CARACTERE;
+
+      // Les deux étiquettes s'accrochent à la part VISIBLE de la barre. Un shell qui
+      // tourne court jusqu'au bout de la voie : accrochées à ses extrémités, la commande
+      // et la durée seraient hors de l'écran précisément sur celui qu'on vient regarder.
+      const gauche = Math.max(x0, visible.gauche ?? -Infinity);
+      const droite = Math.min(x0 + largeur, visible.droite ?? Infinity);
+      const dispo = droite - gauche;
+
+      let prisAuBout = 0;
+      // La durée passe avant la commande : elle est courte, et c'est elle qu'on vient
+      // chercher sur un shell qui tourne encore.
+      if (dispo >= placeDuree + 10) {
         g.append(el('text', {
-          // Centré dans la barre, et non posé sur son bord : mesuré, la ligne de base à
-          // `hauteur - 2` laissait 4 px au-dessus du texte et ZÉRO en dessous, où les
-          // jambages touchaient le bord. Le demi plus quatre répartit les deux.
-          x: x0 + 4, y: y + hauteur / 2 + 4, fill: 'var(--texte)',
+          x: droite - 4, y: ligneDeBase, 'text-anchor': 'end',
+          fill: 'var(--texte)', 'font-size': TAILLE_NOM, opacity: '.95',
+        }, document.createTextNode(mot)));
+        prisAuBout = placeDuree + 8;
+      }
+
+      const place = Math.floor((dispo - 8 - prisAuBout) / LARGEUR_PAR_CARACTERE);
+      if (cmd && place >= 6) {
+        g.append(el('text', {
+          x: gauche + 4, y: ligneDeBase, fill: 'var(--texte)',
           'font-size': TAILLE_NOM, opacity: '.95',
         }, document.createTextNode(
           cmd.length > place ? cmd.slice(0, Math.max(1, place - 1)) + '…' : cmd)));

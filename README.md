@@ -649,6 +649,21 @@ les cent trente autres, qui n'ont rien à voir avec lui.
 *Background* de Claude Code montre, et la seule chose qui distingue deux shells l'un de
 l'autre.
 
+**Le temps écoulé est posé au bout de la barre.** Il se mesure sur la même borne que la
+barre elle-même — la fin du shell, ou le bout de la voie tant qu'il n'a pas rendu compte —
+pour que le nombre et le dessin disent la même chose. Sur une session en direct, la voie se
+redessine chaque seconde et le compte avance donc tout seul.
+
+> Sur un shell **sans compte rendu**, le mot est « depuis 13,6 j » et non « 13,6 j ». On
+> sait qu'il est parti il y a ce temps-là ; on ne sait pas qu'il a tourné tout ce temps-là.
+> La durée nue était une affirmation que rien n'appuie.
+
+**Les deux étiquettes s'accrochent à la part visible de la barre**, pas à ses extrémités.
+Un shell qui court depuis des heures traverse l'écran de part en part : sa commande et sa
+durée seraient hors champ précisément sur celui qu'on vient regarder. Elles suivent donc le
+défilement, et restent dans les bornes de la barre. Vérifié à six niveaux de zoom : zéro
+chevauchement, marge la plus serrée 3,3 px.
+
 **Pour qu'elle se lise, la barre est un lavis sous un contour** — la même forme que les
 bandes de skills, et pour la même raison. Sur un aplat à pleine couleur, le texte clair ne
 rendait que **2,02 : 1** : c'était là le vrai motif de l'illisibilité, bien plus que la
