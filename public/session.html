@@ -609,11 +609,19 @@ const HAUTEUR_VOIE = 35.2;   // la hauteur ORDINAIRE d'une voie, et d'un nœud d
 // la hauteur ordinaire. Mesuré sur 130 sessions : 30 agents sur 52 n'ont qu'un shell à la
 // fois — la hauteur ordinaire leur va —, mais onze dépassent deux et l'un monte à DOUZE
 // simultanés, soit un pixel par barre. La voie grandit donc à la demande.
-// Ce qu'occupe un élément empilé. Un shell porte deux choses — sa barre et sa commande
-// écrite dedans ; un appel d'outil en porte trois — le trait du départ, la bande de durée,
-// et le nom AU-DESSUS. D'où trois pixels de plus, sans quoi le nom déborde sur la rangée
-// du dessus et vient mordre sa barre.
-const HAUTEUR_RANGEE = { taches: 9, outils: 12 };
+// Ce qu'occupe un élément empilé.
+//
+// Un shell porte sa commande ÉCRITE DANS sa barre : il faut donc que la barre tienne les
+// 8 px du texte plus une vraie marge. À 9 px de rangée, la barre tombait à 11 px et ne
+// laissait que 1,5 px au-dessus du texte — mesuré, et illisible. À 15 px de rangée la
+// barre en fait 15 et la marge 5,5 : on lit la commande.
+//
+// Un appel d'outil porte trois choses — le trait du départ, la bande de durée, et le nom
+// AU-DESSUS de la bande — mais le nom sort de la barre, qui peut donc rester mince.
+const HAUTEUR_RANGEE = { taches: 15, outils: 12 };
+// Au-delà, la voie se serre : passé six shells de front, aucune barre ne peut plus porter
+// son texte de toute façon, et faire grandir la voie à l'infini ne montrerait rien de plus.
+const HAUTEUR_VOIE_MAX = 100;
 const RANGEES_MAX = 12;      // le pire mesuré sur la machine ; au-delà on se serre
 const MARGE_HAUT = 54.4;    // doit valoir le padding-top de l'arbre (3.4rem)
 
@@ -666,7 +674,8 @@ function rangsDeVoie(agent, genre) {
 function hauteurDeVoie(v) {
   if (v.genre !== 'taches' && v.genre !== 'outils') return HAUTEUR_VOIE;
   const rangs = rangsDeVoie(v.agent, v.genre);
-  return Math.max(HAUTEUR_VOIE, rangs * HAUTEUR_RANGEE[v.genre] + 12);
+  return Math.max(HAUTEUR_VOIE,
+    Math.min(rangs * HAUTEUR_RANGEE[v.genre], HAUTEUR_VOIE_MAX) + 12);
 }
 const REGLE_BAS = 24;      // la ligne de base de la règle du temps
 const HAUTEUR_BARRE = 15;     // la barre de l'agent
@@ -4654,30 +4663,43 @@ function dessinerVoieTaches(agent, centre, axe, visible) {
   // où l'on a défilé.
   const rangs = Math.max(rangsDeVoie(agent, 'taches'), basOuverts + finsOuverts.length);
   const DISPO = hauteurDeVoie({ genre: 'taches', agent }) - 11;
-  const hauteur = Math.max(3, Math.min(14, Math.floor((DISPO - (rangs - 1)) / rangs)));
+  const hauteur = Math.max(3, Math.min(16, Math.floor((DISPO - (rangs - 1)) / rangs)));
   const total = rangs * hauteur + (rangs - 1);
   const haut0 = centre - total / 2;
 
   for (const { t, x0, largeur, rang } of posees) {
     const y = haut0 + rang * (hauteur + 1);
     const couleur = couleurDe(t);
+    // Un LAVIS sous un CONTOUR, et non une barre pleine — la même forme que les bandes de
+    // skills, et pour la même raison. La commande s'écrit dans la barre : sur un aplat à
+    // pleine couleur, le texte clair ne rendait que 2,02 : 1, mesuré, et c'est là le vrai
+    // motif de l'illisibilité. Sur un lavis à .3, il rend 6,98 : 1 au pire en sombre et
+    // 8,27 en clair, tandis que le contour garde la couleur du sort — rendu, échoué,
+    // arrêté, en cours — qui est ce que la barre doit dire de loin.
     g.append(el('rect', {
-      x: x0, y, width: largeur, height: hauteur, rx: Math.min(2, hauteur / 2),
-      fill: couleur, opacity: '.8',
+      x: x0 + 0.5, y: y + 0.5, width: Math.max(1, largeur - 1), height: Math.max(1, hauteur - 1),
+      rx: Math.min(2, hauteur / 2),
+      fill: couleur, 'fill-opacity': '.3',
+      stroke: couleur, 'stroke-width': 1,
       // Un shell qui n'a jamais rendu reste ouvert à droite, comme un agent en cours.
-      ...(t.fin === null ? { 'stroke-dasharray': '3 2', stroke: couleur } : {}),
+      ...(t.fin === null ? { 'stroke-dasharray': '3 2' } : {}),
     }));
 
     // La commande, écrite sur la barre quand elle y tient. C'est ce que le panneau
     // « Background » de Claude Code montre, et c'est la seule chose qui distingue deux
     // shells l'un de l'autre.
     const cmd = (t.commande || '').split('\n')[0].trim();
-    if (cmd && hauteur >= 7) {
+    // Sous 12 px, le texte de 8 px touche les bords et ne se lit plus : mieux vaut une
+    // barre nette sans commande qu'une commande qu'on devine.
+    if (cmd && hauteur >= 12) {
       const place = Math.floor((largeur - 8) / LARGEUR_PAR_CARACTERE);
       if (place >= 6) {
         g.append(el('text', {
-          x: x0 + 4, y: y + hauteur - 2, fill: 'var(--texte)',
-          'font-size': TAILLE_NOM, opacity: '.9',
+          // Centré dans la barre, et non posé sur son bord : mesuré, la ligne de base à
+          // `hauteur - 2` laissait 4 px au-dessus du texte et ZÉRO en dessous, où les
+          // jambages touchaient le bord. Le demi plus quatre répartit les deux.
+          x: x0 + 4, y: y + hauteur / 2 + 4, fill: 'var(--texte)',
+          'font-size': TAILLE_NOM, opacity: '.95',
         }, document.createTextNode(
           cmd.length > place ? cmd.slice(0, Math.max(1, place - 1)) + '…' : cmd)));
       }

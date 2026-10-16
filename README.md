@@ -645,9 +645,25 @@ barre court jusqu'au bout de la session, parce qu'on ne sait pas quand il s'est 
 et sans cette précaution il tenait la rangée du haut sur onze jours et repoussait d'un cran
 les cent trente autres, qui n'ont rien à voir avec lui.
 
-**La commande s'écrit sur la barre** dès qu'elle y tient, comme le nom d'un outil : c'est
-ce que le panneau *Background* de Claude Code montre, et la seule chose qui distingue deux
-shells l'un de l'autre. L'en-tête de la voie annonce **combien tournent encore** avant
+**La commande s'écrit dans la barre** dès qu'elle y tient : c'est ce que le panneau
+*Background* de Claude Code montre, et la seule chose qui distingue deux shells l'un de
+l'autre.
+
+**Pour qu'elle se lise, la barre est un lavis sous un contour** — la même forme que les
+bandes de skills, et pour la même raison. Sur un aplat à pleine couleur, le texte clair ne
+rendait que **2,02 : 1** : c'était là le vrai motif de l'illisibilité, bien plus que la
+hauteur. Sur un lavis à 30 %, il rend **6,98 : 1 au pire en sombre** et 8,27 en clair,
+tandis que le contour garde la couleur du sort — rendu, échoué, arrêté, en cours — qui est
+ce que la barre doit dire de loin. Aucune couleur de texte ne pouvait marcher autrement :
+mesuré sur les cinq teintes de barre et les deux thèmes, les barres sont à mi-luminance et
+ni le clair ni le sombre n'y passe partout.
+
+**Et une rangée vaut 15 px**, non 9. À 9, la barre tombait à 11 px et ne laissait que
+**1,5 px** au-dessus du texte, qui collait au bord bas. À 15, la barre en fait 15 et le
+texte est centré — 2,5 px dessus, 1,5 dessous. Sous 12 px de barre le texte n'est plus
+écrit du tout : mieux vaut une barre nette qu'une commande qu'on devine. Passé six shells
+de front la voie cesse de grandir, parce qu'aucune barre ne peut plus porter son texte de
+toute façon : douze de front tiennent en 112 px. L'en-tête de la voie annonce **combien tournent encore** avant
 d'annoncer le total — « 2 en cours / 98 » — parce que c'est ce qu'on regarde en premier.
 
 ⚠️ **Le temps qu'un shell occupe se lit aussi en « attente »** sur la voie du dessus. Ce
