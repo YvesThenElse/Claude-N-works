@@ -75,9 +75,20 @@ fs.chmodSync(binaire, 0o755);
 
 // postject vient du registre : c'est l'outil que Node lui-même recommande, et il n'y a pas
 // d'autre façon raisonnable d'injecter une section dans un ELF, un Mach-O et un PE.
-const npx = os.platform() === 'win32' ? 'npx.cmd' : 'npx';
-courir(npx, ['--yes', 'postject', binaire, 'NODE_SEA_BLOB',
-  path.join(TRAVAIL, 'sea-prep.blob'), '--sentinel-fuse', FUSIBLE]);
+//
+// ⚠️ Sous Windows, `npx` est un `.cmd`, et depuis Node 20 `execFileSync` refuse de lancer
+// un script de commandes sans passer par le shell — c'est le correctif de la
+// CVE-2024-27980. Sans `shell: true`, la fabrication meurt sur `EINVAL spawnSync npx.cmd`,
+// et seulement sous Windows : mesuré en intégration continue, Linux et macOS passaient.
+// Les arguments sont alors guillemetés, puisque le shell les redécoupe.
+const sousWindows = os.platform() === 'win32';
+const args = ['--yes', 'postject', binaire, 'NODE_SEA_BLOB',
+  path.join(TRAVAIL, 'sea-prep.blob'), '--sentinel-fuse', FUSIBLE];
+if (sousWindows) {
+  courir('npx.cmd', args.map((a) => (/[\s"]/.test(a) ? '"' + a + '"' : a)), { shell: true });
+} else {
+  courir('npx', args);
+}
 
 const taille = fs.statSync(binaire).size;
 process.stdout.write('\n  ' + nom + ' — ' + Math.round(taille / 1048576) + ' Mo, autonome\n');
