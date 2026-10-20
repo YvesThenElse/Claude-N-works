@@ -73,13 +73,68 @@ npm run bureau
 ### Suivre les sessions d'une autre machine
 
 Sur la machine à observer — un serveur de construction, une machine headless, un poste
-qu'on n'a pas sous les yeux — on lance le **même programme en mode sonde** :
+qu'on n'a pas sous les yeux — on installe une **sonde**. Elle tient en une commande, et il
+y a deux façons de l'obtenir selon ce que la machine a déjà.
+
+#### Si Node y est déjà : un fichier de 116 ko
+
+```sh
+curl -LO https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde.js
+node cnw-sonde.js
+```
+
+[Télécharger `cnw-sonde.js`][sonde-js] — un seul fichier, aucune dépendance à installer,
+Node 20 ou plus. C'est le même code que l'application, lié en un fichier par
+`npm run sonde` : il n'y a pas de second lecteur de transcrits à tenir d'accord.
+
+#### Si Node n'y est pas : un exécutable autonome
+
+| Système | Fichier | |
+|---|---|---|
+| **Linux** x64 | `cnw-sonde-linux-x64` | [télécharger][sonde-linux] |
+| **macOS** Apple Silicon | `cnw-sonde-macos-arm64` | [télécharger][sonde-macos] |
+| **Windows** x64 | `cnw-sonde-windows-x64.exe` | [télécharger][sonde-windows] |
+
+```sh
+chmod +x cnw-sonde-linux-x64
+./cnw-sonde-linux-x64
+```
+
+119 Mo — c'est Node entier qui est dedans, et c'est le seul argument en sa faveur : sur une
+machine qui a déjà Node, le fichier de 116 ko fait exactement la même chose mille fois plus
+petit.
+
+> ⚠️ **Le binaire est bâti sur le Node officiel, jamais sur celui de la machine qui le
+> fabrique.** Mesuré sur Fedora : `/usr/bin/node-22` pèse 28 ko et se lie dynamiquement à
+> `libnode.so`. Un exécutable bâti là-dessus ferait 28 ko et réclamerait la bibliothèque à
+> l'exécution — tout le contraire d'autonome, et la panne n'apparaîtrait que chez celui qui
+> le télécharge. `npm run sonde-binaire` refuse de le faire et le dit.
+
+#### Et si vous avez déjà le dépôt
 
 ```sh
 node serveur.js --sonde
 ```
 
-Elle n'expose alors que l'API, jamais l'écran, et elle **exige un jeton**. Le jeton est
+[sonde-js]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde.js
+[sonde-linux]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-linux-x64
+[sonde-macos]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-macos-arm64
+[sonde-windows]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-windows-x64.exe
+
+Quelle que soit la forme, la sonde n'expose que l'API, jamais l'écran, et elle **exige un
+jeton**. Elle affiche au démarrage tout ce qu'il faut pour la brancher :
+
+```
+  sonde  : http://100.x.y.z:7420
+
+  jeton  : 647eb8611f74ddd1c93539c156719283
+           (gardé dans ~/.claude-n-works/sonde.json)
+
+  Sur votre poste : « + une machine », puis
+    adresse http://100.x.y.z:7420
+    jeton   647eb8611f74ddd1c93539c156719283
+```
+ Le jeton est
 fabriqué au premier lancement, affiché, et gardé dans `~/.claude-n-works/sonde.json` ; il ne
 change plus, sans quoi chaque redémarrage casserait les postes qui l'avaient noté. Sans lui,
 toute requête reçoit 401 ; sur un chemin qui n'est pas de l'API, 404.

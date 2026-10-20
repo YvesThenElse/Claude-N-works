@@ -11,7 +11,9 @@
     "start": "node serveur.js",
     "bureau": "electron .",
     "empaqueter": "npm run icones && electron-builder --publish never",
-    "icones": "node outils/fabriquer-les-icones.js"
+    "icones": "node outils/fabriquer-les-icones.js",
+    "sonde": "node outils/fabriquer-la-sonde.js",
+    "sonde-binaire": "node outils/fabriquer-le-binaire-sonde.js"
   },
   "devDependencies": {
     "electron": "^44.7.1",

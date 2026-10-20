@@ -35,16 +35,19 @@ jobs:
             machine: ubuntu-latest
             cible: --linux
             paquets: distribution/*.AppImage
+            sonde: cnw-sonde-linux-x64
           # Le runner macOS est en Apple Silicon ; electron-builder y fabrique aussi le
           # binaire Intel, parce que le projet n'a aucun module natif à recompiler.
           - nom: macOS (Apple Silicon et Intel)
             machine: macos-latest
             cible: --mac
             paquets: distribution/*.dmg
+            sonde: cnw-sonde-macos-arm64
           - nom: Windows x64
             machine: windows-latest
             cible: --win
             paquets: distribution/*.exe
+            sonde: cnw-sonde-windows-x64.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -71,6 +74,36 @@ jobs:
           # pour passer l'avertissement sur chaque système.
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
+      # La SONDE : ce qu'on installe sur une machine qu'on veut observer de loin. Deux
+      # formes, parce que deux situations. Le fichier unique pèse 116 ko et suffit partout
+      # où Node est déjà là ; le binaire pèse 119 Mo et n'existe que pour les machines où
+      # il ne l'est pas.
+      #
+      # Le binaire se bâtit sur le Node d'`actions/setup-node`, qui est le Node OFFICIEL.
+      # Mesuré sur Fedora : le Node du système fait 28 ko et se lie à `libnode.so` — un
+      # SEA bâti dessus ne serait pas autonome, et la panne n'apparaîtrait que chez celui
+      # qui le télécharge. Le script refuse d'ailleurs de le faire.
+      - name: Fabriquer la sonde — fichier unique
+        run: npm run sonde
+
+      - name: Fabriquer la sonde — binaire autonome
+        run: npm run sonde-binaire
+
+      - name: Nommer la sonde par sa plateforme
+        shell: bash
+        run: |
+          cd distribution
+          if [ -f cnw-sonde.exe ]; then mv cnw-sonde.exe "${{ matrix.sonde }}";
+          else mv cnw-sonde "${{ matrix.sonde }}"; fi
+          ls -lh cnw-sonde* | grep -v '^total'
+
+      # Le fichier unique est le même partout : une seule plateforme le publie, sans quoi
+      # trois travaux attacheraient trois fois le même fichier à la Release.
+      - name: Garder le fichier unique (Linux seulement)
+        if: matrix.machine != 'ubuntu-latest'
+        shell: bash
+        run: rm -f distribution/cnw-sonde.js
+
       - name: Lister ce qui a été produit
         shell: bash
         run: ls -lh distribution/ | grep -vE '^total|unpacked|builder-'
@@ -78,7 +111,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: paquets-${{ matrix.machine }}
-          path: ${{ matrix.paquets }}
+          path: |
+            ${{ matrix.paquets }}
+            distribution/cnw-sonde*
           if-no-files-found: error
 
   publier:

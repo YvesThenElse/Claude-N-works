@@ -826,7 +826,9 @@ function demarrer({ port = PORT, hotes = HOTES, silencieux = false } = {}) {
         const lisible = hote.includes(':') ? `[${hote}]` : hote;
         const effectif = s.address().port;
         if (!silencieux) {
-          process.stdout.write(`Claude N Works — http://${lisible}:${effectif}\n`);
+          process.stdout.write(MODE_SONDE
+            ? `  sonde  : http://${lisible}:${effectif}\n`
+            : `Claude N Works — http://${lisible}:${effectif}\n`);
         }
         resoudre({ hote, port: effectif, url: `http://${lisible}:${effectif}` });
       });
@@ -852,6 +854,21 @@ function demarrer({ port = PORT, hotes = HOTES, silencieux = false } = {}) {
   }
   const horloge = setInterval(() => { diffuser().catch(signaler); }, PERIODE_RELEVE_MS);
   horloge.unref();
+
+  // Une sonde n'a qu'une chose à dire, et il faut la dire bien : son jeton, et la ligne
+  // exacte à reporter sur le poste de travail. Sans cela, on a installé la sonde et on ne
+  // sait pas quoi en faire — ce qui est le pire moment pour aller chercher la
+  // documentation.
+  if (MODE_SONDE && !silencieux) {
+    Promise.any(prets).then((premiere) => {
+      process.stdout.write('\n  jeton  : ' + JETON_SONDE + '\n');
+      process.stdout.write('           (gardé dans ' + sondes.FICHIER_SONDE + ')\n\n');
+      process.stdout.write('  Sur votre poste : « + une machine », puis\n');
+      process.stdout.write('    adresse ' + premiere.url + '\n');
+      process.stdout.write('    jeton   ' + JETON_SONDE + '\n\n');
+      process.stdout.write('  Cette sonde ne sert que l’API, et seulement avec ce jeton.\n');
+    }).catch(() => { /* aucune adresse : l'erreur est déjà signalée */ });
+  }
 
   // Au moins une adresse suffit : qu'une des trois échoue ne doit pas tout emporter.
   return Promise.any(prets).then((premiere) => ({
