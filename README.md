@@ -70,6 +70,52 @@ npm run bureau
 | `PERIODE_RELEVE_MS` | `500` | période du relevé ; borne le délai de détection d'une session morte |
 | `CLAUDE_HOME` | `~/.claude` | où lire — sert surtout à éprouver le programme sur un faux dossier |
 
+### Suivre les sessions d'une autre machine
+
+Sur la machine à observer — un serveur de construction, une machine headless, un poste
+qu'on n'a pas sous les yeux — on lance le **même programme en mode sonde** :
+
+```sh
+node serveur.js --sonde
+```
+
+Elle n'expose alors que l'API, jamais l'écran, et elle **exige un jeton**. Le jeton est
+fabriqué au premier lancement, affiché, et gardé dans `~/.claude-n-works/sonde.json` ; il ne
+change plus, sans quoi chaque redémarrage casserait les postes qui l'avaient noté. Sans lui,
+toute requête reçoit 401 ; sur un chemin qui n'est pas de l'API, 404.
+
+Sur votre poste, le bouton **+ une machine** demande l'adresse, un nom et le jeton. Le
+serveur **éprouve la sonde avant de l'inscrire** : une machine qu'on ajoute et qui ne
+répond pas laisserait croire qu'elle est au repos, ce qui est le pire des cas.
+
+**La page ne parle jamais qu'à son serveur local.** C'est lui qui interroge les sondes et
+relaie — y compris le flux d'une session, repompé tel quel sans être relu. Deux
+conséquences voulues : aucun CORS à ouvrir, et le jeton ne descend jamais dans le
+navigateur. Une session distante s'affiche donc exactement comme une locale, sans second
+chemin de code à tenir d'accord.
+
+**Toutes les machines dans une seule liste**, chaque session portant le nom de la sienne, et
+un onglet par machine pour filtrer. Tant qu'aucune machine n'est suivie, **rien ne change à
+l'écran** — la barre reste cachée, le sous-titre reste « sur cette machine », et aucune
+session ne porte de pastille.
+
+**Une sonde en panne ne casse rien et ne disparaît pas.** Mesuré : la sonde arrêtée,
+l'écran répond toujours en 45 ms avec ses sessions locales intactes, et la machine apparaît
+en rouge avec sa raison — « injoignable », « jeton refusé », « ne répond pas ». La faire
+disparaître laisserait croire qu'elle est au repos. Un relais vers une sonde morte rend 502,
+et non 500 : ce n'est pas ce serveur qui a échoué, c'est celui d'en face.
+
+**Le suivi en direct.** Localement, `fs.watch` prévient dès qu'un transcript bouge. Une
+sonde ne peut pas nous prévenir — c'est nous qui l'appelons —, donc un relevé régulier la
+sollicite toutes les deux secondes. Il ne démarre que s'il y a des machines à suivre et
+s'arrête quand plus personne ne regarde. Vérifié : en coupant la sonde pendant qu'on
+écoute, le flux émet une seconde trame dans la foulée, 8 sessions deviennent 4 et la panne
+est nommée.
+
+> ⚠️ **Un identifiant de session n'est unique que sur une machine.** La fiche cherchait la
+> session par cet identifiant seul et retrouvait l'homonyme local au lieu de la distante —
+> mesuré, et corrigé : la clé est désormais le couple machine + identifiant.
+
 ### Y accéder depuis le tailnet
 
 ```sh

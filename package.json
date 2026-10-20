@@ -30,6 +30,7 @@
       "public/**",
       "serveur.js",
       "lecture.js",
+      "machines.js",
       "suivi.js"
     ],
     "linux": {

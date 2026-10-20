@@ -184,6 +184,9 @@ const params = new URLSearchParams(location.search);
 const idSession = params.get('id') || '';
 const agentVise = params.get('agent') || null;
 const appelVise = params.get('appel') || null;
+// La machine d'où vient la session. Vide = ce poste.
+const machineSession = params.get('machine') || '';
+const suffixeMachine = machineSession ? '&machine=' + encodeURIComponent(machineSession) : '';
 
 const elPlan = document.getElementById('plan');
 const elTitre = document.getElementById('titre');
@@ -192,7 +195,7 @@ const elCompte = document.getElementById('compte');
 const elPanneau = document.getElementById('panneau');
 const elDetail = document.getElementById('detail');
 const elTout = document.getElementById('toutMontrer');
-document.getElementById('retour').href = '/session.html?id=' + encodeURIComponent(idSession);
+document.getElementById('retour').href = '/session.html?id=' + encodeURIComponent(idSession) + suffixeMachine;
 
 let deroule = null;
 
@@ -545,7 +548,7 @@ function carteAgent(a) {
 elTout.addEventListener('change', () => { if (deroule) construire(); });
 addEventListener('resize', () => { if (deroule) construire(); });
 
-fetch('/api/session?id=' + encodeURIComponent(idSession))
+fetch('/api/session?id=' + encodeURIComponent(idSession) + suffixeMachine)
   .then((r) => r.json())
   .then((d) => {
     if (d.erreur) throw new Error(d.erreur);

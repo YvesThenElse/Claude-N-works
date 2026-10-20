@@ -3198,7 +3198,7 @@ function carteSkills(agent, visee) {
   dAutres.style.cssText = 'color:var(--texte-faible);font-size:.86rem;margin:.6rem 0 0';
   dAutres.textContent = 'Recensement des autres sessions…';
   morceaux.push(dAutres);
-  fetch('/api/skills').then((r) => r.json()).then((etat) => {
+  fetch('/api/skills?x=1' + suffixeMachine).then((r) => r.json()).then((etat) => {
     const e = (etat.skills || []).find((x) => x.nom === sk.nom);
     if (!e) { dAutres.textContent = 'Aucune autre trace de ce skill sur cette machine.'; return; }
     const ailleurs = e.sessions.length;
@@ -3916,7 +3916,8 @@ async function montrerContenuContexte(agent, requete, hote, toutLeContexte, libe
     const r = await fetch('/api/contexte?id=' + encodeURIComponent(idSession)
       + '&agent=' + encodeURIComponent(agent.id)
       + '&instant=' + Math.round(haut)
-      + (avant ? '&depuis=' + Math.round(avant.fin) : ''));
+      + (avant ? '&depuis=' + Math.round(avant.fin) : '')
+      + suffixeMachine);
     data = await r.json();
     if (data.erreur) throw new Error(data.erreur);
   } catch (e) {
@@ -4315,7 +4316,8 @@ function lienVersLaChaine(agent, requete, mot) {
   a.className = 'vers-chaine';
   a.href = '/chaine.html?id=' + encodeURIComponent(idSession)
     + (agent ? '&agent=' + encodeURIComponent(agent.id) : '')
-    + (requete && Number.isFinite(requete.appel) ? '&appel=' + Math.round(requete.appel) : '');
+    + (requete && Number.isFinite(requete.appel) ? '&appel=' + Math.round(requete.appel) : '')
+    + suffixeMachine;
   a.title = 'voir l’enchaînement des appels, sans le temps';
   const svg = el('svg', { viewBox: '0 0 12 12', width: '10', height: '10',
     fill: 'none', stroke: 'currentColor', 'stroke-width': '1.4', 'aria-hidden': 'true' });
@@ -5690,6 +5692,10 @@ function resumer(d) {
 }
 
 const id = new URLSearchParams(location.search).get('id');
+// La machine d'où vient cette session. Vide = ce poste. Elle voyage dans l'URL et
+// s'ajoute à chaque appel d'API : le serveur local relaie alors vers la bonne sonde.
+const machineSession = new URLSearchParams(location.search).get('machine') || '';
+const suffixeMachine = machineSession ? '&machine=' + encodeURIComponent(machineSession) : '';
 const idSession = id;
 
 // Avant le premier dessin : on remet l'écran tel qu'Yves l'avait laissé.
@@ -5788,7 +5794,7 @@ function echouer(message) {
   elPiste.append(p);
 }
 
-const fluxSession = new EventSource('/flux-session?id=' + encodeURIComponent(id || ''));
+const fluxSession = new EventSource('/flux-session?id=' + encodeURIComponent(id || '') + suffixeMachine);
 fluxSession.addEventListener('message', (e) => {
   try {
     const d = JSON.parse(e.data);
