@@ -249,12 +249,19 @@ const elPanneau = document.getElementById('panneau');
 // les 500 ms : si l'affichage de la fiche se déduisait de `choisie`, une modale fermée se
 // rouvrirait d'elle-même au relevé suivant.
 let modaleOuverte = false;
+// La fiche d'ajout d'une machine occupe le même panneau que la fiche d'une session. Sans
+// ce drapeau, le relevé — toutes les 500 ms — la refermerait sous les doigts pendant
+// qu'on y tape l'adresse.
+let ficheDeMachine = false;
 // La dernière session connue, gardée telle quelle : un processus peut mourir pendant
 // qu'on lit sa fiche, et une modale qui se vide sous les yeux est plus déroutante qu'une
 // fiche figée qui dit que la session s'est terminée.
 let derniereConnue = null;
 
 function fermerPanneau() {
+  // Échap et le clic au large ferment aussi la fiche d'ajout : c'est le même panneau, et
+  // deux façons de fermer selon ce qu'il contient se paieraient en surprises.
+  if (ficheDeMachine) { fermerLaFiche(); return; }
   modaleOuverte = false;
   elPanneau.classList.remove('ouvert');
 }
@@ -371,8 +378,13 @@ function libelleStatut(s) {
 function dessinerLesMachines(toutes) {
   const machines = etatCourant.machines || [];
   const pannes = etatCourant.machinesEnPanne || [];
+  // ⚠️ La barre est TOUJOURS montrée, même sans aucune machine. Elle ne l'était pas, et
+  // le bouton « + une machine » vivait dedans : on ne pouvait donc jamais ajouter la
+  // PREMIÈRE — la fonctionnalité était inatteignable depuis une installation neuve.
+  // Sans machine, la barre ne porte que ce bouton : il n'y a rien à filtrer.
+  elMachines.hidden = false;
   if (!machines.length) {
-    elMachines.hidden = true; elMachines.replaceChildren();
+    elMachines.replaceChildren(boutonAjouter());
     elPortee.textContent = 'Sessions Claude Code ouvertes sur cette machine';
     return;
   }
@@ -418,37 +430,139 @@ function dessinerLesMachines(toutes) {
     elements.push(groupe);
   }
 
-  const ajout = document.createElement('button');
-  ajout.type = 'button';
-  ajout.className = 'ajouter';
-  ajout.textContent = '+ une machine';
-  ajout.title = 'suivre une sonde — lancez « node serveur.js --sonde » là-bas';
-  ajout.addEventListener('click', ajouterUneMachine);
-  elements.push(ajout);
-
+  elements.push(boutonAjouter());
   elMachines.replaceChildren(...elements);
 }
 
+function boutonAjouter() {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'ajouter';
+  b.textContent = '+ une machine';
+  b.title = 'suivre une sonde posée sur une autre machine';
+  b.addEventListener('click', ouvrirLaFicheDeMachine);
+  return b;
+}
+
 /**
- * Ajouter une sonde. Trois questions, et le serveur l'ÉPROUVE avant de l'inscrire : une
- * machine qu'on ajoute et qui ne répond pas laisserait croire qu'elle est au repos.
+ * La fiche d'ajout d'une machine — §7.
+ *
+ * ⚠️ Un vrai formulaire, et non `prompt()`. Mesuré : dans la coquille Electron,
+ * `window.prompt` LÈVE — « prompt() is not supported » — et le bouton ne faisait donc
+ * rien du tout dans l'application empaquetée, celle que presque tout le monde emploie.
+ * La version navigateur, elle, marchait : vérifier dans le navigateur seul ne pouvait pas
+ * le voir.
+ *
+ * La fiche réutilise le panneau des sessions : même voile, même fiche, même Échap.
  */
-async function ajouterUneMachine() {
-  const url = prompt('Adresse de la sonde — par exemple http://build-01:7420');
-  if (!url) return;
-  const nom = prompt('Nom à lui donner à l’écran', (() => {
-    try { return new URL(url).hostname.split('.')[0]; } catch { return ''; }
-  })());
-  if (!nom) return;
-  const jeton = prompt('Jeton de la sonde (elle l’affiche à son démarrage)');
-  if (jeton === null) return;
-  const r = await fetch('/api/machines', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ nom, url, jeton }),
+function ouvrirLaFicheDeMachine() {
+  const champ = (id, etiquette, exemple, type) => {
+    const l = document.createElement('label');
+    l.style.cssText = 'display:block;margin:.8rem 0 0;font-size:.86rem;color:var(--texte-faible)';
+    l.textContent = etiquette;
+    const i = document.createElement('input');
+    i.id = id;
+    i.type = type || 'text';
+    i.placeholder = exemple;
+    i.autocomplete = 'off';
+    i.spellcheck = false;
+    i.style.cssText = 'display:block;width:100%;margin-top:.3rem;padding:.45rem .6rem;'
+      + 'background:var(--fond);border:1px solid var(--trait);border-radius:7px;'
+      + 'color:var(--texte);font:inherit;font-size:.9rem';
+    l.append(i);
+    return l;
+  };
+
+  elDetail.replaceChildren();
+  const fermer = document.createElement('button');
+  fermer.className = 'fermer';
+  fermer.textContent = '×';
+  fermer.addEventListener('click', fermerLaFiche);
+  const titre = document.createElement('h2');
+  titre.textContent = 'Suivre une autre machine';
+  const aide = document.createElement('p');
+  aide.style.cssText = 'color:var(--texte-faible);font-size:.86rem;margin:.2rem 0 0';
+  aide.textContent = 'Sur la machine à observer, lancez la sonde : elle affiche son '
+    + 'adresse et son jeton. Reportez-les ici.';
+  const commande = document.createElement('pre');
+  commande.style.cssText = 'background:var(--fond);border:1px solid var(--trait);'
+    + 'border-radius:7px;padding:.5rem .7rem;margin:.6rem 0 0;font-size:.8rem;'
+    + 'overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace';
+  commande.textContent = 'curl -LO https://github.com/YvesThenElse/Claude-N-works/'
+    + 'releases/latest/download/cnw-sonde.js\nHOTES=127.0.0.1,tailscale node cnw-sonde.js';
+
+  const cUrl = champ('m-url', 'Adresse de la sonde', 'http://build-01:7420', 'url');
+  const cNom = champ('m-nom', 'Nom à l’écran', 'build-01');
+  const cJeton = champ('m-jeton', 'Jeton', '32 caractères, affiché par la sonde');
+
+  const erreur = document.createElement('p');
+  erreur.style.cssText = 'color:var(--occupe);font-size:.86rem;margin:.8rem 0 0;min-height:1.2em';
+
+  const barre = document.createElement('div');
+  barre.style.cssText = 'display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem';
+  const annuler = document.createElement('button');
+  annuler.type = 'button';
+  annuler.className = 'ajouter';
+  annuler.textContent = 'annuler';
+  annuler.addEventListener('click', fermerLaFiche);
+  const valider = document.createElement('button');
+  valider.type = 'button';
+  valider.className = 'onglet';
+  valider.setAttribute('aria-pressed', 'true');
+  valider.textContent = 'suivre cette machine';
+  barre.append(annuler, valider);
+
+  // Le nom se devine de l'adresse tant qu'on ne l'a pas touché : une friction de moins.
+  let nomTouche = false;
+  cNom.querySelector('input').addEventListener('input', () => { nomTouche = true; });
+  cUrl.querySelector('input').addEventListener('input', (e) => {
+    if (nomTouche) return;
+    try {
+      const h = new URL(e.target.value).hostname;
+      // On ne devine que d'un vrai nom d'hôte : d'une adresse IP, « 127 » serait un nom
+      // pire que pas de nom du tout.
+      cNom.querySelector('input').value = /^[\d.:[\]]+$/.test(h) ? '' : h.split('.')[0];
+    } catch { /* adresse encore incomplète */ }
   });
-  const d = await r.json();
-  if (d.erreur) { elAlerte.textContent = 'Machine non ajoutée : ' + d.erreur; return; }
-  elAlerte.textContent = '';
+
+  const envoyer = async () => {
+    const nom = cNom.querySelector('input').value.trim();
+    const url = cUrl.querySelector('input').value.trim();
+    const jeton = cJeton.querySelector('input').value.trim();
+    if (!url || !nom) { erreur.textContent = 'Il faut au moins une adresse et un nom.'; return; }
+    valider.disabled = true;
+    erreur.textContent = 'on éprouve la sonde…';
+    try {
+      const r = await fetch('/api/machines', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nom, url, jeton }),
+      });
+      const d = await r.json();
+      if (d.erreur) { erreur.textContent = d.erreur; valider.disabled = false; return; }
+      fermerLaFiche();
+    } catch (e) {
+      erreur.textContent = 'le serveur local n’a pas répondu : ' + e.message;
+      valider.disabled = false;
+    }
+  };
+  valider.addEventListener('click', envoyer);
+  for (const c of [cUrl, cNom, cJeton]) {
+    c.querySelector('input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); envoyer(); }
+    });
+  }
+
+  elDetail.append(fermer, titre, aide, commande, cUrl, cNom, cJeton, erreur, barre);
+  ficheDeMachine = true;
+  elPanneau.classList.add('ouvert');
+  cUrl.querySelector('input').focus();
+}
+
+function fermerLaFiche() {
+  ficheDeMachine = false;
+  elPanneau.classList.remove('ouvert');
+  elDetail.replaceChildren();
+  dessiner();
 }
 
 function dessinerListe() {
@@ -524,6 +638,7 @@ function dessinerListe() {
 }
 
 function dessinerDetail() {
+  if (ficheDeMachine) return;   // on y saisit une machine : on ne touche à rien
   if (!modaleOuverte) { elPanneau.classList.remove('ouvert'); return; }
   const vivante = (etatCourant.sessions || []).find((x) => cleDe(x) === choisie);
   if (vivante) derniereConnue = vivante;

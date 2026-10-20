@@ -121,15 +121,17 @@ async function interroger(machine, chemin, params = {}) {
     });
   } catch (err) {
     const cause = err && err.name === 'TimeoutError'
-      ? 'ne répond pas (' + DELAI_MS + ' ms)'
-      : 'injoignable : ' + (err && err.message ? err.message : String(err));
+      ? 'ne répond pas au bout de ' + DELAI_MS + ' ms'
+      : 'est injoignable à cette adresse';
     throw Object.assign(new Error(cause), { machine: machine.nom, injoignable: true });
   }
   if (reponse.status === 401 || reponse.status === 403) {
-    throw Object.assign(new Error('jeton refusé'), { machine: machine.nom, jeton: true });
+    throw Object.assign(new Error('a refusé ce jeton'), { machine: machine.nom, jeton: true });
   }
   if (!reponse.ok) {
-    throw Object.assign(new Error('a répondu ' + reponse.status), { machine: machine.nom });
+    throw Object.assign(new Error('a répondu ' + reponse.status
+      + (reponse.status === 404 ? ' — est-ce bien une sonde ?' : '')),
+    { machine: machine.nom });
   }
   return reponse.json();
 }

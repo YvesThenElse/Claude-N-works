@@ -525,7 +525,7 @@ function traiter(requete, reponse) {
         try {
           await sondes.interroger(machine, '/api/sessions');
         } catch (err) {
-          repondreJson(reponse, 502, { erreur: 'la sonde ' + err.message });
+          repondreJson(reponse, 502, { erreur: 'La sonde ' + err.message + '.' });
           return;
         }
         const reste = liste.filter((m) => m.nom !== machine.nom);

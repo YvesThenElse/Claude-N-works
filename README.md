@@ -141,7 +141,15 @@ toute requête reçoit 401 ; sur un chemin qui n'est pas de l'API, 404.
 
 Sur votre poste, le bouton **+ une machine** demande l'adresse, un nom et le jeton. Le
 serveur **éprouve la sonde avant de l'inscrire** : une machine qu'on ajoute et qui ne
-répond pas laisserait croire qu'elle est au repos, ce qui est le pire des cas.
+répond pas laisserait croire qu'elle est au repos, ce qui est le pire des cas. Un refus
+reste **dans la fiche**, qui ne se ferme pas — « La sonde a refusé ce jeton. », « La sonde
+est injoignable à cette adresse. » — pour qu'on corrige sans tout ressaisir.
+
+> ⚠️ **La fiche est un vrai formulaire, et non `prompt()`.** Mesuré : dans la coquille
+> Electron, `window.prompt` **lève** — « prompt() is not supported » — et le bouton ne
+> faisait donc rien du tout dans l'application empaquetée, celle que presque tout le monde
+> emploie. La version servie dans un navigateur, elle, marchait : vérifier dans le
+> navigateur seul ne pouvait pas voir la panne.
 
 **La page ne parle jamais qu'à son serveur local.** C'est lui qui interroge les sondes et
 relaie — y compris le flux d'une session, repompé tel quel sans être relu. Deux
