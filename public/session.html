@@ -212,7 +212,13 @@
   .noeud .caches {
     color: var(--texte-faible); font-size: .72rem; font-style: italic;
   }
-  .noeud:hover, .noeud.vise { background: var(--fond-carte); }
+  .noeud:hover, .noeud.vise, .noeud.survol { background: var(--fond-carte); }
+
+  /* La bande de survol d'une voie : invisible au repos, elle occupe toute la largeur de
+     la piste et s'allume en même temps que le titre, à gauche. Elle est posée derrière
+     les marques, qui gardent donc leurs clics et leurs infobulles. */
+  .bande-voie { fill: transparent; }
+  .bande-voie.survol { fill: var(--fond-carte); }
 
   /* Le pictogramme de la voie. Il était dessiné dans la couleur des traits d'arbre, si
      sombre qu'on ne le voyait pas : il porte maintenant la couleur de sa voie. */
@@ -635,6 +641,10 @@ const HAUTEUR_VOIE = 35.2;   // la hauteur ORDINAIRE d'une voie, et d'un nœud d
 //
 // Un appel d'outil porte trois choses — le trait du départ, la bande de durée, et le nom
 // AU-DESSUS de la bande — mais le nom sort de la barre, qui peut donc rester mince.
+// Allume les deux côtés d'une ligne — son titre dans l'arbre, sa bande dans la piste.
+// Redéfinie à chaque dessin, parce qu'elle se referme sur le SVG courant.
+let survolerLaVoie = () => {};
+
 const HAUTEUR_RANGEE = { taches: 15, outils: 12 };
 // Au-delà, la voie se serre : passé six shells de front, aucune barre ne peut plus porter
 // son texte de toute façon, et faire grandir la voie à l'infini ne montrerait rien de plus.
@@ -1674,6 +1684,11 @@ function dessinerArbre() {
     const sienne = hauteurDeVoie(v);
     if (sienne !== HAUTEUR_VOIE) d.style.height = sienne + 'px';
 
+    // Survoler le titre allume aussi la bande, à droite : le lien va dans les deux sens,
+    // sans quoi on aurait deux façons différentes de désigner la même ligne.
+    d.addEventListener('mouseenter', () => survolerLaVoie(i, true));
+    d.addEventListener('mouseleave', () => survolerLaVoie(i, false));
+
     // Le clic d'une flèche ne doit jamais ouvrir la carte de la ligne. `stopPropagation`
     // depuis le bouton ne suffit pas : le redessin détruit le bouton pendant que
     // l'événement se propage, et le gestionnaire de la ligne finit par le voir. On filtre
@@ -2218,61 +2233,89 @@ function dessinerPiste() {
     svg.append(g);
   }
 
+  // Les deux côtés d'une même ligne s'allument ensemble. On les retrouve à la demande
+  // plutôt que de garder des références : l'arbre et la piste sont redessinés à chaque
+  // relevé, et une référence gardée désignerait un élément détaché.
+  survolerLaVoie = (i, actif) => {
+    const noeud = elArbre.children[i];
+    if (noeud) noeud.classList.toggle('survol', actif);
+    const bande = svg.querySelector('.bande-voie[data-voie="' + i + '"]');
+    if (bande) bande.classList.toggle('survol', actif);
+  };
+
   voies.forEach((v, i) => {
     const centre = MARGE_HAUT + sommets[i] + hauteurs[i] / 2;
+    // Chaque voie vit dans son propre groupe, et le groupe porte une BANDE qui en occupe
+    // toute la largeur. C'est elle qui s'allume au survol — à gauche comme à droite, et
+    // sur toute la ligne. Survoler le seul titre obligeait à suivre la ligne des yeux sur
+    // mille pixels sans rien pour la tenir.
+    //
+    // La bande est posée EN PREMIER dans le groupe : elle passe donc derrière les marques,
+    // qui gardent leurs clics et leurs infobulles. Et c'est le GROUPE qui écoute, non la
+    // bande : les marques en sont des descendants, si bien que passer de la bande à une
+    // marque ne déclenche aucune sortie.
+    const ligne = el('g', { class: 'ligne-voie' });
+    const bande = el('rect', {
+      class: 'bande-voie', 'data-voie': String(i),
+      x: 0, y: MARGE_HAUT + sommets[i], width: Math.max(1, axe.largeur), height: hauteurs[i],
+    });
+    ligne.append(bande);
+    ligne.addEventListener('mouseenter', () => survolerLaVoie(i, true));
+    ligne.addEventListener('mouseleave', () => survolerLaVoie(i, false));
+    svg.append(ligne);
     if (v.genre === 'contexte') {
-      svg.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
+      ligne.append(dessinerVoieContexte(v.agent, centre, axe, refContexte()));
       return;
     }
     if (v.genre === 'buffer') {
-      svg.append(dessinerVoieBuffer(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieBuffer(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'contenu') {
-      svg.append(dessinerVoieContenu(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieContenu(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'tours') {
-      svg.append(dessinerVoieTours(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieTours(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'outils') {
-      svg.append(dessinerVoieOutils(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieOutils(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'reflexion') {
-      svg.append(dessinerVoieReflexion(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieReflexion(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'fichiers') {
-      svg.append(dessinerVoieFichiers(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieFichiers(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'outillage') {
-      svg.append(dessinerVoieOutillage(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieOutillage(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'skills') {
-      svg.append(dessinerVoieSkills(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieSkills(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'hooks') {
-      svg.append(dessinerVoieHooks(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieHooks(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'taches') {
-      svg.append(dessinerVoieTaches(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieTaches(v.agent, centre, axe, visible));
       return;
     }
     if (v.genre === 'modele') {
-      svg.append(dessinerVoieModele(v.agent, v.modele, centre, axe, visible));
+      ligne.append(dessinerVoieModele(v.agent, v.modele, centre, axe, visible));
       return;
     }
     if (v.genre === 'attente') {
-      svg.append(dessinerVoieAttente(v.agent, centre, axe, visible));
+      ligne.append(dessinerVoieAttente(v.agent, centre, axe, visible));
       return;
     }
-    if (v.genre === 'boucles') { svg.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
+    if (v.genre === 'boucles') { ligne.append(dessinerVoieBoucles(v.agent, centre, axe)); return; }
     const a = v.agent;
     // La voie se partage en deux : la barre de l'agent au-dessus, la bande de durée des
     // appels d'outils en dessous. L'ensemble reste centré sur la voie.
@@ -2298,7 +2341,7 @@ function dessinerPiste() {
       + '\n' + a.outils.length + " appel(s) d'outil")));
 
     g.addEventListener('click', () => { vise = a.id; dessiner(); carteAgent(a); });
-    svg.append(g);
+    ligne.append(g);
   });
 
   elPiste.replaceChildren(svg);

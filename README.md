@@ -1008,6 +1008,26 @@ lisent en vis-à-vis — ce qui n'est pas dans l'une est dans l'autre. La voie s
 temps, la machine travaillait ». C'était l'étiquette qui était le mot isolé. **Le tour
 reste l'unité** — la voie se mesure en tours, elle s'appelle travail.
 
+### Survoler une ligne entière
+
+Le survol n'allumait que le **titre**, à gauche. Il fallait donc suivre la ligne des yeux
+sur toute la largeur de la piste sans rien pour la tenir — et sur un écran où les voies se
+comptent par dizaines, on perd la sienne.
+
+Une ligne s'allume maintenant **d'un bord à l'autre**, et dans les deux sens : survoler le
+titre allume la piste, survoler la piste allume le titre. C'est la même nuance que
+celle du titre seul auparavant, pour que les deux moitiés ne se répondent pas de deux
+façons différentes.
+
+**Chaque voie vit dans son propre groupe**, dont la bande de survol est le premier enfant :
+elle passe donc derrière les marques, qui gardent leurs clics et leurs infobulles — vérifié,
+un clic au milieu d'un appel d'outil ouvre toujours sa carte. Et c'est le **groupe** qui
+écoute, non la bande : les marques en sont des descendants, si bien que passer de l'une à
+l'autre ne déclenche aucune sortie et que rien ne scintille.
+
+Coût mesuré sur une session à 97 voies, trois tours et quatre niveaux de zoom : le redessin
+passe de **63 à 70 ms** de médiane pour 194 éléments de plus.
+
 ### Ranger les voies
 
 Deux flèches en tête de chaque ligne échangent la voie avec sa voisine, vers le haut ou
