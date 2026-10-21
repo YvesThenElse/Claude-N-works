@@ -2,12 +2,13 @@
 <html lang="fr" data-theme="">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude N Works — la chaîne des appels</title>
+<title>Orange Black Box — la chaîne des appels</title>
 <script>
   // Le thème AVANT le premier affichage, comme sur les deux autres écrans : une page
   // choisie en clair ne doit jamais paraître sombre le temps d'une image.
   try {
-    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    const r = JSON.parse((localStorage.getItem('orange-black-box.reglages.v1')
+      || localStorage.getItem('claude-n-works.reglages.v1'))) || {};
     if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
   } catch { /* stockage refusé : on garde le défaut */ }
 </script>

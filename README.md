@@ -1,7 +1,15 @@
-# Claude N Works
+# OBB — Orange Black Box
 
-Observer ce que fait Claude Code : ses agents, ses sous-agents, ses skills, ses boucles et
-ses outils, dans le temps.
+Voir ce que Claude Code a **vraiment** fait : ses agents, ses sous-agents, ses skills, ses
+hooks, ses boucles, ses shells et ses outils, dans le temps.
+
+> L'enregistreur de vol d'un avion est **orange**, pas noir — on l'appelle boîte noire
+> parce qu'on ne sait pas ce qu'il y a dedans, pas parce qu'il est sombre. C'est tout le
+> propos : la boîte est là, elle a tout enregistré, et personne ne la regarde. OBB la
+> peint en orange.
+>
+> L'outil ne pose aucune sonde dans Claude Code et ne détourne aucun appel : il **lit les
+> traces que Claude Code écrit déjà**. Rien n'est instrumenté, rien n'est modifié.
 
 - **Ce qu'on construit** → [`CAHIER-DES-CHARGES.md`](CAHIER-DES-CHARGES.md)
 - **Comment Claude Code écrit ses traces** → [`OBSERVATIONS-FORMAT.md`](OBSERVATIONS-FORMAT.md),
@@ -18,12 +26,12 @@ ouvrez-le. Rien d'autre à installer.
 
 | Système | Fichier | Ce qu'on en fait |
 |---|---|---|
-| **Linux** x64 | `Claude-N-Works-…-linux-x64.AppImage` | le rendre exécutable (`chmod +x`), puis double-cliquer |
-| **macOS** Apple Silicon | `Claude-N-Works-…-macos-arm64.dmg` | ouvrir, glisser dans Applications |
-| **macOS** Intel | `Claude-N-Works-…-macos-x64.dmg` | ouvrir, glisser dans Applications |
-| **Windows** x64 | `Claude-N-Works-…-windows-x64-installateur.exe` | lancer l'installateur |
+| **Linux** x64 | `Orange-Black-Box-…-linux-x64.AppImage` | le rendre exécutable (`chmod +x`), puis double-cliquer |
+| **macOS** Apple Silicon | `Orange-Black-Box-…-macos-arm64.dmg` | ouvrir, glisser dans Applications |
+| **macOS** Intel | `Orange-Black-Box-…-macos-x64.dmg` | ouvrir, glisser dans Applications |
+| **Windows** x64 | `Orange-Black-Box-…-windows-x64-installateur.exe` | lancer l'installateur |
 
-[versions]: https://github.com/YvesThenElse/Claude-N-works/releases/latest
+[versions]: https://github.com/YvesThenElse/OBB/releases/latest
 
 ### Au premier lancement, votre système va se méfier
 
@@ -34,7 +42,7 @@ geste pour passer outre, une seule fois :
 
 | Système | Ce que vous verrez | Le geste |
 |---|---|---|
-| **macOS** | « impossible d'ouvrir, le développeur ne peut pas être vérifié » | **clic droit** sur l'application → **Ouvrir** → *Ouvrir*. Ou, en terminal : `xattr -d com.apple.quarantine "/Applications/Claude N Works.app"` |
+| **macOS** | « impossible d'ouvrir, le développeur ne peut pas être vérifié » | **clic droit** sur l'application → **Ouvrir** → *Ouvrir*. Ou, en terminal : `xattr -d com.apple.quarantine "/Applications/Orange Black Box.app"` |
 | **Windows** | un écran bleu « Windows a protégé votre ordinateur » | **Informations complémentaires** → **Exécuter quand même** |
 | **Linux** | rien, l'AppImage se lance | — |
 
@@ -79,11 +87,11 @@ y a deux façons de l'obtenir selon ce que la machine a déjà.
 #### Si Node y est déjà : un fichier de 116 ko
 
 ```sh
-curl -LO https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde.js
-node cnw-sonde.js
+curl -LO https://github.com/YvesThenElse/OBB/releases/latest/download/obb-sonde.js
+node obb-sonde.js
 ```
 
-[Télécharger `cnw-sonde.js`][sonde-js] — un seul fichier, aucune dépendance à installer,
+[Télécharger `obb-sonde.js`][sonde-js] — un seul fichier, aucune dépendance à installer,
 Node 20 ou plus. C'est le même code que l'application, lié en un fichier par
 `npm run sonde` : il n'y a pas de second lecteur de transcrits à tenir d'accord.
 
@@ -91,13 +99,13 @@ Node 20 ou plus. C'est le même code que l'application, lié en un fichier par
 
 | Système | Fichier | |
 |---|---|---|
-| **Linux** x64 | `cnw-sonde-linux-x64` | [télécharger][sonde-linux] |
-| **macOS** Apple Silicon | `cnw-sonde-macos-arm64` | [télécharger][sonde-macos] |
-| **Windows** x64 | `cnw-sonde-windows-x64.exe` | [télécharger][sonde-windows] |
+| **Linux** x64 | `obb-sonde-linux-x64` | [télécharger][sonde-linux] |
+| **macOS** Apple Silicon | `obb-sonde-macos-arm64` | [télécharger][sonde-macos] |
+| **Windows** x64 | `obb-sonde-windows-x64.exe` | [télécharger][sonde-windows] |
 
 ```sh
-chmod +x cnw-sonde-linux-x64
-./cnw-sonde-linux-x64
+chmod +x obb-sonde-linux-x64
+./obb-sonde-linux-x64
 ```
 
 119 Mo — c'est Node entier qui est dedans, et c'est le seul argument en sa faveur : sur une
@@ -116,10 +124,10 @@ petit.
 node serveur.js --sonde
 ```
 
-[sonde-js]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde.js
-[sonde-linux]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-linux-x64
-[sonde-macos]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-macos-arm64
-[sonde-windows]: https://github.com/YvesThenElse/Claude-N-works/releases/latest/download/cnw-sonde-windows-x64.exe
+[sonde-js]: https://github.com/YvesThenElse/OBB/releases/latest/download/obb-sonde.js
+[sonde-linux]: https://github.com/YvesThenElse/OBB/releases/latest/download/obb-sonde-linux-x64
+[sonde-macos]: https://github.com/YvesThenElse/OBB/releases/latest/download/obb-sonde-macos-arm64
+[sonde-windows]: https://github.com/YvesThenElse/OBB/releases/latest/download/obb-sonde-windows-x64.exe
 
 Quelle que soit la forme, la sonde n'expose que l'API, jamais l'écran, et elle **exige un
 jeton**. Elle affiche au démarrage tout ce qu'il faut pour la brancher :
@@ -128,14 +136,14 @@ jeton**. Elle affiche au démarrage tout ce qu'il faut pour la brancher :
   sonde  : http://100.x.y.z:7420
 
   jeton  : 647eb8611f74ddd1c93539c156719283
-           (gardé dans ~/.claude-n-works/sonde.json)
+           (gardé dans ~/.orange-black-box/sonde.json)
 
   Sur votre poste : « + une machine », puis
     adresse http://100.x.y.z:7420
     jeton   647eb8611f74ddd1c93539c156719283
 ```
  Le jeton est
-fabriqué au premier lancement, affiché, et gardé dans `~/.claude-n-works/sonde.json` ; il ne
+fabriqué au premier lancement, affiché, et gardé dans `~/.orange-black-box/sonde.json` ; il ne
 change plus, sans quoi chaque redémarrage casserait les postes qui l'avaient noté. Sans lui,
 toute requête reçoit 401 ; sur un chemin qui n'est pas de l'API, 404.
 

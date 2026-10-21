@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Claude N Works — serveur du lot 2 : la liste des sessions Claude Code ouvertes.
+// Orange Black Box — serveur du lot 2 : la liste des sessions Claude Code ouvertes.
 //
 // Lecture seule. Ce programme n'écrit jamais dans ~/.claude.
 // Bibliothèque standard de Node seulement, conformément au §8 du cahier des charges.
@@ -408,7 +408,7 @@ function diffuserBientot() {
 }
 
 function signaler(err) {
-  process.stderr.write(`[claude-n-works] ${err && err.stack ? err.stack : err}\n`);
+  process.stderr.write(`[orange-black-box] ${err && err.stack ? err.stack : err}\n`);
 }
 
 // -------------------------------------------------------------------------- le serveur
@@ -446,7 +446,7 @@ function sondeRefuse(requete, reponse, url) {
   if (!sondes.jetonValide(JETON_SONDE, sondes.jetonDeLaRequete(requete, url))) {
     reponse.writeHead(401, {
       'content-type': 'text/plain; charset=utf-8',
-      'www-authenticate': 'Bearer realm="claude-n-works"',
+      'www-authenticate': 'Bearer realm="orange-black-box"',
     });
     reponse.end('sonde : jeton absent ou refusé\n');
     return true;
@@ -828,7 +828,7 @@ function demarrer({ port = PORT, hotes = HOTES, silencieux = false } = {}) {
         if (!silencieux) {
           process.stdout.write(MODE_SONDE
             ? `  sonde  : http://${lisible}:${effectif}\n`
-            : `Claude N Works — http://${lisible}:${effectif}\n`);
+            : `Orange Black Box — http://${lisible}:${effectif}\n`);
         }
         resoudre({ hote, port: effectif, url: `http://${lisible}:${effectif}` });
       });

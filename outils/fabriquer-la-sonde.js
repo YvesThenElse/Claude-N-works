@@ -40,7 +40,7 @@ function lire(nom) {
 function assembler() {
   const bouts = [
     '#!/usr/bin/env node',
-    '// Claude N Works — la sonde, en un seul fichier.',
+    '// Orange Black Box — la sonde, en un seul fichier.',
     '// Fabriqué par outils/fabriquer-la-sonde.js ; ne pas modifier à la main.',
     "'use strict';",
     'const __modules = {};',
@@ -81,8 +81,8 @@ function assembler() {
 }
 
 fs.mkdirSync(SORTIE, { recursive: true });
-const fichier = path.join(SORTIE, 'cnw-sonde.js');
+const fichier = path.join(SORTIE, 'obb-sonde.js');
 const corps = assembler();
 fs.writeFileSync(fichier, corps);
-process.stdout.write(`  cnw-sonde.js — ${corps.length.toLocaleString('fr-FR')} octets, `
+process.stdout.write(`  obb-sonde.js — ${corps.length.toLocaleString('fr-FR')} octets, `
   + `${MODULES.length} modules, aucune dépendance\n`);

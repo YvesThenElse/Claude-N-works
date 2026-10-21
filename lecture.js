@@ -1,4 +1,4 @@
-// Claude N Works — reconstruction du déroulé d'une session à partir de ses transcripts.
+// Orange Black Box — reconstruction du déroulé d'une session à partir de ses transcripts.
 //
 // Lecture seule. Deux sources, conformément au §3.2 du cahier des charges :
 //   <sessionId>.jsonl                     la session et son agent racine

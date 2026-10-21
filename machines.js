@@ -1,4 +1,4 @@
-// Les machines distantes qu'on suit, et comment on leur parle.
+// Orange Black Box — les machines distantes qu'on suit, et comment on leur parle.
 //
 // Une **sonde** est ce même programme lancé avec `--sonde` sur la machine à observer :
 // elle n'expose que l'API, jamais l'écran, et elle exige un jeton. Le poste local garde la
@@ -17,14 +17,30 @@ const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
-const DOSSIER = process.env.CNW_HOME || path.join(os.homedir(), '.claude-n-works');
+const DOSSIER = process.env.OBB_HOME || path.join(os.homedir(), '.orange-black-box');
 const FICHIER_MACHINES = path.join(DOSSIER, 'machines.json');
 const FICHIER_SONDE = path.join(DOSSIER, 'sonde.json');
+
+// Le projet s'est appelé « Claude N Works » jusqu'au 21 octobre 2026, et son état vivait
+// dans `~/.claude-n-works`. On le déménage une fois, au lieu de le laisser derrière :
+// ce dossier porte le JETON de la sonde, et le perdre en fabriquerait un nouveau — donc
+// casserait silencieusement tous les postes qui avaient noté l'ancien.
+const ANCIEN_DOSSIER = path.join(os.homedir(), '.claude-n-works');
+function demenagerSiBesoin() {
+  if (process.env.OBB_HOME) return;
+  if (fs.existsSync(DOSSIER) || !fs.existsSync(ANCIEN_DOSSIER)) return;
+  try {
+    fs.renameSync(ANCIEN_DOSSIER, DOSSIER);
+    process.stderr.write('[orange-black-box] état déménagé : '
+      + ANCIEN_DOSSIER + ' → ' + DOSSIER + '\n');
+  } catch { /* on continue : un dossier neuf vaut mieux qu'un démarrage refusé */ }
+}
+demenagerSiBesoin();
 
 // Une sonde qui ne répond pas ne doit pas faire attendre tout l'écran : mesuré, le relevé
 // local complet prend quelques dizaines de millisecondes, et une seconde et demie est déjà
 // très au-delà de ce qu'un réseau sain demande.
-const DELAI_MS = Number(process.env.CNW_DELAI_SONDE_MS || 1500);
+const DELAI_MS = Number(process.env.OBB_DELAI_SONDE_MS || 1500);
 
 function assurerLeDossier() {
   try { fs.mkdirSync(DOSSIER, { recursive: true, mode: 0o700 }); } catch { /* tant pis */ }
@@ -38,7 +54,7 @@ function assurerLeDossier() {
  * postes qui l'avaient déjà noté.
  */
 function jetonDeLaSonde() {
-  if (process.env.CNW_JETON) return process.env.CNW_JETON;
+  if (process.env.OBB_JETON) return process.env.OBB_JETON;
   try {
     const brut = JSON.parse(fs.readFileSync(FICHIER_SONDE, 'utf8'));
     if (brut && typeof brut.jeton === 'string' && brut.jeton.length >= 16) return brut.jeton;

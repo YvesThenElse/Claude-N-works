@@ -2,7 +2,7 @@
 
 Des kits autonomes, à déposer chacun dans un répertoire vide, qui produisent une session
 Claude Code dont la ligne du temps **montre quelque chose**. Ce ne sont pas des morceaux
-de Claude N Works : c'est de la matière à observer avec.
+de Orange Black Box : c'est de la matière à observer avec.
 
 | Kit | Ce qu'il met en évidence |
 |---|---|

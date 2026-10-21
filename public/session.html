@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude N Works — ligne du temps</title>
+<title>Orange Black Box — ligne du temps</title>
 <script>
   /*
    * Le thème est appliqué AVANT le premier affichage, et c'est pour cela que ce script
@@ -11,7 +11,8 @@
    * doit jamais paraître sombre le temps d'une image.
    */
   try {
-    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    const r = JSON.parse((localStorage.getItem('orange-black-box.reglages.v1')
+      || localStorage.getItem('claude-n-works.reglages.v1'))) || {};
     if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
   } catch { /* stockage refusé : on reste au thème sombre, et l'écran fonctionne */ }
 </script>
@@ -731,7 +732,11 @@ let ordrePersonnalise = false;
 // mêmes choses. Les voies affichées valent pour toutes les sessions — c'est un goût, pas
 // un détail de telle trace. L'ordre des lignes et les agents repliés, eux, tiennent aux
 // agents de CETTE session, dont les identifiants ne veulent rien dire ailleurs.
-const CLE_MEMOIRE = 'claude-n-works.reglages.v1';
+// Le projet s'appelait « Claude N Works » : on lit l'ancienne clé une dernière fois pour
+// ne pas perdre le thème et les voies de ceux qui l'employaient, puis on n'écrit plus que
+// la nouvelle.
+const CLE_MEMOIRE = 'orange-black-box.reglages.v1';
+const CLE_ANCIENNE = 'claude-n-works.reglages.v1';
 const SESSIONS_RETENUES = 40;
 
 /**
@@ -807,7 +812,10 @@ function appliquerTheme(theme, redessiner) {
 }
 
 function lireReglages() {
-  try { return JSON.parse(localStorage.getItem(CLE_MEMOIRE)) || {}; } catch { return {}; }
+  try {
+    const brut = localStorage.getItem(CLE_MEMOIRE) || localStorage.getItem(CLE_ANCIENNE);
+    return JSON.parse(brut) || {};
+  } catch { return {}; }
 }
 
 function retenir() {

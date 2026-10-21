@@ -35,19 +35,19 @@ jobs:
             machine: ubuntu-latest
             cible: --linux
             paquets: distribution/*.AppImage
-            sonde: cnw-sonde-linux-x64
+            sonde: obb-sonde-linux-x64
           # Le runner macOS est en Apple Silicon ; electron-builder y fabrique aussi le
           # binaire Intel, parce que le projet n'a aucun module natif à recompiler.
           - nom: macOS (Apple Silicon et Intel)
             machine: macos-latest
             cible: --mac
             paquets: distribution/*.dmg
-            sonde: cnw-sonde-macos-arm64
+            sonde: obb-sonde-macos-arm64
           - nom: Windows x64
             machine: windows-latest
             cible: --win
             paquets: distribution/*.exe
-            sonde: cnw-sonde-windows-x64.exe
+            sonde: obb-sonde-windows-x64.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -93,16 +93,16 @@ jobs:
         shell: bash
         run: |
           cd distribution
-          if [ -f cnw-sonde.exe ]; then mv cnw-sonde.exe "${{ matrix.sonde }}";
-          else mv cnw-sonde "${{ matrix.sonde }}"; fi
-          ls -lh cnw-sonde* | grep -v '^total'
+          if [ -f obb-sonde.exe ]; then mv obb-sonde.exe "${{ matrix.sonde }}";
+          else mv obb-sonde "${{ matrix.sonde }}"; fi
+          ls -lh obb-sonde* | grep -v '^total'
 
       # Le fichier unique est le même partout : une seule plateforme le publie, sans quoi
       # trois travaux attacheraient trois fois le même fichier à la Release.
       - name: Garder le fichier unique (Linux seulement)
         if: matrix.machine != 'ubuntu-latest'
         shell: bash
-        run: rm -f distribution/cnw-sonde.js
+        run: rm -f distribution/obb-sonde.js
 
       - name: Lister ce qui a été produit
         shell: bash
@@ -113,7 +113,7 @@ jobs:
           name: paquets-${{ matrix.machine }}
           path: |
             ${{ matrix.paquets }}
-            distribution/cnw-sonde*
+            distribution/obb-sonde*
           if-no-files-found: error
 
   publier:
@@ -141,6 +141,6 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" != "tag" ]; then etiquette="essai-${GITHUB_RUN_NUMBER}"; fi
           gh release view "$etiquette" >/dev/null 2>&1 \
             || gh release create "$etiquette" \
-                 --title "Claude N Works $etiquette" \
+                 --title "Orange Black Box $etiquette" \
                  --notes "Téléchargez le fichier de votre système. Les binaires ne sont pas signés : le README dit comment passer l'avertissement du premier lancement."
           gh release upload "$etiquette" paquets/* --clobber

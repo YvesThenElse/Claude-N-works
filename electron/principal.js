@@ -1,4 +1,4 @@
-// Claude N Works — la coquille de bureau.
+// Orange Black Box — la coquille de bureau.
 //
 // Elle ne contient aucune logique propre : elle démarre le serveur **dans son propre
 // processus** et ouvre une fenêtre dessus. Tout ce qu'on voit est l'application web, à
@@ -51,7 +51,7 @@ function pageDErreur(message) {
   code { font-family:ui-monospace, Menlo, monospace; background:#1a1d27; padding:.1rem .3rem;
          border-radius:3px; }
 </style>
-<div><h1>Claude N Works n'a pas pu démarrer</h1>
+<div><h1>Orange Black Box n'a pas pu démarrer</h1>
 <p>${message}</p>
 <p>L'application lit <code>~/.claude</code>, le dossier que Claude Code écrit.
 Si Claude Code n'a jamais tourné sur cette machine, il n'y a rien à observer.</p></div>`;
@@ -65,7 +65,7 @@ function creerLaFenetre(url) {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#11131a',   // la couleur du thème sombre, pour ne pas éclater en blanc
-    title: 'Claude N Works',
+    title: 'Orange Black Box',
     show: false,
     webPreferences: {
       // La page est une page web ordinaire servie en HTTP : elle n'a aucun besoin de

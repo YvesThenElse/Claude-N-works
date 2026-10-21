@@ -4,7 +4,7 @@ Des éléments de l'agentique qu'un kit pourrait mettre en scène, et que l'appl
 devrait alors savoir montrer. Ce n'est ni un plan ni un engagement : c'est la réserve
 dans laquelle piocher pour écrire le prochain exemple.
 
-Le marqueur dit où en est Claude N Works aujourd'hui :
+Le marqueur dit où en est Orange Black Box aujourd'hui :
 
 | | |
 |---|---|

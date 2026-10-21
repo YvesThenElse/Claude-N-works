@@ -1,4 +1,4 @@
-// Claude N Works — suivi incrémental d'une session vivante.
+// Orange Black Box — suivi incrémental d'une session vivante.
 //
 // Relire les 37 Mo d'un transcript à chaque ligne écrite coûterait 610 ms par
 // rafraîchissement. On garde donc, par fichier, la position déjà lue et l'état déjà

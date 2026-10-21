@@ -1,11 +1,11 @@
 {
-  "name": "claude-n-works",
-  "productName": "Claude N Works",
-  "version": "1.0.6",
-  "description": "Observer ce que fait Claude Code : ses agents, ses sous-agents, ses skills, ses boucles et ses outils, dans le temps.",
+  "name": "orange-black-box",
+  "productName": "Orange Black Box",
+  "version": "1.1.0",
+  "description": "Voir ce que Claude Code a vraiment fait : ses agents, ses sous-agents, ses skills, ses hooks, ses boucles et ses outils, dans le temps.",
   "license": "MIT",
   "author": "YvesThenElse",
-  "homepage": "https://github.com/YvesThenElse/Claude-N-works",
+  "homepage": "https://github.com/YvesThenElse/OBB",
   "main": "electron/principal.js",
   "scripts": {
     "start": "node serveur.js",
@@ -20,9 +20,9 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "works.claudenworks.app",
-    "productName": "Claude N Works",
-    "copyright": "Claude N Works",
+    "appId": "io.github.yvesthenelse.orangeblackbox",
+    "productName": "Orange Black Box",
+    "copyright": "Orange Black Box",
     "directories": {
       "output": "distribution",
       "buildResources": "icones"
@@ -76,15 +76,15 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "artifactName": "Claude-N-Works-${version}-windows-x64-installateur.${ext}"
+      "artifactName": "Orange-Black-Box-${version}-windows-x64-installateur.${ext}"
     },
     "dmg": {
-      "artifactName": "Claude-N-Works-${version}-macos-${arch}.${ext}"
+      "artifactName": "Orange-Black-Box-${version}-macos-${arch}.${ext}"
     },
     "appImage": {
-      "artifactName": "Claude-N-Works-${version}-linux-x64.${ext}",
-      "synopsis": "Observer les agents, les skills et les boucles de Claude Code dans le temps"
+      "artifactName": "Orange-Black-Box-${version}-linux-x64.${ext}",
+      "synopsis": "Voir ce que Claude Code a vraiment fait : agents, skills, boucles, contexte"
     }
   },
-  "desktopName": "claude-n-works.desktop"
+  "desktopName": "orange-black-box.desktop"
 }

@@ -2,7 +2,7 @@
 // Fabrique la sonde en **exécutable autonome**, pour une machine où Node n'est pas
 // installé.
 //
-// Le fichier unique `cnw-sonde.js` suffit partout où Node est là, et il pèse 116 ko contre
+// Le fichier unique `obb-sonde.js` suffit partout où Node est là, et il pèse 116 ko contre
 // 119 Mo. Ce binaire-ci n'existe que pour le cas où il n'y est pas — un serveur de
 // construction nu, une image minimale — et c'est le seul argument en sa faveur.
 //
@@ -53,16 +53,16 @@ function nodeDeBase() {
   return chemin;
 }
 
-const nom = 'cnw-sonde' + (os.platform() === 'win32' ? '.exe' : '');
+const nom = 'obb-sonde' + (os.platform() === 'win32' ? '.exe' : '');
 const binaire = path.join(SORTIE, nom);
 
 fs.mkdirSync(TRAVAIL, { recursive: true });
 // Le fichier unique est l'entrée : `node:sea` n'embarque qu'un script et ne résout aucun
 // `require` relatif.
 courir(process.execPath, [path.join(__dirname, 'fabriquer-la-sonde.js')]);
-fs.copyFileSync(path.join(SORTIE, 'cnw-sonde.js'), path.join(TRAVAIL, 'cnw-sonde.js'));
+fs.copyFileSync(path.join(SORTIE, 'obb-sonde.js'), path.join(TRAVAIL, 'obb-sonde.js'));
 fs.writeFileSync(path.join(TRAVAIL, 'sea-config.json'), JSON.stringify({
-  main: 'cnw-sonde.js',
+  main: 'obb-sonde.js',
   output: 'sea-prep.blob',
   disableExperimentalSEAWarning: true,
 }, null, 2));

@@ -13,7 +13,7 @@ regarder.
 
 ```sh
 mkdir mon-service && cd mon-service
-cp -r /chemin/vers/Claude-N-works/exemples/cuisine/. .
+cp -r /chemin/vers/OBB/exemples/cuisine/. .
 ```
 
 Le point final de `cuisine/.` compte : sans lui, `.claude/` reste derrière et rien ne se
@@ -39,7 +39,7 @@ N'importe quel plat fait l'affaire — le chef écrit la fiche technique du plat
 
 ## Regarder
 
-Depuis le dépôt Claude N Works, dans un autre terminal :
+Depuis le dépôt Orange Black Box, dans un autre terminal :
 
 ```sh
 node serveur.js

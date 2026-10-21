@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude N Works — sessions ouvertes</title>
+<title>Orange Black Box — sessions ouvertes</title>
 <script>
   /* Avant le premier affichage : une page choisie en clair ne doit jamais paraître
      sombre le temps d'une image. */
   try {
-    const r = JSON.parse(localStorage.getItem('claude-n-works.reglages.v1')) || {};
+    const r = JSON.parse((localStorage.getItem('orange-black-box.reglages.v1')
+      || localStorage.getItem('claude-n-works.reglages.v1'))) || {};
     if (r.theme === 'clair') document.documentElement.dataset.theme = 'clair';
   } catch { /* stockage refusé : on reste au thème sombre */ }
 </script>
@@ -212,7 +213,7 @@
 <body>
 <div class="page">
   <div class="tete">
-    <h1>Claude N Works</h1>
+    <h1>Orange Black Box</h1>
     <button type="button" class="bascule-theme" id="bascule">
       <svg class="astre" id="basculeAstre" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="8" cy="8" r="3.4" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M13.1 2.9l-1.4 1.4M4.3 11.7l-1.4 1.4"/></g></svg><span id="basculeTexte">thème clair</span>
     </button>
@@ -280,7 +281,11 @@ const elAlerte = document.getElementById('alerte');
  * écran-ci n'a rien à redessiner — tout son dessin est du CSS, qui suit les variables
  * de lui-même.
  */
-const CLE_MEMOIRE = 'claude-n-works.reglages.v1';
+// Le projet s'appelait « Claude N Works » : on lit l'ancienne clé une dernière fois pour
+// ne pas perdre le thème et les voies de ceux qui l'employaient, puis on n'écrit plus que
+// la nouvelle.
+const CLE_MEMOIRE = 'orange-black-box.reglages.v1';
+const CLE_ANCIENNE = 'claude-n-works.reglages.v1';
 let themeCourant = document.documentElement.dataset.theme === 'clair' ? 'clair' : 'sombre';
 
 /**
@@ -329,7 +334,10 @@ function appliquerTheme(theme) {
 
 function retenirTheme() {
   let r = {};
-  try { r = JSON.parse(localStorage.getItem(CLE_MEMOIRE)) || {}; } catch { r = {}; }
+  try {
+    r = JSON.parse(localStorage.getItem(CLE_MEMOIRE)
+      || localStorage.getItem(CLE_ANCIENNE)) || {};
+  } catch { r = {}; }
   r.theme = themeCourant;
   // Navigation privée ou stockage plein : on se passe de mémoire et l'écran continue.
   try { localStorage.setItem(CLE_MEMOIRE, JSON.stringify(r)); } catch { /* tant pis */ }
@@ -488,8 +496,8 @@ function ouvrirLaFicheDeMachine() {
   commande.style.cssText = 'background:var(--fond);border:1px solid var(--trait);'
     + 'border-radius:7px;padding:.5rem .7rem;margin:.6rem 0 0;font-size:.8rem;'
     + 'overflow:auto;font-family:ui-monospace,Menlo,Consolas,monospace';
-  commande.textContent = 'curl -LO https://github.com/YvesThenElse/Claude-N-works/'
-    + 'releases/latest/download/cnw-sonde.js\nHOTES=127.0.0.1,tailscale node cnw-sonde.js';
+  commande.textContent = 'curl -LO https://github.com/YvesThenElse/OBB/'
+    + 'releases/latest/download/obb-sonde.js\nHOTES=127.0.0.1,tailscale node obb-sonde.js';
 
   const cUrl = champ('m-url', 'Adresse de la sonde', 'http://build-01:7420', 'url');
   const cNom = champ('m-nom', 'Nom à l’écran', 'build-01');

@@ -1,4 +1,4 @@
-# Claude N Works — cahier des charges
+# OBB — cahier des charges
 
 État : v2, 12 octobre 2026 — amendé après le lot 1 (voir `OBSERVATIONS-FORMAT.md`).
 
