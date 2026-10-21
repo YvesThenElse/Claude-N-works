@@ -607,6 +607,26 @@ function traiter(requete, reponse) {
     return;
   }
 
+  // Le logo, servi depuis `public/` et non depuis `icones/` : seul `public/` est embarqué
+  // dans l'application empaquetée, et une route qui pointerait sur `icones/` rendrait 404
+  // partout sauf en développement — la panne ne se verrait donc que chez celui qui
+  // installe. C'est le même fichier dont `outils/fabriquer-les-icones.js` tire les PNG.
+  if (url.pathname === '/logo.svg') {
+    fs.readFile(path.join(__dirname, 'public', 'logo.svg'), (err, contenu) => {
+      if (err) {
+        reponse.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        reponse.end('logo introuvable\n');
+        return;
+      }
+      reponse.writeHead(200, {
+        'content-type': 'image/svg+xml; charset=utf-8',
+        'cache-control': 'max-age=3600',
+      });
+      reponse.end(contenu);
+    });
+    return;
+  }
+
   if (url.pathname === '/session.html') {
     fs.readFile(path.join(__dirname, 'public', 'session.html'), (err, contenu) => {
       if (err) {

@@ -1,0 +1,25 @@
+<svg viewBox="0 0 64 64" width="64" height="64" xmlns="http://www.w3.org/2000/svg"
+     role="img" aria-label="Orange Black Box">
+  <title>Orange Black Box</title>
+  <!--
+    Le logo est la chose que l'application montre : des voies sur une ligne du temps,
+    dans une boîte noire. Une barre d'agent, deux voies indentées sous elle, et un appel
+    isolé en marge.
+
+    Pas de `stroke` ici, et c'est délibéré : le liseré est un rectangle plein que le
+    fond recouvre en retrait. Un contour se rastérise mal, et `outils/fabriquer-les-icones.js`
+    lit **ce fichier** pour produire les PNG de l'application — il n'y a donc pas un second
+    dessin à tenir d'accord. Tout ce qui s'ajoute ici doit rester un <rect> simple.
+
+    L'orange est #E8833A : il se lit orange jusqu'à 16 px, rend 6,66 : 1 contre le noir de
+    la boîte, et n'est aucune des couleurs de l'interface — l'ambre #e0af68, qui aurait été
+    le choix naturel, est déjà celle des requêtes et de l'outillage.
+  -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#2b2f3b"/>
+  <rect x="3.6" y="3.6" width="56.8" height="56.8" rx="12.4" fill="#14161d"/>
+
+  <rect x="11" y="16" width="42" height="8" rx="4" fill="#E8833A"/>
+  <rect x="19" y="28" width="26" height="8" rx="4" fill="#E8833A" opacity=".82"/>
+  <rect x="19" y="40" width="34" height="8" rx="4" fill="#E8833A" opacity=".82"/>
+  <rect x="11" y="40" width="4"  height="8" rx="2" fill="#E8833A" opacity=".45"/>
+</svg>

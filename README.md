@@ -1,3 +1,5 @@
+<img src="public/logo.svg" width="72" alt="">
+
 # OBB — Orange Black Box
 
 Voir ce que Claude Code a **vraiment** fait : ses agents, ses sous-agents, ses skills, ses

@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Orange Black Box — la chaîne des appels</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <script>
   // Le thème AVANT le premier affichage, comme sur les deux autres écrans : une page
   // choisie en clair ne doit jamais paraître sombre le temps d'une image.
@@ -46,6 +47,11 @@
     font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, sans-serif;
   }
   header { padding: 1.1rem 1.5rem .5rem; }
+  /* Ici le logo n'est pas un ornement : le lien de retour mène à la ligne du temps,
+     et sans lui rien ne ramène à l'accueil. */
+  .fil { display: flex; align-items: center; gap: .55rem; }
+  .fil .marque { display: block; line-height: 0; opacity: .85; transition: opacity .12s; }
+  .fil .marque:hover { opacity: 1; }
   header a { color: var(--accent); text-decoration: none; font-size: .85rem; }
   header a:hover { text-decoration: underline; }
   h1 { margin: .3rem 0 .2rem; font-size: 1.35rem; }
@@ -158,7 +164,10 @@
 </style>
 
 <header>
-  <a id="retour" href="/">← la ligne du temps</a>
+  <div class="fil">
+    <a class="marque" href="/" aria-label="Orange Black Box"><img src="/logo.svg" width="18" height="18" alt=""></a>
+    <a id="retour" href="/">← la ligne du temps</a>
+  </div>
   <h1 id="titre">…</h1>
   <div class="resume" id="resume"></div>
 </header>

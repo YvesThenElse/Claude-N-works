@@ -62,8 +62,10 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
-      # Les icônes se fabriquent, elles ne se versionnent pas : le script est à la source
-      # de vérité, et on vérifie du même coup qu'il tourne sur les trois systèmes.
+      # Les icônes se fabriquent, elles ne se versionnent pas : `public/logo.svg` est la
+      # source de vérité et le script ne fait que le rastériser, de sorte qu'il n'y a pas
+      # deux dessins à tenir d'accord. On vérifie du même coup qu'il tourne sur les trois
+      # systèmes.
       - name: Fabriquer les icônes
         run: npm run icones
 

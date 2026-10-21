@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Orange Black Box — ligne du temps</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
 <script>
   /*
    * Le thème est appliqué AVANT le premier affichage, et c'est pour cela que ce script
@@ -156,6 +157,12 @@
   .bascule-theme:hover { color: var(--texte); border-color: var(--accent); }
   .bascule-theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .bascule-theme .astre { font-size: .95rem; line-height: 1; }
+  /* Le fil : le logo ramène à l'accueil, le lien à la liste. Deux destinations
+     différentes, donc deux liens — et sur une seule ligne, sinon le logo ouvrirait une
+     rangée de grille pour lui tout seul. */
+  .fil { display: flex; align-items: center; gap: .55rem; }
+  .fil .marque { display: block; line-height: 0; opacity: .85; transition: opacity .12s; }
+  .fil .marque:hover { opacity: 1; }
   header a { color: var(--texte-faible); text-decoration: none; font-size: .82rem; }
   header a:hover { color: var(--accent); }
   h1 { font-size: 1.15rem; margin: .4rem 0 .35rem; font-weight: 600; }
@@ -585,7 +592,10 @@
 </head>
 <body>
 <header>
-  <a href="/">← toutes les sessions</a>
+  <div class="fil">
+    <a class="marque" href="/" aria-label="Orange Black Box"><img src="/logo.svg" width="18" height="18" alt=""></a>
+    <a href="/">← toutes les sessions</a>
+  </div>
   <h1 id="titre">…</h1>
   <div class="resume" id="resume"></div>
   <div class="resume">
